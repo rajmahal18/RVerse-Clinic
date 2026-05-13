@@ -1,0 +1,24 @@
+[
+  {
+    "lastName": "Santos",
+    "firstName": "Maria",
+    "middleName": "Luz",
+    "birthDate": "1990-02-21",
+    "gender": "FEMALE",
+    "address": "Poblacion II",
+    "contactNo": "09171234567",
+    "agency": "Municipal Office",
+    "designation": "Staff"
+  },
+  {
+    "lastName": "Dela Cruz",
+    "firstName": "Jomar",
+    "middleName": "Reyes",
+    "birthDate": "1982-11-09",
+    "gender": "MALE",
+    "address": "Barangay East",
+    "contactNo": "09981234567",
+    "agency": "Public Works",
+    "designation": "Driver"
+  }
+]

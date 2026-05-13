@@ -1,0 +1,188 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  NURSE
+  PHARMACIST
+  INVENTORY_STAFF
+  CASHIER
+}
+
+enum PatientGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum VisitStatus {
+  QUEUED
+  IN_PROGRESS
+  FOR_FOLLOW_UP
+  COMPLETED
+  CANCELLED
+}
+
+enum RequestType {
+  CONSULTATION
+  MEDICINES
+  CS_211_MEDICAL_CERTIFICATE
+  REGULAR_MEDICAL_CERTIFICATE
+  VACCINATION
+  EMERGENCY
+}
+
+enum InventoryCategory {
+  MEDICINE
+  VACCINE
+  SUPPLY
+  EQUIPMENT
+}
+
+model Clinic {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  contact   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  patients  Patient[]
+  inventory InventoryItem[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clinicId  String
+  name      String
+  email     String   @unique
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+}
+
+model Patient {
+  id          String        @id @default(cuid())
+  clinicId    String
+  lastName    String
+  firstName   String
+  middleName  String?
+  birthDate   DateTime
+  gender      PatientGender
+  address     String?
+  contactNo   String?
+  agency      String?
+  designation String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visits Visit[]
+
+  @@index([clinicId, lastName, firstName])
+}
+
+model Visit {
+  id              String      @id @default(cuid())
+  patientId       String
+  timeIn          DateTime
+  timeOut         DateTime?
+  chiefComplaint  String?
+  bloodPressure   String?
+  rbs             String?
+  temperature     String?
+  pulseRate       String?
+  respiratoryRate String?
+  diagnosis       String?
+  treatmentPlan   String?
+  progressNotes   String?
+  status          VisitStatus @default(QUEUED)
+  nurseOnDuty     String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  requests VisitRequest[]
+  medicines MedicineRequest[]
+  referrals Referral[]
+  vaccinations VaccinationRecord[]
+
+  @@index([patientId, timeIn])
+}
+
+model VisitRequest {
+  id        String      @id @default(cuid())
+  visitId   String
+  type      RequestType
+  createdAt DateTime    @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@unique([visitId, type])
+}
+
+model MedicineRequest {
+  id          String   @id @default(cuid())
+  visitId     String
+  itemName    String
+  quantity    Int
+  frequency   String?
+  duration    String?
+  status      String   @default("REQUESTED")
+  releasedBy  String?
+  receivedBy  String?
+  createdAt   DateTime @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+model Referral {
+  id                 String   @id @default(cuid())
+  visitId            String
+  medicalHistory     String?
+  reasonForReferral  String?
+  referredTo         String?
+  remarks            String?
+  createdAt          DateTime @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+model VaccinationRecord {
+  id          String   @id @default(cuid())
+  visitId     String
+  vaccine     String
+  givenBy     String?
+  nextDose    DateTime?
+  remarks     String?
+  createdAt   DateTime @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+model InventoryItem {
+  id          String            @id @default(cuid())
+  clinicId    String
+  name        String
+  category    InventoryCategory
+  stock       Int               @default(0)
+  unit        String
+  reorderLevel Int              @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, name])
+  @@index([clinicId, category])
+}

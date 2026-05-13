@@ -1,0 +1,10 @@
+{
+  "name": "The Clinic",
+  "short_name": "Clinic",
+  "description": "Clinic records and inventory system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f9f95",
+  "icons": []
+}
