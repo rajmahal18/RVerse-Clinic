@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: "The Clinic",
   description: "Clinic records and inventory layout prototype",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icons/ocmlogo.png",
+    shortcut: "/icons/ocmlogo.png",
+    apple: "/icons/ocmlogo.png",
+  },
 };
 
 export const viewport: Viewport = {

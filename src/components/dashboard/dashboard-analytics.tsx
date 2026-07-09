@@ -125,14 +125,12 @@ export async function DashboardAnalytics() {
   return (
     <section className="mt-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white">
       <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f0fdfa,white_40%,#fff7ed)] px-5 py-5 md:px-6">
-        <p className="text-sm font-semibold text-primary">Bottom Analytics</p>
+        <p className="text-sm font-semibold text-primary">Patient Insights</p>
         <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <h3 className="text-xl font-black tracking-tight text-slate-950 md:text-2xl">
-              Clean dashboard insights that are useful at a glance
-            </h3>
+            <h3 className="text-xl font-black tracking-tight text-slate-950 md:text-2xl">Patient profile and activity summary</h3>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Start with patient mix, service demand, and current movement before adding deeper operational reports.
+              Review key demographics and service activity from one section of the dashboard.
             </p>
           </div>
         </div>
@@ -144,9 +142,7 @@ export async function DashboardAnalytics() {
             <PieChart className="h-5 w-5 text-primary" />
             <h4 className="text-lg font-bold text-slate-900">Gender Distribution</h4>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Useful for quick demographic checking on the dashboard.
-          </p>
+          <p className="mt-1 text-sm text-slate-500">Current patient profile split based on registered records.</p>
           <GenderChart segments={genderSegments} />
         </div>
 
@@ -166,13 +162,13 @@ export async function DashboardAnalytics() {
                   <Activity className="h-4 w-4 text-amber-500" />
                   <span className="text-sm font-semibold">Top Service</span>
                 </div>
-                <p className="mt-3 text-xl font-black text-slate-950">No data yet</p>
-                <p className="text-sm text-slate-500">add visits to populate service analytics</p>
+                <p className="mt-3 text-xl font-black text-slate-950">Awaiting records</p>
+                <p className="text-sm text-slate-500">Service rankings will appear as visit data is recorded.</p>
               </div>
             </div>
 
             <div className="rounded-3xl border border-dashed border-slate-200 px-4 py-4">
-              <p className="text-sm font-semibold text-slate-500">Best next analytics to add</p>
+              <p className="text-sm font-semibold text-slate-500">Priority Service Views</p>
               <div className="mt-4 grid gap-3">
                 {[
                   "Daily patient volume trend",
@@ -186,16 +182,14 @@ export async function DashboardAnalytics() {
                       </span>
                       <p className="text-sm font-semibold text-slate-700">{item}</p>
                     </div>
-                    <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
-                      Recommended
-                    </span>
+                    <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">Live View</span>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="rounded-3xl bg-slate-50 px-4 py-4">
-              <p className="text-sm font-semibold text-slate-500">Imported Patient Base</p>
+              <p className="text-sm font-semibold text-slate-500">Registered Patient Base</p>
               <div className="mt-4 space-y-3">
                 {[
                   { label: "Female", value: femaleCount, color: "from-pink-500 to-rose-400" },

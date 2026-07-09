@@ -1,23 +1,26 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { PatientTable } from "@/components/patients/patient-table";
-import { getPatientTableRows } from "@/lib/patient-view";
+import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
+import { getTodaysPatientTableRows } from "@/lib/patient-view";
 
 export default async function TodaysPatientsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string }>;
+  searchParams?: Promise<{ page?: string; q?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const page = Number(resolvedSearchParams?.page ?? "1");
-  const result = await getPatientTableRows(undefined, Number.isFinite(page) ? page : 1, 25);
+  const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
+  const result = await getTodaysPatientTableRows(Number.isFinite(page) ? page : 1, 25, searchQuery);
 
   return (
     <AppShell>
       <PageHeader
         title="Today's Patient"
-        eyebrow="Home / Today's Patient"
-        actions={<input className="h-10 rounded-xl border bg-white px-4 text-sm" placeholder="Date / Search Patient Name" />}
+        actions={
+          <DebouncedSearchForm action="/todays-patients" initialQuery={searchQuery} placeholder="Search today's queue" />
+        }
       />
       <PatientTable
         rows={result.rows}
@@ -26,6 +29,7 @@ export default async function TodaysPatientsPage({
         totalCount={result.totalCount}
         pageSize={result.pageSize}
         basePath="/todays-patients"
+        searchQuery={searchQuery}
       />
     </AppShell>
   );

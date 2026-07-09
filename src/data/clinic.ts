@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, ClipboardList, FileHeart, Gauge, Pill, Settings, ShieldPlus, Syringe, UsersRound } from "lucide-react";
+import { Activity, CalendarClock, ClipboardList, FileHeart, Gauge, Pill, Settings, ShieldPlus, Syringe, UserCog, UsersRound } from "lucide-react";
 
 export const navItems = [
   { href: "/", label: "Dashboard", icon: Gauge },
@@ -9,6 +9,8 @@ export const navItems = [
   { href: "/emergency-cases", label: "Emergency Cases", icon: ShieldPlus },
   { href: "/inventory", label: "Inventory", icon: Pill },
   { href: "/reports", label: "Reports", icon: FileHeart },
+  { href: "/activity-logs", label: "Activity Logs", icon: Activity },
+  { href: "/accounts", label: "Accounts", icon: UserCog },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

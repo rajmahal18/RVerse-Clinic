@@ -1,21 +1,21 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { PatientProfile } from "@/components/patients/patient-profile";
+import { PageHeader } from "@/components/layout/page-header";
+import { createPatientAction } from "@/app/actions/workflow";
+import { PatientForm } from "@/components/patients/patient-form";
 import { ActionAlert } from "@/components/ui/action-alert";
 
-export default async function PatientDetailPage({
-  params,
+export default async function NewPatientPage({
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
   searchParams?: Promise<{ error?: string; message?: string }>;
 }) {
-  const { id } = await params;
   const resolvedSearchParams = await searchParams;
 
   return (
     <AppShell>
+      <PageHeader title="Register Patient" />
       <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
-      <PatientProfile id={id} />
+      <PatientForm action={createPatientAction} submitLabel="Create Patient" />
     </AppShell>
   );
 }

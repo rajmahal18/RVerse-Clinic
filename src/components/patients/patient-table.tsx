@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { PatientTableRow } from "@/lib/patient-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,17 @@ type PatientTableProps = {
   totalCount?: number;
   pageSize?: number;
   basePath?: string;
+  searchQuery?: string;
 };
 
-function buildPageHref(basePath: string, page: number) {
-  return `${basePath}?page=${page}`;
+function buildPageHref(basePath: string, page: number, searchQuery?: string) {
+  const params = new URLSearchParams({ page: String(page) });
+
+  if (searchQuery?.trim()) {
+    params.set("q", searchQuery.trim());
+  }
+
+  return `${basePath}?${params.toString()}`;
 }
 
 export function PatientTable({
@@ -24,6 +31,7 @@ export function PatientTable({
   totalCount = rows.length,
   pageSize = rows.length,
   basePath = "/patients",
+  searchQuery,
 }: PatientTableProps) {
   const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = totalCount === 0 ? 0 : Math.min(currentPage * pageSize, totalCount);
@@ -49,7 +57,7 @@ export function PatientTable({
                 "Agency",
                 "Designation",
                 "Request",
-                "Action",
+                "",
               ].map((header) => (
                 <th key={header} className="px-4 py-3 font-bold">
                   {header}
@@ -59,26 +67,70 @@ export function PatientTable({
           </thead>
           <tbody className="divide-y">
             {rows.map((patient) => (
-              <tr key={patient.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-bold">{patient.lastName}</td>
-                <td className="px-4 py-3">{patient.firstName}</td>
-                <td className="px-4 py-3">{patient.middleName}</td>
-                <td className="px-4 py-3">{patient.age}</td>
-                <td className="px-4 py-3">{patient.birthDate}</td>
-                <td className="px-4 py-3">{patient.gender}</td>
-                <td className="px-4 py-3">{patient.address}</td>
-                <td className="px-4 py-3">{patient.contact}</td>
-                <td className="px-4 py-3">{patient.agency}</td>
-                <td className="px-4 py-3">{patient.designation}</td>
-                <td className="px-4 py-3">
-                  <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
+              <tr key={patient.id} className="group hover:bg-slate-50">
+                <td className="font-bold">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 text-slate-950 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.lastName}
+                  </Link>
                 </td>
-                <td className="px-4 py-3">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/patients/${patient.id}`}>
-                      <Eye className="h-4 w-4" /> View
-                    </Link>
-                  </Button>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.firstName}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.middleName}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.age}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.birthDate}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.gender}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.address}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.contact}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.agency}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    {patient.designation}
+                  </Link>
+                </td>
+                <td>
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
+                  </Link>
+                </td>
+                <td>
+                  <Link
+                    href={`/patients/${patient.id}`}
+                    aria-label={`Open patient record for ${patient.lastName}, ${patient.firstName}`}
+                    className="grid place-items-center px-4 py-3 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -102,20 +154,20 @@ export function PatientTable({
           <Button asChild variant="outline" size="sm" disabled={currentPage <= 1}>
             <Link
               aria-disabled={currentPage <= 1}
-              href={currentPage <= 1 ? basePath : buildPageHref(basePath, currentPage - 1)}
+              href={currentPage <= 1 ? basePath : buildPageHref(basePath, currentPage - 1, searchQuery)}
             >
               Previous
             </Link>
           </Button>
           {pageNumbers.map((page) => (
             <Button key={page} asChild variant={page === currentPage ? "default" : "outline"} size="sm">
-              <Link href={buildPageHref(basePath, page)}>{page}</Link>
+              <Link href={buildPageHref(basePath, page, searchQuery)}>{page}</Link>
             </Button>
           ))}
           <Button asChild variant="outline" size="sm" disabled={currentPage >= totalPages}>
             <Link
               aria-disabled={currentPage >= totalPages}
-              href={currentPage >= totalPages ? basePath : buildPageHref(basePath, currentPage + 1)}
+              href={currentPage >= totalPages ? basePath : buildPageHref(basePath, currentPage + 1, searchQuery)}
             >
               Next
             </Link>

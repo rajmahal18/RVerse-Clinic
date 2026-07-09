@@ -1,0 +1,864 @@
+"use server";
+
+import {
+  InventoryCategory,
+  Prisma,
+  RequestType,
+  UserRole,
+  VisitStatus,
+} from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { clearAuthCookie, createSessionToken, setAuthCookie } from "@/lib/auth";
+import { appendActionFeedback, getActionErrorMessage } from "@/lib/action-feedback";
+import { writeActivityLog } from "@/lib/activity-log";
+import { hashPassword, isStrongPassword, verifyPassword } from "@/lib/password";
+import { prisma } from "@/lib/prisma";
+
+const MAIN_CLINIC_ID = "main-clinic";
+
+function requiredString(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? "").trim();
+
+  if (!value) {
+    throw new Error(`${key} is required.`);
+  }
+
+  return value;
+}
+
+function optionalString(formData: FormData, key: string) {
+  const value = String(formData.get(key) ?? "").trim();
+  return value || null;
+}
+
+function parseDate(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Invalid date value.");
+  }
+
+  return parsed;
+}
+
+async function ensureClinic() {
+  return prisma.clinic.upsert({
+    where: { id: MAIN_CLINIC_ID },
+    update: {},
+    create: {
+      id: MAIN_CLINIC_ID,
+      name: "The Clinic",
+      address: "",
+      contact: "",
+      email: "",
+    },
+  });
+}
+
+function isRequestType(value: string): value is RequestType {
+  return value in RequestType;
+}
+
+function isVisitStatus(value: string): value is VisitStatus {
+  return value in VisitStatus;
+}
+
+function isUserRole(value: string): value is UserRole {
+  return value in UserRole;
+}
+
+function isInventoryCategory(value: string): value is InventoryCategory {
+  return value in InventoryCategory;
+}
+
+function formatLogDate(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function getChangedFields(
+  before: Record<string, string | null>,
+  after: Record<string, string | null>
+) {
+  return Object.fromEntries(
+    Object.entries(after)
+      .filter(([key, value]) => (before[key] ?? null) !== (value ?? null))
+      .map(([key, value]) => [
+        key,
+        {
+          before: before[key] ?? null,
+          after: value ?? null,
+        },
+      ])
+  );
+}
+
+async function runAction<T>(
+  failurePath: string,
+  module: string,
+  action: string,
+  task: () => Promise<T>,
+  entity?: { type?: string; id?: string | null }
+) {
+  try {
+    return await task();
+  } catch (error) {
+    const message = getActionErrorMessage(error);
+
+    await writeActivityLog({
+      module,
+      action,
+      status: "FAILED",
+      entityType: entity?.type,
+      entityId: entity?.id,
+      description: message,
+    });
+
+    redirect(appendActionFeedback(failurePath, "error", message));
+  }
+}
+
+export async function createPatientAction(formData: FormData) {
+  const patient = await runAction("/patients/new", "Patient Records", "Create patient", async () => {
+    const clinic = await ensureClinic();
+    const createdPatient = await prisma.patient.create({
+      data: {
+        clinicId: clinic.id,
+        lastName: requiredString(formData, "lastName"),
+        firstName: requiredString(formData, "firstName"),
+        middleName: optionalString(formData, "middleName"),
+        birthDate: parseDate(requiredString(formData, "birthDate")),
+        gender: requiredString(formData, "gender") as Prisma.PatientCreateInput["gender"],
+        address: optionalString(formData, "address"),
+        contactNo: optionalString(formData, "contactNo"),
+        agency: optionalString(formData, "agency"),
+        designation: optionalString(formData, "designation"),
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: clinic.id,
+      module: "Patient Records",
+      action: "Create patient",
+      entityType: "Patient",
+      entityId: createdPatient.id,
+      description: `Created patient record for ${createdPatient.lastName}, ${createdPatient.firstName}.`,
+    });
+
+    return createdPatient;
+  });
+
+  revalidatePath("/patients");
+  redirect(`/patients/${patient.id}`);
+}
+
+export async function updatePatientAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+
+  await runAction(`/patients/${patientId}/edit`, "Patient Records", "Update patient", async () => {
+    const currentPatient = await prisma.patient.findUnique({
+      where: { id: patientId },
+    });
+
+    if (!currentPatient) {
+      throw new Error("The selected record was not found.");
+    }
+
+    const nextBirthDate = parseDate(requiredString(formData, "birthDate"));
+    const nextValues = {
+      lastName: requiredString(formData, "lastName"),
+      firstName: requiredString(formData, "firstName"),
+      middleName: optionalString(formData, "middleName"),
+      birthDate: formatLogDate(nextBirthDate),
+      gender: requiredString(formData, "gender"),
+      address: optionalString(formData, "address"),
+      contactNo: optionalString(formData, "contactNo"),
+      agency: optionalString(formData, "agency"),
+      designation: optionalString(formData, "designation"),
+    };
+    const previousValues = {
+      lastName: currentPatient.lastName,
+      firstName: currentPatient.firstName,
+      middleName: currentPatient.middleName,
+      birthDate: formatLogDate(currentPatient.birthDate),
+      gender: currentPatient.gender,
+      address: currentPatient.address,
+      contactNo: currentPatient.contactNo,
+      agency: currentPatient.agency,
+      designation: currentPatient.designation,
+    };
+
+    const patient = await prisma.patient.update({
+      where: { id: patientId },
+      data: {
+        lastName: nextValues.lastName,
+        firstName: nextValues.firstName,
+        middleName: nextValues.middleName,
+        birthDate: nextBirthDate,
+        gender: nextValues.gender as Prisma.PatientUpdateInput["gender"],
+        address: nextValues.address,
+        contactNo: nextValues.contactNo,
+        agency: nextValues.agency,
+        designation: nextValues.designation,
+      },
+    });
+    const changes = getChangedFields(previousValues, nextValues);
+
+    await writeActivityLog({
+      clinicId: patient.clinicId,
+      module: "Patient Records",
+      action: "Update patient",
+      entityType: "Patient",
+      entityId: patient.id,
+      description: `Updated patient record for ${patient.lastName}, ${patient.firstName}.`,
+      metadata: { changes },
+    });
+  }, { type: "Patient", id: patientId });
+
+  revalidatePath("/patients");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function createVisitAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  await runAction(`/patients/${patientId}`, "Patient Records", "Start visit", async () => {
+    const requestTypeValue = requiredString(formData, "requestType");
+    const requestType = isRequestType(requestTypeValue) ? requestTypeValue : RequestType.CONSULTATION;
+    const nurseOnDuty = optionalString(formData, "nurseOnDuty");
+
+    const visit = await prisma.visit.create({
+      data: {
+        patientId,
+        timeIn: new Date(),
+        status: VisitStatus.QUEUED,
+        nurseOnDuty,
+        requests: {
+          create: {
+            type: requestType,
+          },
+        },
+      },
+      include: {
+        patient: true,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: visit.patient.clinicId,
+      module: "Patient Records",
+      action: "Start visit",
+      entityType: "Visit",
+      entityId: visit.id,
+      description: `Started visit for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
+    });
+  }, { type: "Patient", id: patientId });
+
+  revalidatePath("/todays-patients");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function updateVisitAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(`/patients/${patientId}`, "Patient Records", "Update visit", async () => {
+    const requestTypeValue = requiredString(formData, "requestType");
+    const statusValue = requiredString(formData, "status");
+    const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
+
+    const visit = await prisma.$transaction(async (tx) => {
+      const updatedVisit = await tx.visit.update({
+        where: { id: visitId },
+        data: {
+          chiefComplaint: optionalString(formData, "chiefComplaint"),
+          bloodPressure: optionalString(formData, "bloodPressure"),
+          rbs: optionalString(formData, "rbs"),
+          temperature: optionalString(formData, "temperature"),
+          pulseRate: optionalString(formData, "pulseRate"),
+          respiratoryRate: optionalString(formData, "respiratoryRate"),
+          diagnosis: optionalString(formData, "diagnosis"),
+          treatmentPlan: optionalString(formData, "treatmentPlan"),
+          progressNotes: optionalString(formData, "progressNotes"),
+          nurseOnDuty: optionalString(formData, "nurseOnDuty"),
+          status,
+          timeOut: status === VisitStatus.COMPLETED ? new Date() : null,
+        },
+        include: {
+          patient: true,
+        },
+      });
+
+      if (isRequestType(requestTypeValue)) {
+        const existingRequest = await tx.visitRequest.findFirst({
+          where: {
+            visitId,
+            type: requestTypeValue,
+          },
+        });
+
+        if (!existingRequest) {
+          await tx.visitRequest.create({
+            data: {
+              visitId,
+              type: requestTypeValue,
+            },
+          });
+        }
+      }
+
+      return updatedVisit;
+    });
+
+    await writeActivityLog({
+      clinicId: visit.patient.clinicId,
+      module: "Patient Records",
+      action: "Update visit",
+      entityType: "Visit",
+      entityId: visit.id,
+      description: `Updated visit for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
+      metadata: { status },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/todays-patients");
+  revalidatePath("/follow-ups");
+  revalidatePath("/vaccination");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function updateVisitStatusAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+
+  await runAction(`/patients/${patientId}`, "Patient Records", "Update visit status", async () => {
+    const statusValue = requiredString(formData, "status");
+    const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
+    const currentVisit = await prisma.visit.findUnique({
+      where: { id: visitId },
+      include: {
+        patient: true,
+      },
+    });
+
+    if (!currentVisit) {
+      throw new Error("The selected visit was not found.");
+    }
+
+    const visit = await prisma.visit.update({
+      where: { id: visitId },
+      data: {
+        status,
+        timeOut: status === VisitStatus.COMPLETED ? new Date() : null,
+      },
+      include: {
+        patient: true,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: visit.patient.clinicId,
+      module: "Patient Records",
+      action: "Update visit status",
+      entityType: "Visit",
+      entityId: visit.id,
+      description: `Changed visit status for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
+      metadata: {
+        changes: {
+          status: {
+            before: currentVisit.status,
+            after: status,
+          },
+        },
+      },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/todays-patients");
+  revalidatePath("/follow-ups");
+  revalidatePath("/vaccination");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function createInventoryItemAction(formData: FormData) {
+  await runAction("/inventory", "Inventory", "Create item", async () => {
+    const clinic = await ensureClinic();
+    const categoryValue = requiredString(formData, "category");
+    const category = isInventoryCategory(categoryValue) ? categoryValue : InventoryCategory.SUPPLY;
+    const stock = Number(formData.get("stock") ?? 0) || 0;
+
+    const item = await prisma.$transaction(async (tx) => {
+      const createdItem = await tx.inventoryItem.create({
+        data: {
+          clinicId: clinic.id,
+          name: requiredString(formData, "name"),
+          category,
+          stock,
+          unit: requiredString(formData, "unit"),
+          reorderLevel: Number(formData.get("reorderLevel") ?? 0) || 0,
+        },
+      });
+
+      if (stock > 0) {
+        await tx.inventoryMovement.create({
+          data: {
+            inventoryItemId: createdItem.id,
+            quantityChange: stock,
+            reason: "Opening stock",
+          },
+        });
+      }
+
+      return createdItem;
+    });
+
+    await writeActivityLog({
+      clinicId: clinic.id,
+      module: "Inventory",
+      action: "Create item",
+      entityType: "InventoryItem",
+      entityId: item.id,
+      description: `Created inventory item ${item.name}.`,
+      metadata: { stock, category },
+    });
+  });
+
+  revalidatePath("/inventory");
+  redirect("/inventory");
+}
+
+export async function requestMedicineAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(`/patients/${patientId}`, "Medicines", "Request medicine", async () => {
+    const itemName = requiredString(formData, "itemName");
+    const quantity = Number(formData.get("quantity") ?? 0);
+
+    if (quantity <= 0) {
+      throw new Error("Quantity must be greater than zero.");
+    }
+
+    const medicineRequest = await prisma.medicineRequest.create({
+      data: {
+        visitId,
+        itemName,
+        quantity,
+        frequency: optionalString(formData, "frequency"),
+        duration: optionalString(formData, "duration"),
+        status: "REQUESTED",
+      },
+      include: {
+        visit: {
+          include: {
+            patient: true,
+          },
+        },
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: medicineRequest.visit.patient.clinicId,
+      module: "Medicines",
+      action: "Request medicine",
+      entityType: "MedicineRequest",
+      entityId: medicineRequest.id,
+      description: `Requested ${quantity} ${itemName} for ${medicineRequest.visit.patient.lastName}, ${medicineRequest.visit.patient.firstName}.`,
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/inventory");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function dispenseMedicineAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const medicineRequestId = requiredString(formData, "medicineRequestId");
+  await runAction(`/patients/${patientId}`, "Medicines", "Dispense medicine", async () => {
+    const releasedBy = optionalString(formData, "releasedBy") ?? "Clinic staff";
+    const receivedBy = optionalString(formData, "receivedBy") ?? "Patient";
+
+    const medicineRequest = await prisma.$transaction(async (tx) => {
+      const request = await tx.medicineRequest.findUnique({
+        where: { id: medicineRequestId },
+        include: {
+          visit: {
+            include: {
+              patient: true,
+            },
+          },
+        },
+      });
+
+      if (!request) {
+        throw new Error("Medicine request not found.");
+      }
+
+      const item = await tx.inventoryItem.findUnique({
+        where: {
+          clinicId_name: {
+            clinicId: request.visit.patient.clinicId,
+            name: request.itemName,
+          },
+        },
+      });
+
+      if (!item) {
+        throw new Error("Matching inventory item not found.");
+      }
+
+      if (item.stock < request.quantity) {
+        throw new Error("Insufficient stock for this request.");
+      }
+
+      await tx.inventoryItem.update({
+        where: { id: item.id },
+        data: {
+          stock: {
+            decrement: request.quantity,
+          },
+        },
+      });
+
+      await tx.inventoryMovement.create({
+        data: {
+          inventoryItemId: item.id,
+          medicineRequestId: request.id,
+          quantityChange: -request.quantity,
+          reason: `Medicine release for visit ${request.visitId}`,
+        },
+      });
+
+      return tx.medicineRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "RELEASED",
+          releasedBy,
+          receivedBy,
+        },
+        include: {
+          visit: {
+            include: {
+              patient: true,
+            },
+          },
+        },
+      });
+    });
+
+    await writeActivityLog({
+      clinicId: medicineRequest.visit.patient.clinicId,
+      module: "Medicines",
+      action: "Dispense medicine",
+      entityType: "MedicineRequest",
+      entityId: medicineRequest.id,
+      description: `Dispensed ${medicineRequest.quantity} ${medicineRequest.itemName}.`,
+      metadata: { releasedBy, receivedBy },
+    });
+  }, { type: "MedicineRequest", id: medicineRequestId });
+
+  revalidatePath("/inventory");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function scheduleFollowUpAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(`/patients/${patientId}`, "Follow-ups", "Schedule follow-up", async () => {
+    const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
+
+    const followUp = await prisma.$transaction(async (tx) => {
+      const createdFollowUp = await tx.followUp.create({
+        data: {
+          visitId,
+          scheduledFor,
+          remarks: optionalString(formData, "remarks"),
+        },
+        include: {
+          visit: {
+            include: {
+              patient: true,
+            },
+          },
+        },
+      });
+
+      await tx.visit.update({
+        where: { id: visitId },
+        data: {
+          status: VisitStatus.FOR_FOLLOW_UP,
+        },
+      });
+
+      return createdFollowUp;
+    });
+
+    await writeActivityLog({
+      clinicId: followUp.visit.patient.clinicId,
+      module: "Follow-ups",
+      action: "Schedule follow-up",
+      entityType: "FollowUp",
+      entityId: followUp.id,
+      description: `Scheduled follow-up for ${followUp.visit.patient.lastName}, ${followUp.visit.patient.firstName}.`,
+      metadata: { scheduledFor: scheduledFor.toISOString() },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/follow-ups");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function addVaccinationRecordAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(`/patients/${patientId}`, "Vaccination", "Add vaccination record", async () => {
+    const vaccine = requiredString(formData, "vaccine");
+    const nextDoseValue = optionalString(formData, "nextDose");
+
+    const record = await prisma.$transaction(async (tx) => {
+      const vaccinationRecord = await tx.vaccinationRecord.create({
+        data: {
+          visitId,
+          vaccine,
+          givenBy: optionalString(formData, "givenBy"),
+          nextDose: nextDoseValue ? parseDate(nextDoseValue) : null,
+          remarks: optionalString(formData, "remarks"),
+        },
+        include: {
+          visit: {
+            include: {
+              patient: true,
+            },
+          },
+        },
+      });
+
+      const existingVaccinationRequest = await tx.visitRequest.findFirst({
+        where: {
+          visitId,
+          type: RequestType.VACCINATION,
+        },
+      });
+
+      if (!existingVaccinationRequest) {
+        await tx.visitRequest.create({
+          data: {
+            visitId,
+            type: RequestType.VACCINATION,
+          },
+        });
+      }
+
+      return vaccinationRecord;
+    });
+
+    await writeActivityLog({
+      clinicId: record.visit.patient.clinicId,
+      module: "Vaccination",
+      action: "Add vaccination record",
+      entityType: "VaccinationRecord",
+      entityId: record.id,
+      description: `Added ${vaccine} vaccination record.`,
+      metadata: { nextDose: record.nextDose?.toISOString() ?? null },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/vaccination");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function updateClinicSettingsAction(formData: FormData) {
+  await runAction("/settings", "Settings", "Update clinic settings", async () => {
+    const clinic = await ensureClinic();
+
+    const updatedClinic = await prisma.clinic.update({
+      where: { id: clinic.id },
+      data: {
+        name: requiredString(formData, "name"),
+        address: optionalString(formData, "address"),
+        contact: optionalString(formData, "contact"),
+        email: optionalString(formData, "email"),
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: updatedClinic.id,
+      module: "Settings",
+      action: "Update clinic settings",
+      entityType: "Clinic",
+      entityId: updatedClinic.id,
+      description: "Updated clinic profile settings.",
+    });
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/");
+  redirect("/settings");
+}
+
+export async function createUserAction(formData: FormData) {
+  const redirectTo = optionalString(formData, "redirectTo") ?? "/settings";
+  await runAction(redirectTo, "Accounts", "Create user", async () => {
+    const clinic = await ensureClinic();
+    const roleValue = requiredString(formData, "role");
+    const role = isUserRole(roleValue) ? roleValue : UserRole.NURSE;
+    const password = optionalString(formData, "password");
+
+    if (password && !isStrongPassword(password)) {
+      throw new Error("Password does not meet the requirements.");
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        clinicId: clinic.id,
+        name: requiredString(formData, "name"),
+        email: requiredString(formData, "email").toLowerCase(),
+        passwordHash: password ? hashPassword(password) : null,
+        role,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: clinic.id,
+      module: "Accounts",
+      action: "Create user",
+      entityType: "User",
+      entityId: user.id,
+      description: `Created user account for ${user.name}.`,
+      metadata: { role },
+    });
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/accounts");
+  redirect(redirectTo);
+}
+
+export async function toggleUserStatusAction(formData: FormData) {
+  const userId = requiredString(formData, "userId");
+  const nextActiveState = String(formData.get("isActive") ?? "") === "true";
+  const redirectTo = String(formData.get("redirectTo") ?? "/settings");
+
+  await runAction(redirectTo, "Accounts", nextActiveState ? "Activate user" : "Deactivate user", async () => {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isActive: nextActiveState,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: user.clinicId,
+      module: "Accounts",
+      action: nextActiveState ? "Activate user" : "Deactivate user",
+      entityType: "User",
+      entityId: user.id,
+      description: `${nextActiveState ? "Activated" : "Deactivated"} user account for ${user.name}.`,
+    });
+  }, { type: "User", id: userId });
+
+  revalidatePath("/settings");
+  revalidatePath("/accounts");
+  redirect(redirectTo);
+}
+
+export async function loginAction(formData: FormData) {
+  const next = optionalString(formData, "next") ?? "/";
+  const destination = await runAction("/login", "Authentication", "Sign in", async () => {
+    const email = requiredString(formData, "email").toLowerCase();
+    const password = requiredString(formData, "password");
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+      throw new Error("Invalid email or password.");
+    }
+
+    await setAuthCookie(
+      createSessionToken({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      })
+    );
+
+    await writeActivityLog({
+      clinicId: user.clinicId,
+      userId: user.id,
+      module: "Authentication",
+      action: "Sign in",
+      entityType: "User",
+      entityId: user.id,
+      description: `${user.name} signed in.`,
+    });
+
+    return next.startsWith("/") ? next : "/";
+  });
+
+  redirect(destination);
+}
+
+export async function createAccountAction(formData: FormData) {
+  await runAction("/login?mode=create-account", "Accounts", "Request account", async () => {
+    const clinic = await ensureClinic();
+    const name = requiredString(formData, "name");
+    const email = requiredString(formData, "email").toLowerCase();
+    const password = requiredString(formData, "password");
+    const confirmPassword = requiredString(formData, "confirmPassword");
+
+    if (password !== confirmPassword) {
+      throw new Error("Passwords do not match.");
+    }
+
+    if (!isStrongPassword(password)) {
+      throw new Error("Password does not meet the requirements.");
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new Error("An account with this email already exists.");
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        clinicId: clinic.id,
+        name,
+        email,
+        passwordHash: hashPassword(password),
+        role: UserRole.NURSE,
+        isActive: false,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: clinic.id,
+      module: "Accounts",
+      action: "Request account",
+      entityType: "User",
+      entityId: user.id,
+      description: `Submitted account request for ${user.name}.`,
+    });
+  });
+
+  revalidatePath("/accounts");
+  redirect(`/login?message=${encodeURIComponent("Account request submitted. An admin must activate the account before sign in.")}`);
+}
+
+export async function logoutAction() {
+  await writeActivityLog({
+    module: "Authentication",
+    action: "Sign out",
+    description: "User signed out.",
+  });
+  await clearAuthCookie();
+  redirect("/login");
+}

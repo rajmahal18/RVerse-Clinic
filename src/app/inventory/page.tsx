@@ -1,9 +1,40 @@
-import { Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { createInventoryItemAction } from "@/app/actions/workflow";
 import { PageHeader } from "@/components/layout/page-header";
 import { InventoryTable } from "@/components/inventory/inventory-table";
-import { Button } from "@/components/ui/button";
+import { AddInventoryItemModal } from "@/components/inventory/add-inventory-item-modal";
+import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
+import { ActionAlert } from "@/components/ui/action-alert";
+import { getInventoryLedgerData } from "@/lib/patient-view";
 
-export default function InventoryPage() {
-  return <AppShell><PageHeader title="Inventory" eyebrow="Home / Inventory" actions={<><input className="h-10 rounded-xl border bg-white px-4 text-sm" placeholder="Search item" /><Button><Plus className="h-4 w-4" /> Add Item</Button></>} /><InventoryTable /></AppShell>;
+export default async function InventoryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string; month?: string; error?: string; message?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
+  const selectedMonth = resolvedSearchParams?.month?.trim() ?? "";
+  const ledger = await getInventoryLedgerData(searchQuery, selectedMonth);
+
+  return (
+    <AppShell>
+      <PageHeader
+        title="Inventory"
+        actions={
+          <>
+            <DebouncedSearchForm
+              action="/inventory"
+              initialQuery={searchQuery}
+              placeholder="Search item"
+              preserveParams={{ month: selectedMonth }}
+            />
+            <AddInventoryItemModal action={createInventoryItemAction} />
+          </>
+        }
+      />
+      <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
+      <InventoryTable ledger={ledger} searchQuery={searchQuery} />
+    </AppShell>
+  );
 }
