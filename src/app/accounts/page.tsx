@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getClinicSettingsData } from "@/lib/patient-view";
 
 function roleLabel(role: string) {
-  return role.replaceAll("_", " ");
+  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
 }
 
 export default async function AccountsPage({
@@ -121,7 +121,7 @@ export default async function AccountsPage({
               className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               placeholder="Temporary password"
             />
-            <select name="role" defaultValue={UserRole.NURSE} className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+            <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
               {Object.values(UserRole).map((role) => (
                 <option key={role} value={role}>
                   {roleLabel(role)}

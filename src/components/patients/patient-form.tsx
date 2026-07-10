@@ -1,5 +1,6 @@
 import { PatientGender } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { MeasurementFields } from "@/components/patients/measurement-fields";
 
 type PatientFormValues = {
   patientId?: string;
@@ -12,6 +13,9 @@ type PatientFormValues = {
   contactNo?: string;
   agency?: string;
   designation?: string;
+  civilStatus?: string;
+  heightCm?: number | null;
+  weightKg?: number | null;
 };
 
 export function PatientForm({
@@ -66,6 +70,17 @@ export function PatientForm({
         Designation
         <input name="designation" defaultValue={values?.designation} className="rounded-xl border px-3 py-2 font-normal" />
       </label>
+      <label className="grid gap-2 text-sm font-semibold text-slate-700">
+        Civil status
+        <select name="civilStatus" defaultValue={values?.civilStatus ?? "SINGLE"} className="rounded-xl border px-3 py-2 font-normal">
+          <option value="SINGLE">Single</option>
+          <option value="MARRIED">Married</option>
+          <option value="WIDOWED">Widowed</option>
+          <option value="SEPARATED">Separated</option>
+          <option value="DIVORCED">Divorced</option>
+        </select>
+      </label>
+      <MeasurementFields initialHeightCm={values?.heightCm} initialWeightKg={values?.weightKg} />
       <div className="md:col-span-2">
         <Button type="submit">{submitLabel}</Button>
       </div>

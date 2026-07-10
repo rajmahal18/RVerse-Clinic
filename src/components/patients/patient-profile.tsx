@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardPlus, Pencil, Save, Syringe } from "lucide-react";
+import { CheckCircle2, ClipboardPlus, Pencil, Plus, Save, Syringe } from "lucide-react";
 import { RequestType, VisitStatus } from "@prisma/client";
 import {
   addVaccinationRecordAction,
+  addVaccineOptionAction,
+  completeVisitAction,
   createVisitAction,
   dispenseMedicineAction,
   requestMedicineAction,
@@ -11,20 +13,27 @@ import {
   updateVisitAction,
   updateVisitStatusAction,
 } from "@/app/actions/workflow";
-import { getInventoryOptions, getPatientWorkflowProfile } from "@/lib/patient-view";
+import { getInventoryOptions, getPatientWorkflowProfile, getVaccineOptions } from "@/lib/patient-view";
 import { NewVisitModal } from "@/components/patients/new-visit-modal";
 import { PatientRecordTabs } from "@/components/patients/patient-record-tabs";
 import { VisitStatusModal } from "@/components/patients/visit-status-modal";
+import { ChiefComplaintField } from "@/components/patients/chief-complaint-field";
+import { ServiceRequestedFields } from "@/components/patients/service-requested-fields";
+import { VaccinationFields } from "@/components/patients/vaccination-fields";
+import { MedicineScheduleFields } from "@/components/patients/medicine-schedule-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const requestOptions = [
-  { value: RequestType.CONSULTATION, label: "Consultation" },
-  { value: RequestType.MEDICINES, label: "Medicines" },
-  { value: RequestType.CS_211_MEDICAL_CERTIFICATE, label: "CS 211 Medical Certificate" },
-  { value: RequestType.REGULAR_MEDICAL_CERTIFICATE, label: "Regular Medical Certificate" },
-  { value: RequestType.VACCINATION, label: "Vaccination" },
+  { value: RequestType.CONSULTATION, label: "Medical Consultation" },
+  { value: RequestType.MEDICINES, label: "Provision of Medicine" },
+  { value: RequestType.VACCINATION, label: "Provision of Vaccine" },
+  { value: RequestType.REGULAR_MEDICAL_CERTIFICATE, label: "Medical Certificate" },
+  { value: RequestType.CS_211_MEDICAL_CERTIFICATE, label: "CS 211" },
+  { value: RequestType.MEDICAL_ALLOWANCE, label: "Medical Allowance" },
+  { value: RequestType.EMERGENCY, label: "Emergency Medical Services" },
+  { value: RequestType.REFERRAL, label: "Referral" },
 ];
 
 const statusOptions = [
@@ -43,15 +52,25 @@ export async function PatientProfile({ id }: { id: string }) {
   }
 
   const inventoryOptions = await getInventoryOptions(patient.clinicId);
+  const vaccineOptions = await getVaccineOptions(patient.clinicId);
   const latestVisit = patient.latestVisit;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
-          <h2 className="text-3xl font-black tracking-tight uppercase">
-            {patient.lastName}, {patient.firstName} {patient.middleName}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-3xl font-black tracking-tight uppercase">
+              {patient.lastName}, {patient.firstName} {patient.middleName}
+            </h2>
+            {patient.gender === "Male" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-sm font-black text-blue-700 ring-1 ring-blue-200">♂ Male</span>
+            ) : patient.gender === "Female" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-pink-50 px-2.5 py-1 text-sm font-black text-pink-700 ring-1 ring-pink-200">♀ Female</span>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-sm font-bold text-violet-700 ring-1 ring-violet-200">Other</span>
+            )}
+          </div>
           <p className="text-slate-600">
             {patient.age} / {patient.gender} / {patient.birthDate}
           </p>
@@ -67,7 +86,7 @@ export async function PatientProfile({ id }: { id: string }) {
             action={createVisitAction}
             patientId={patient.id}
             requestOptions={requestOptions}
-            defaultRequestType={RequestType.CONSULTATION}
+            defaultRequestTypes={[RequestType.CONSULTATION]}
           />
         </div>
       </div>
@@ -97,6 +116,10 @@ export async function PatientProfile({ id }: { id: string }) {
             { label: "Contact", value: patient.contact },
             { label: "Agency", value: patient.agency },
             { label: "Designation", value: patient.designation },
+            { label: "Civil Status", value: patient.civilStatus },
+            { label: "Height", value: patient.heightCm ? `${patient.heightCm.toFixed(1)} cm` : "Not provided" },
+            { label: "Weight", value: patient.weightKg ? `${patient.weightKg.toFixed(1)} kg` : "Not provided" },
+            { label: "BMI", value: patient.bmi ? patient.bmi.toFixed(1) : "Not available" },
           ].map((item) => (
             <div key={item.label} className="px-4 py-3">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
@@ -128,20 +151,6 @@ export async function PatientProfile({ id }: { id: string }) {
                       <input value={latestVisit.timeIn} readOnly className="rounded-xl border bg-slate-50 px-3 py-2 font-normal" />
                     </label>
                     <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                      Request
-                      <select
-                        name="requestType"
-                        defaultValue={latestVisit.requests[0]?.type ?? RequestType.CONSULTATION}
-                        className="rounded-xl border px-3 py-2 font-normal"
-                      >
-                        {requestOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-2 text-sm font-semibold text-slate-700">
                       Status
                       <select name="status" defaultValue={latestVisit.statusCode} className="rounded-xl border px-3 py-2 font-normal">
                         {statusOptions.map((option) => (
@@ -156,10 +165,11 @@ export async function PatientProfile({ id }: { id: string }) {
                     Assigned staff
                     <input name="nurseOnDuty" defaultValue={latestVisit.nurseOnDuty} className="rounded-xl border px-3 py-2 font-normal" />
                   </label>
-                  <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                    Chief complaint
-                    <textarea name="chiefComplaint" defaultValue={latestVisit.chiefComplaint} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
-                  </label>
+                  <ServiceRequestedFields
+                    options={requestOptions}
+                    defaultValues={latestVisit.requests.map((request) => request.type)}
+                  />
+                  <ChiefComplaintField initialValue={latestVisit.chiefComplaint} />
                   <label className="grid gap-2 text-sm font-semibold text-slate-700">
                     Diagnosis
                     <textarea name="diagnosis" defaultValue={latestVisit.diagnosis} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
@@ -201,9 +211,16 @@ export async function PatientProfile({ id }: { id: string }) {
                     </div>
                   </div>
 
-                  <Button type="submit">
-                    <Save className="h-4 w-4" /> Save Visit
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="submit">
+                      <Save className="h-4 w-4" /> Save Visit
+                    </Button>
+                    {latestVisit.statusCode !== VisitStatus.COMPLETED && latestVisit.statusCode !== VisitStatus.CANCELLED ? (
+                      <Button type="submit" formAction={completeVisitAction} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                        <CheckCircle2 className="h-4 w-4" /> Mark as completed
+                      </Button>
+                    ) : null}
+                  </div>
                 </section>
               </form>
             </CardContent>
@@ -219,20 +236,25 @@ export async function PatientProfile({ id }: { id: string }) {
                   <CardTitle>Medicine Requests</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <form action={requestMedicineAction} className="grid gap-3 md:grid-cols-[1fr_90px_120px_120px_auto]">
+                  <form action={requestMedicineAction} className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_90px_minmax(170px,220px)_minmax(150px,200px)_auto]">
                     <input type="hidden" name="patientId" value={patient.id} />
                     <input type="hidden" name="visitId" value={latestVisit.id} />
-                    <select name="itemName" className="rounded-xl border px-3 py-2 text-sm">
-                      {inventoryOptions.map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name} ({item.stock} {item.unit})
-                        </option>
-                      ))}
-                    </select>
-                    <input name="quantity" type="number" min="1" className="rounded-xl border px-3 py-2 text-sm" placeholder="Qty" />
-                    <input name="frequency" className="rounded-xl border px-3 py-2 text-sm" placeholder="Frequency" />
-                    <input name="duration" className="rounded-xl border px-3 py-2 text-sm" placeholder="Duration" />
-                    <Button type="submit" size="sm">
+                    <label className="grid gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Medicine
+                      <select name="inventoryItemId" className="h-10 min-w-0 rounded-xl border px-3 text-sm font-normal normal-case tracking-normal text-slate-800">
+                        {inventoryOptions.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}{item.dosage ? ` ${item.dosage}` : ""}{item.brandName ? ` · ${item.brandName}` : ""} · exp {item.expirationDate ? item.expirationDate.toISOString().slice(0, 10) : "N/A"} ({item.stock} {item.unit})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Quantity
+                      <input name="quantity" type="number" min="1" step="1" required className="h-10 rounded-xl border px-3 text-sm font-normal" placeholder="Qty" />
+                    </label>
+                    <MedicineScheduleFields />
+                    <Button type="submit" size="sm" className="mt-6 h-10 sm:col-span-2 xl:col-span-1">
                       <ClipboardPlus className="h-4 w-4" /> Add
                     </Button>
                   </form>
@@ -373,10 +395,19 @@ export async function PatientProfile({ id }: { id: string }) {
                   <CardTitle>Vaccination Records</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <details className="rounded-xl border border-dashed bg-slate-50 px-3 py-2">
+                    <summary className="cursor-pointer text-sm font-bold text-primary">Add vaccine to catalog</summary>
+                    <form action={addVaccineOptionAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <input type="hidden" name="patientId" value={patient.id} />
+                      <input type="hidden" name="clinicId" value={patient.clinicId} />
+                      <input name="vaccineName" required className="h-10 min-w-0 flex-1 rounded-xl border bg-white px-3 text-sm" placeholder="New vaccine name" />
+                      <Button type="submit" size="sm"><Plus className="h-4 w-4" /> Save for future</Button>
+                    </form>
+                  </details>
                   <form action={addVaccinationRecordAction} className="grid gap-3">
                     <input type="hidden" name="patientId" value={patient.id} />
                     <input type="hidden" name="visitId" value={latestVisit.id} />
-                    <input name="vaccine" className="rounded-xl border px-3 py-2 text-sm" placeholder="Vaccine name" />
+                    <VaccinationFields vaccines={vaccineOptions} />
                     <input name="givenBy" className="rounded-xl border px-3 py-2 text-sm" placeholder="Given by" />
                     <input name="nextDose" type="date" className="rounded-xl border px-3 py-2 text-sm" />
                     <textarea name="remarks" className="h-24 rounded-xl border px-3 py-2 text-sm" placeholder="Vaccination remarks" />
@@ -390,6 +421,7 @@ export async function PatientProfile({ id }: { id: string }) {
                         <p className="text-sm font-semibold text-slate-800">{record.vaccine}</p>
                         <p className="text-sm text-slate-500">
                           {record.givenBy || "Clinic staff"}
+                          {record.dose ? ` / ${record.dose}` : ""}
                           {record.nextDose ? ` / Next dose: ${record.nextDose}` : ""}
                         </p>
                         {record.remarks ? <p className="mt-1 text-sm text-slate-500">{record.remarks}</p> : null}

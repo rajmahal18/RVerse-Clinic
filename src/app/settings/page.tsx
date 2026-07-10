@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClinicSettingsData } from "@/lib/patient-view";
 
+function roleLabel(role: string) {
+  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -43,10 +47,10 @@ export default async function SettingsPage({
             <form action={createUserAction} className="grid gap-3 md:grid-cols-2">
               <input name="name" className="rounded-xl border px-3 py-2 text-sm" placeholder="Full name" />
               <input name="email" type="email" className="rounded-xl border px-3 py-2 text-sm" placeholder="Email" />
-              <select name="role" defaultValue={UserRole.NURSE} className="rounded-xl border px-3 py-2 text-sm">
+              <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="rounded-xl border px-3 py-2 text-sm">
                 {Object.values(UserRole).map((role) => (
                   <option key={role} value={role}>
-                    {role.replaceAll("_", " ")}
+                    {roleLabel(role)}
                   </option>
                 ))}
               </select>
@@ -59,7 +63,7 @@ export default async function SettingsPage({
                   <div>
                     <p className="font-semibold text-slate-800">{user.name}</p>
                     <p className="text-sm text-slate-500">{user.email}</p>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{user.role.replaceAll("_", " ")}</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{roleLabel(user.role)}</p>
                   </div>
                   <form action={toggleUserStatusAction}>
                     <input type="hidden" name="userId" value={user.id} />

@@ -10,12 +10,14 @@ import { getInventoryLedgerData } from "@/lib/patient-view";
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; month?: string; error?: string; message?: string }>;
+  searchParams?: Promise<{ q?: string; month?: string; expiry?: string; sort?: string; error?: string; message?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
   const selectedMonth = resolvedSearchParams?.month?.trim() ?? "";
-  const ledger = await getInventoryLedgerData(searchQuery, selectedMonth);
+  const expiryFilter = resolvedSearchParams?.expiry?.trim() ?? "all";
+  const sort = resolvedSearchParams?.sort?.trim() ?? "name_asc";
+  const ledger = await getInventoryLedgerData(searchQuery, selectedMonth, expiryFilter, sort);
 
   return (
     <AppShell>
@@ -27,7 +29,7 @@ export default async function InventoryPage({
               action="/inventory"
               initialQuery={searchQuery}
               placeholder="Search item"
-              preserveParams={{ month: selectedMonth }}
+              preserveParams={{ month: selectedMonth, expiry: expiryFilter, sort }}
             />
             <AddInventoryItemModal action={createInventoryItemAction} />
           </>

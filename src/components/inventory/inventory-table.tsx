@@ -1,5 +1,19 @@
+"use client";
+
 import type { InventoryLedgerData } from "@/lib/patient-view";
+import { useState } from "react";
 import { MonthSelectForm } from "@/components/search/month-select-form";
+import { AlertTriangle } from "lucide-react";
+import { InventoryControls } from "@/components/inventory/inventory-controls";
+import { InventoryItemModal } from "@/components/inventory/inventory-item-modal";
+
+function expiryTone(status: string) {
+  if (status === "Expired") return "bg-rose-100 text-rose-800";
+  if (status === "Within 1 month") return "bg-orange-100 text-orange-800";
+  if (status === "Within 3 months") return "bg-amber-100 text-amber-800";
+  if (status === "Within 6 months") return "bg-yellow-100 text-yellow-800";
+  return "bg-emerald-50 text-emerald-700";
+}
 
 export function InventoryTable({
   ledger,
@@ -8,6 +22,8 @@ export function InventoryTable({
   ledger: InventoryLedgerData;
   searchQuery: string;
 }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedItem = ledger.rows.find((item) => item.id === selectedId);
   return (
     <div className="space-y-4">
       <div className="rounded-[28px] border bg-[linear-gradient(135deg,#eefbf6,#ffffff_45%,#f8fafc)] p-4 shadow-soft">
@@ -20,11 +36,24 @@ export function InventoryTable({
               <span className="font-semibold text-slate-800">{ledger.selectedMonthLabel}</span>.
             </p>
           </div>
-          <MonthSelectForm action="/inventory" selectedMonth={ledger.selectedMonth} options={ledger.monthOptions} searchQuery={searchQuery} />
+          <MonthSelectForm action="/inventory" selectedMonth={ledger.selectedMonth} options={ledger.monthOptions} searchQuery={searchQuery} preserveParams={{ expiry: ledger.expiryFilter, sort: ledger.sort }} />
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[28px] border bg-white shadow-soft">
+      {(ledger.expiryAlerts.expired + ledger.expiryAlerts.withinOne + ledger.expiryAlerts.withinThree + ledger.expiryAlerts.withinSix) > 0 ? (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div><p className="font-black">Expiration attention needed</p><p className="mt-0.5 text-amber-800">{ledger.expiryAlerts.expired} expired · {ledger.expiryAlerts.withinOne} within 1 month · {ledger.expiryAlerts.withinThree} within 3 months · {ledger.expiryAlerts.withinSix} within 6 months</p></div>
+        </div>
+      ) : null}
+
+      <InventoryControls search={searchQuery} month={ledger.selectedMonth} expiry={ledger.expiryFilter} sort={ledger.sort} />
+
+      <div className="divide-y overflow-hidden rounded-2xl border bg-white md:hidden">
+        {ledger.rows.map((item) => <div key={item.id} className="space-y-2 px-4 py-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-900">{item.item}</p><p className="text-sm text-slate-500">{item.dosage} · {item.brandName}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expiryStatus}</span></div><div className="grid grid-cols-2 gap-2 text-sm"><p><span className="text-slate-400">Expires</span><br /><b>{item.expirationDate}</b></p><p><span className="text-slate-400">Remaining</span><br /><b>{item.remainingPieces} {item.unit}</b></p><p><span className="text-slate-400">Class</span><br />{item.classification}</p><p><span className="text-slate-400">Stock status</span><br />{item.status}</p></div></div>)}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-[28px] border bg-white shadow-soft md:block">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="min-w-[1480px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead>
@@ -52,13 +81,13 @@ export function InventoryTable({
             </thead>
             <tbody>
               {ledger.rows.map((item, index) => (
-                <tr key={item.id} className={index % 2 === 0 ? "bg-[#f8ecd9]" : "bg-[#eef5e5]"}>
+                <tr key={item.id} onClick={() => setSelectedId(item.id)} className={`${index % 2 === 0 ? "bg-[#f8ecd9]" : "bg-[#eef5e5]"} cursor-pointer hover:brightness-95`}>
                   <td className="border-b border-r px-4 py-3 font-bold text-slate-900">{item.item}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.dosage}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.brandName}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.category}</td>
+                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.classification}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.pcsPerBox}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.expirationDate}</td>
+                  <td className="border-b border-r px-4 py-3 text-center text-slate-700"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span></td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningBoxes}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningPieces}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.monthIn}</td>
@@ -79,6 +108,7 @@ export function InventoryTable({
           </table>
         </div>
       </div>
+      {selectedItem ? <InventoryItemModal item={selectedItem} onClose={() => setSelectedId(null)} /> : null}
     </div>
   );
 }

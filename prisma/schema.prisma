@@ -9,11 +9,9 @@ datasource db {
 
 enum UserRole {
   ADMIN
-  DOCTOR
-  NURSE
-  PHARMACIST
-  INVENTORY_STAFF
-  CASHIER
+  DOCTOR_NURSE
+  SUPPLY_OFFICER
+  RECORDS
 }
 
 enum PatientGender {
@@ -37,6 +35,8 @@ enum RequestType {
   REGULAR_MEDICAL_CERTIFICATE
   VACCINATION
   EMERGENCY
+  MEDICAL_ALLOWANCE
+  REFERRAL
 }
 
 enum InventoryCategory {
@@ -55,10 +55,11 @@ model Clinic {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users     User[]
-  patients  Patient[]
-  inventory InventoryItem[]
-  activityLogs ActivityLog[]
+  users          User[]
+  patients       Patient[]
+  inventory      InventoryItem[]
+  activityLogs   ActivityLog[]
+  vaccineCatalog VaccineCatalog[]
 }
 
 model User {
@@ -72,7 +73,7 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   activityLogs ActivityLog[]
 }
 
@@ -110,10 +111,13 @@ model Patient {
   contactNo   String?
   agency      String?
   designation String?
+  civilStatus String?
+  heightCm    Float?
+  weightKg    Float?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  clinic Clinic  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   visits Visit[]
 
   @@index([clinicId, lastName, firstName])
@@ -138,12 +142,12 @@ model Visit {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  requests VisitRequest[]
-  medicines MedicineRequest[]
-  referrals Referral[]
+  patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  requests     VisitRequest[]
+  medicines    MedicineRequest[]
+  referrals    Referral[]
   vaccinations VaccinationRecord[]
-  followUps FollowUp[]
+  followUps    FollowUp[]
 
   @@index([patientId, timeIn])
 }
@@ -160,43 +164,61 @@ model VisitRequest {
 }
 
 model MedicineRequest {
-  id          String   @id @default(cuid())
-  visitId     String
-  itemName    String
-  quantity    Int
-  frequency   String?
-  duration    String?
-  status      String   @default("REQUESTED")
-  releasedBy  String?
-  receivedBy  String?
-  createdAt   DateTime @default(now())
+  id              String    @id @default(cuid())
+  visitId         String
+  inventoryItemId String?
+  itemName        String
+  quantity        Int
+  frequency       String?
+  duration        String?
+  status          String    @default("REQUESTED")
+  releasedBy      String?
+  receivedBy      String?
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
 
-  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  movements InventoryMovement[]
+  visit         Visit               @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem?      @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  movements     InventoryMovement[]
+
+  @@index([inventoryItemId])
 }
 
 model Referral {
-  id                 String   @id @default(cuid())
-  visitId            String
-  medicalHistory     String?
-  reasonForReferral  String?
-  referredTo         String?
-  remarks            String?
-  createdAt          DateTime @default(now())
+  id                String   @id @default(cuid())
+  visitId           String
+  medicalHistory    String?
+  reasonForReferral String?
+  referredTo        String?
+  remarks           String?
+  createdAt         DateTime @default(now())
 
   visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
 }
 
 model VaccinationRecord {
-  id          String   @id @default(cuid())
-  visitId     String
-  vaccine     String
-  givenBy     String?
-  nextDose    DateTime?
-  remarks     String?
-  createdAt   DateTime @default(now())
+  id        String    @id @default(cuid())
+  visitId   String
+  vaccine   String
+  dose      String?
+  givenBy   String?
+  nextDose  DateTime?
+  remarks   String?
+  createdAt DateTime  @default(now())
 
   visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+model VaccineCatalog {
+  id        String   @id @default(cuid())
+  clinicId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, name])
+  @@index([clinicId, name])
 }
 
 enum FollowUpStatus {
@@ -206,7 +228,7 @@ enum FollowUpStatus {
 }
 
 model FollowUp {
-  id          String         @id @default(cuid())
+  id           String         @id @default(cuid())
   visitId      String
   scheduledFor DateTime
   remarks      String?
@@ -221,32 +243,41 @@ model FollowUp {
 }
 
 model InventoryItem {
-  id          String            @id @default(cuid())
-  clinicId    String
-  name        String
-  category    InventoryCategory
-  stock       Int               @default(0)
-  unit        String
-  reorderLevel Int              @default(0)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  clinicId       String
+  name           String
+  dosage         String?
+  brandName      String?
+  classification String?
+  pcsPerBox      Int?
+  expirationDate DateTime?
+  batchKey       String            @default(cuid())
+  category       InventoryCategory
+  stock          Int               @default(0)
+  unit           String
+  reorderLevel   Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
-  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  movements InventoryMovement[]
+  clinic           Clinic              @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  movements        InventoryMovement[]
+  medicineRequests MedicineRequest[]
 
-  @@unique([clinicId, name])
+  @@unique([clinicId, batchKey])
   @@index([clinicId, category])
+  @@index([clinicId, name, expirationDate])
+  @@index([expirationDate])
 }
 
 model InventoryMovement {
-  id               String   @id @default(cuid())
-  inventoryItemId  String
+  id                String   @id @default(cuid())
+  inventoryItemId   String
   medicineRequestId String?
-  quantityChange   Int
-  reason           String
-  createdAt        DateTime @default(now())
+  quantityChange    Int
+  reason            String
+  createdAt         DateTime @default(now())
 
-  item InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  item            InventoryItem    @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   medicineRequest MedicineRequest? @relation(fields: [medicineRequestId], references: [id], onDelete: SetNull)
 
   @@index([inventoryItemId, createdAt])

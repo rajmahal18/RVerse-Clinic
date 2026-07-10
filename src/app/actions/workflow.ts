@@ -32,6 +32,71 @@ function optionalString(formData: FormData, key: string) {
   return value || null;
 }
 
+function parseMeasurements(formData: FormData) {
+  const heightRaw = optionalString(formData, "heightValue");
+  const weightRaw = optionalString(formData, "weightValue");
+  const heightUnit = String(formData.get("heightUnit") ?? "cm");
+  const weightUnit = String(formData.get("weightUnit") ?? "kg");
+
+  const heightValue = heightRaw ? Number(heightRaw) : null;
+  const weightValue = weightRaw ? Number(weightRaw) : null;
+  if (heightValue !== null && (!(heightValue > 0) || !Number.isFinite(heightValue))) {
+    throw new Error("Height must be greater than zero.");
+  }
+  if (weightValue !== null && (!(weightValue > 0) || !Number.isFinite(weightValue))) {
+    throw new Error("Weight must be greater than zero.");
+  }
+
+  return {
+    heightCm: heightValue === null ? null : heightUnit === "ft" ? heightValue * 30.48 : heightValue,
+    weightKg: weightValue === null ? null : weightUnit === "lbs" ? weightValue * 0.45359237 : weightValue,
+  };
+}
+
+function requiredPositiveInteger(formData: FormData, key: string, label: string) {
+  const raw = requiredString(formData, key);
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive whole number.`);
+  }
+  return value;
+}
+
+function parseMedicineSchedule(formData: FormData) {
+  const frequencyMode = requiredString(formData, "frequencyMode");
+  const frequencyLabels: Record<string, string> = {
+    ONCE_DAILY: "Once daily",
+    TWICE_DAILY: "Twice daily",
+    THREE_TIMES_DAILY: "Three times daily",
+    FOUR_TIMES_DAILY: "Four times daily",
+    AS_NEEDED: "As needed",
+  };
+  let frequency = frequencyLabels[frequencyMode];
+  if (frequencyMode === "EVERY_N_HOURS") {
+    frequency = `Every ${requiredPositiveInteger(formData, "frequencyHours", "Hour interval")} hours`;
+  } else if (frequencyMode === "OTHER") {
+    frequency = requiredString(formData, "frequencyOther");
+  } else if (!frequency) {
+    throw new Error("Select a valid medicine frequency.");
+  }
+
+  const durationMode = requiredString(formData, "durationMode");
+  const terminalDurations: Record<string, string> = {
+    UNTIL_FINISHED: "Until finished",
+    AS_NEEDED: "As needed",
+  };
+  let duration = terminalDurations[durationMode];
+  if (["DAYS", "WEEKS", "MONTHS"].includes(durationMode)) {
+    const value = requiredPositiveInteger(formData, "durationValue", "Duration");
+    const unit = durationMode.toLowerCase();
+    duration = `${value} ${value === 1 ? unit.slice(0, -1) : unit}`;
+  } else if (!duration) {
+    throw new Error("Select a valid medicine duration.");
+  }
+
+  return { frequency, duration };
+}
+
 function parseDate(value: string) {
   const parsed = new Date(value);
 
@@ -58,6 +123,13 @@ async function ensureClinic() {
 
 function isRequestType(value: string): value is RequestType {
   return value in RequestType;
+}
+
+function selectedRequestTypes(formData: FormData) {
+  const values = formData.getAll("requestTypes").map(String);
+  const legacyValue = formData.get("requestType");
+  if (!values.length && legacyValue) values.push(String(legacyValue));
+  return [...new Set(values.filter(isRequestType))];
 }
 
 function isVisitStatus(value: string): value is VisitStatus {
@@ -121,6 +193,7 @@ async function runAction<T>(
 export async function createPatientAction(formData: FormData) {
   const patient = await runAction("/patients/new", "Patient Records", "Create patient", async () => {
     const clinic = await ensureClinic();
+    const measurements = parseMeasurements(formData);
     const createdPatient = await prisma.patient.create({
       data: {
         clinicId: clinic.id,
@@ -133,6 +206,8 @@ export async function createPatientAction(formData: FormData) {
         contactNo: optionalString(formData, "contactNo"),
         agency: optionalString(formData, "agency"),
         designation: optionalString(formData, "designation"),
+        civilStatus: optionalString(formData, "civilStatus"),
+        ...measurements,
       },
     });
 
@@ -165,6 +240,7 @@ export async function updatePatientAction(formData: FormData) {
     }
 
     const nextBirthDate = parseDate(requiredString(formData, "birthDate"));
+    const measurements = parseMeasurements(formData);
     const nextValues = {
       lastName: requiredString(formData, "lastName"),
       firstName: requiredString(formData, "firstName"),
@@ -175,6 +251,9 @@ export async function updatePatientAction(formData: FormData) {
       contactNo: optionalString(formData, "contactNo"),
       agency: optionalString(formData, "agency"),
       designation: optionalString(formData, "designation"),
+      civilStatus: optionalString(formData, "civilStatus"),
+      heightCm: measurements.heightCm?.toString() ?? null,
+      weightKg: measurements.weightKg?.toString() ?? null,
     };
     const previousValues = {
       lastName: currentPatient.lastName,
@@ -186,6 +265,9 @@ export async function updatePatientAction(formData: FormData) {
       contactNo: currentPatient.contactNo,
       agency: currentPatient.agency,
       designation: currentPatient.designation,
+      civilStatus: currentPatient.civilStatus,
+      heightCm: currentPatient.heightCm?.toString() ?? null,
+      weightKg: currentPatient.weightKg?.toString() ?? null,
     };
 
     const patient = await prisma.patient.update({
@@ -200,6 +282,9 @@ export async function updatePatientAction(formData: FormData) {
         contactNo: nextValues.contactNo,
         agency: nextValues.agency,
         designation: nextValues.designation,
+        civilStatus: nextValues.civilStatus,
+        heightCm: measurements.heightCm,
+        weightKg: measurements.weightKg,
       },
     });
     const changes = getChangedFields(previousValues, nextValues);
@@ -223,8 +308,10 @@ export async function updatePatientAction(formData: FormData) {
 export async function createVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   await runAction(`/patients/${patientId}`, "Patient Records", "Start visit", async () => {
-    const requestTypeValue = requiredString(formData, "requestType");
-    const requestType = isRequestType(requestTypeValue) ? requestTypeValue : RequestType.CONSULTATION;
+    const requestTypes = selectedRequestTypes(formData);
+    if (!requestTypes.length) {
+      throw new Error("Select at least one service requested.");
+    }
     const nurseOnDuty = optionalString(formData, "nurseOnDuty");
 
     const visit = await prisma.visit.create({
@@ -234,9 +321,7 @@ export async function createVisitAction(formData: FormData) {
         status: VisitStatus.QUEUED,
         nurseOnDuty,
         requests: {
-          create: {
-            type: requestType,
-          },
+          create: requestTypes.map((type) => ({ type })),
         },
       },
       include: {
@@ -263,7 +348,10 @@ export async function updateVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
   await runAction(`/patients/${patientId}`, "Patient Records", "Update visit", async () => {
-    const requestTypeValue = requiredString(formData, "requestType");
+    const requestTypes = selectedRequestTypes(formData);
+    if (!requestTypes.length) {
+      throw new Error("Select at least one service requested.");
+    }
     const statusValue = requiredString(formData, "status");
     const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
 
@@ -289,22 +377,19 @@ export async function updateVisitAction(formData: FormData) {
         },
       });
 
-      if (isRequestType(requestTypeValue)) {
-        const existingRequest = await tx.visitRequest.findFirst({
-          where: {
-            visitId,
-            type: requestTypeValue,
-          },
+      await tx.visitRequest.deleteMany({
+        where: { visitId, type: { notIn: requestTypes } },
+      });
+      const existingRequests = await tx.visitRequest.findMany({
+        where: { visitId, type: { in: requestTypes } },
+        select: { type: true },
+      });
+      const existingTypes = new Set(existingRequests.map((request) => request.type));
+      const missingTypes = requestTypes.filter((type) => !existingTypes.has(type));
+      if (missingTypes.length) {
+        await tx.visitRequest.createMany({
+          data: missingTypes.map((type) => ({ visitId, type })),
         });
-
-        if (!existingRequest) {
-          await tx.visitRequest.create({
-            data: {
-              visitId,
-              type: requestTypeValue,
-            },
-          });
-        }
       }
 
       return updatedVisit;
@@ -326,6 +411,11 @@ export async function updateVisitAction(formData: FormData) {
   revalidatePath("/vaccination");
   revalidatePath(`/patients/${patientId}`);
   redirect(`/patients/${patientId}`);
+}
+
+export async function completeVisitAction(formData: FormData) {
+  formData.set("status", VisitStatus.COMPLETED);
+  return updateVisitAction(formData);
 }
 
 export async function updateVisitStatusAction(formData: FormData) {
@@ -387,17 +477,48 @@ export async function createInventoryItemAction(formData: FormData) {
     const clinic = await ensureClinic();
     const categoryValue = requiredString(formData, "category");
     const category = isInventoryCategory(categoryValue) ? categoryValue : InventoryCategory.SUPPLY;
-    const stock = Number(formData.get("stock") ?? 0) || 0;
+    const stock = Number(formData.get("stock") ?? 0);
+    const reorderLevel = Number(formData.get("reorderLevel") ?? 0);
+    const pcsPerBoxRaw = optionalString(formData, "pcsPerBox");
+    const pcsPerBox = pcsPerBoxRaw ? Number(pcsPerBoxRaw) : null;
+    if (![stock, reorderLevel].every((value) => Number.isInteger(value) && value >= 0) || (pcsPerBox !== null && (!Number.isInteger(pcsPerBox) || pcsPerBox <= 0))) {
+      throw new Error("Stock, threshold, and pieces per box must be valid whole numbers.");
+    }
+    const name = requiredString(formData, "name");
+    const dosage = optionalString(formData, "dosage");
+    const brandName = optionalString(formData, "brandName");
+    const classification = optionalString(formData, "classification");
+    const expirationValue = optionalString(formData, "expirationDate");
+    if ((category === InventoryCategory.MEDICINE || category === InventoryCategory.VACCINE) && !expirationValue) {
+      throw new Error("Expiration date is required for medicines and vaccines.");
+    }
+    const expirationDate = expirationValue ? parseDate(expirationValue) : null;
+    const batchKey = [name, dosage, brandName, classification, expirationValue]
+      .map((value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " "))
+      .join("|");
+    const existingBatch = await prisma.inventoryItem.findUnique({
+      where: { clinicId_batchKey: { clinicId: clinic.id, batchKey } },
+      select: { id: true },
+    });
+    if (existingBatch) {
+      throw new Error("This exact medicine batch and expiration date already exists. Use its existing inventory record instead.");
+    }
 
     const item = await prisma.$transaction(async (tx) => {
       const createdItem = await tx.inventoryItem.create({
         data: {
           clinicId: clinic.id,
-          name: requiredString(formData, "name"),
+          name,
+          dosage,
+          brandName,
+          classification,
+          pcsPerBox,
+          expirationDate,
+          batchKey,
           category,
           stock,
           unit: requiredString(formData, "unit"),
-          reorderLevel: Number(formData.get("reorderLevel") ?? 0) || 0,
+          reorderLevel,
         },
       });
 
@@ -433,20 +554,25 @@ export async function requestMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
   await runAction(`/patients/${patientId}`, "Medicines", "Request medicine", async () => {
-    const itemName = requiredString(formData, "itemName");
+    const inventoryItemId = requiredString(formData, "inventoryItemId");
+    const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+    if (!inventoryItem) throw new Error("Selected medicine batch was not found.");
+    const itemName = inventoryItem.name;
     const quantity = Number(formData.get("quantity") ?? 0);
+    const schedule = parseMedicineSchedule(formData);
 
-    if (quantity <= 0) {
-      throw new Error("Quantity must be greater than zero.");
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Quantity must be a positive whole number.");
     }
 
     const medicineRequest = await prisma.medicineRequest.create({
       data: {
         visitId,
+        inventoryItemId,
         itemName,
         quantity,
-        frequency: optionalString(formData, "frequency"),
-        duration: optionalString(formData, "duration"),
+        frequency: schedule.frequency,
+        duration: schedule.duration,
         status: "REQUESTED",
       },
       include: {
@@ -496,14 +622,12 @@ export async function dispenseMedicineAction(formData: FormData) {
         throw new Error("Medicine request not found.");
       }
 
-      const item = await tx.inventoryItem.findUnique({
-        where: {
-          clinicId_name: {
-            clinicId: request.visit.patient.clinicId,
-            name: request.itemName,
-          },
-        },
-      });
+      const item = request.inventoryItemId
+        ? await tx.inventoryItem.findUnique({ where: { id: request.inventoryItemId } })
+        : await tx.inventoryItem.findFirst({
+            where: { clinicId: request.visit.patient.clinicId, name: request.itemName },
+            orderBy: [{ expirationDate: "asc" }, { createdAt: "asc" }],
+          });
 
       if (!item) {
         throw new Error("Matching inventory item not found.");
@@ -617,6 +741,8 @@ export async function addVaccinationRecordAction(formData: FormData) {
   const visitId = requiredString(formData, "visitId");
   await runAction(`/patients/${patientId}`, "Vaccination", "Add vaccination record", async () => {
     const vaccine = requiredString(formData, "vaccine");
+    const doseSelection = optionalString(formData, "dose");
+    const dose = doseSelection === "Other" ? requiredString(formData, "doseOther") : doseSelection;
     const nextDoseValue = optionalString(formData, "nextDose");
 
     const record = await prisma.$transaction(async (tx) => {
@@ -624,6 +750,7 @@ export async function addVaccinationRecordAction(formData: FormData) {
         data: {
           visitId,
           vaccine,
+          dose,
           givenBy: optionalString(formData, "givenBy"),
           nextDose: nextDoseValue ? parseDate(nextDoseValue) : null,
           remarks: optionalString(formData, "remarks"),
@@ -663,11 +790,85 @@ export async function addVaccinationRecordAction(formData: FormData) {
       entityType: "VaccinationRecord",
       entityId: record.id,
       description: `Added ${vaccine} vaccination record.`,
-      metadata: { nextDose: record.nextDose?.toISOString() ?? null },
+      metadata: { dose, nextDose: record.nextDose?.toISOString() ?? null },
     });
   }, { type: "Visit", id: visitId });
 
   revalidatePath("/vaccination");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function addInventoryQuantityAction(formData: FormData) {
+  const itemId = requiredString(formData, "itemId");
+  const quantity = requiredPositiveInteger(formData, "quantity", "Quantity");
+  await runAction("/inventory", "Inventory", "Add quantity", async () => {
+    await prisma.$transaction([
+      prisma.inventoryItem.update({ where: { id: itemId }, data: { stock: { increment: quantity } } }),
+      prisma.inventoryMovement.create({ data: { inventoryItemId: itemId, quantityChange: quantity, reason: "Manual stock addition" } }),
+    ]);
+  }, { type: "InventoryItem", id: itemId });
+  revalidatePath("/inventory"); redirect("/inventory");
+}
+
+export async function updateInventoryItemAction(formData: FormData) {
+  const itemId = requiredString(formData, "itemId");
+  const name = requiredString(formData, "name");
+  const dosage = optionalString(formData, "dosage"); const brandName = optionalString(formData, "brandName");
+  const classification = optionalString(formData, "classification"); const expirationValue = optionalString(formData, "expirationDate");
+  const current = await prisma.inventoryItem.findUnique({ where: { id: itemId } }); if (!current) throw new Error("Inventory batch not found.");
+  const batchKey = [name, dosage, brandName, classification, expirationValue].map((value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " ")).join("|");
+  await runAction("/inventory", "Inventory", "Update item", () => prisma.inventoryItem.update({ where: { id: itemId }, data: { name, dosage, brandName, classification, expirationDate: expirationValue ? parseDate(expirationValue) : null, batchKey, unit: requiredString(formData, "unit"), reorderLevel: Number(formData.get("reorderLevel") ?? 0), pcsPerBox: optionalString(formData, "pcsPerBox") ? Number(formData.get("pcsPerBox")) : null } }), { type: "InventoryItem", id: itemId });
+  revalidatePath("/inventory"); redirect("/inventory");
+}
+
+export async function deleteInventoryItemAction(formData: FormData) {
+  const itemId = requiredString(formData, "itemId");
+  await runAction("/inventory", "Inventory", "Delete item", async () => { await prisma.inventoryItem.delete({ where: { id: itemId } }); }, { type: "InventoryItem", id: itemId });
+  revalidatePath("/inventory"); redirect("/inventory");
+}
+
+export async function resolveItemRequestAction(formData: FormData) {
+  const requestId = requiredString(formData, "requestId");
+  const decision = requiredString(formData, "decision");
+  await runAction("/item-requests", "Medicines", `${decision} item request`, async () => {
+    const result = await prisma.$transaction(async (tx) => {
+      const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
+      if (!request || request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
+      if (decision === "REJECT") return tx.medicineRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
+      const item = request.inventoryItem;
+      if (!item) throw new Error("The requested inventory batch is no longer available.");
+      if (item.stock < request.quantity) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
+      await tx.inventoryItem.update({ where: { id: item.id }, data: { stock: { decrement: request.quantity } } });
+      await tx.inventoryMovement.create({ data: { inventoryItemId: item.id, medicineRequestId: request.id, quantityChange: -request.quantity, reason: `Approved item request ${request.id}` } });
+      return tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", releasedBy: "Item request queue", resolvedAt: new Date() } });
+    });
+    await writeActivityLog({ module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.quantity} ${result.itemName}.` });
+  }, { type: "MedicineRequest", id: requestId });
+  revalidatePath("/item-requests"); revalidatePath("/inventory"); redirect("/item-requests");
+}
+
+export async function addVaccineOptionAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  await runAction(`/patients/${patientId}`, "Vaccination", "Add vaccine option", async () => {
+    const clinicId = requiredString(formData, "clinicId");
+    const name = requiredString(formData, "vaccineName");
+    const vaccine = await prisma.vaccineCatalog.upsert({
+      where: { clinicId_name: { clinicId, name } },
+      update: {},
+      create: { clinicId, name },
+    });
+
+    await writeActivityLog({
+      clinicId,
+      module: "Vaccination",
+      action: "Add vaccine option",
+      entityType: "VaccineCatalog",
+      entityId: vaccine.id,
+      description: `Added ${vaccine.name} to the vaccine catalog.`,
+    });
+  });
+
   revalidatePath(`/patients/${patientId}`);
   redirect(`/patients/${patientId}`);
 }
@@ -706,7 +907,7 @@ export async function createUserAction(formData: FormData) {
   await runAction(redirectTo, "Accounts", "Create user", async () => {
     const clinic = await ensureClinic();
     const roleValue = requiredString(formData, "role");
-    const role = isUserRole(roleValue) ? roleValue : UserRole.NURSE;
+    const role = isUserRole(roleValue) ? roleValue : UserRole.DOCTOR_NURSE;
     const password = optionalString(formData, "password");
 
     if (password && !isStrongPassword(password)) {
@@ -834,7 +1035,7 @@ export async function createAccountAction(formData: FormData) {
         name,
         email,
         passwordHash: hashPassword(password),
-        role: UserRole.NURSE,
+        role: UserRole.DOCTOR_NURSE,
         isActive: false,
       },
     });

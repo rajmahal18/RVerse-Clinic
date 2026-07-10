@@ -8,13 +8,15 @@ type MonthSelectFormProps = {
   selectedMonth: string;
   options: InventoryMonthOption[];
   searchQuery?: string;
+  preserveParams?: Record<string, string>;
 };
 
-export function MonthSelectForm({ action, selectedMonth, options, searchQuery = "" }: MonthSelectFormProps) {
+export function MonthSelectForm({ action, selectedMonth, options, searchQuery = "", preserveParams = {} }: MonthSelectFormProps) {
   const router = useRouter();
 
   function handleChange(value: string) {
     const params = new URLSearchParams();
+    Object.entries(preserveParams).forEach(([key, preservedValue]) => preservedValue && params.set(key, preservedValue));
 
     if (searchQuery.trim()) {
       params.set("q", searchQuery.trim());

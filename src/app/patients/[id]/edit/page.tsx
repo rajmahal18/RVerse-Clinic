@@ -39,6 +39,9 @@ export default async function EditPatientPage({
           contactNo: patient.contact === "Not provided" ? "" : patient.contact,
           agency: patient.agency === "Not provided" ? "" : patient.agency,
           designation: patient.designation === "Not provided" ? "" : patient.designation,
+          civilStatus: patient.civilStatus === "Not provided" ? "SINGLE" : patient.civilStatus.toUpperCase(),
+          heightCm: patient.heightCm,
+          weightKg: patient.weightKg,
         }}
       />
     </AppShell>

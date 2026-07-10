@@ -8,12 +8,14 @@ import {
 import { prisma } from "@/lib/prisma";
 
 const requestTypeLabels: Record<RequestType, string> = {
-  CONSULTATION: "Consultation",
-  MEDICINES: "Medicines",
+  CONSULTATION: "Medical Consultation",
+  MEDICINES: "Provision of Medicine",
   CS_211_MEDICAL_CERTIFICATE: "CS 211 Medical Certificate",
-  REGULAR_MEDICAL_CERTIFICATE: "Regular Medical Certificate",
-  VACCINATION: "Vaccination",
-  EMERGENCY: "Emergency",
+  REGULAR_MEDICAL_CERTIFICATE: "Medical Certificate",
+  VACCINATION: "Provision of Vaccine",
+  EMERGENCY: "Emergency Medical Services",
+  MEDICAL_ALLOWANCE: "Medical Allowance",
+  REFERRAL: "Referral",
 };
 
 const visitStatusLabels: Record<VisitStatus, string> = {
@@ -59,6 +61,10 @@ export type PatientTableRow = {
   contact: string;
   agency: string;
   designation: string;
+  civilStatus: string;
+  heightCm: number | null;
+  weightKg: number | null;
+  bmi: number | null;
   request: string;
   status: string;
 };
@@ -106,6 +112,7 @@ export type PatientVisitWorkflow = {
   vaccinations: {
     id: string;
     vaccine: string;
+    dose: string;
     givenBy: string;
     nextDose: string;
     remarks: string;
@@ -128,9 +135,12 @@ export type InventoryTableRow = {
   item: string;
   dosage: string;
   brandName: string;
+  classification: string;
   category: string;
   pcsPerBox: string;
   expirationDate: string;
+  expirationDateValue: string;
+  expiryStatus: "Expired" | "Within 1 month" | "Within 3 months" | "Within 6 months" | "Safe" | "No expiry";
   stock: number;
   unit: string;
   reorder: number;
@@ -160,6 +170,9 @@ export type InventoryLedgerData = {
   selectedMonth: string;
   selectedMonthLabel: string;
   monthOptions: InventoryMonthOption[];
+  expiryFilter: string;
+  sort: string;
+  expiryAlerts: { expired: number; withinOne: number; withinThree: number; withinSix: number };
 };
 
 export type ClinicSettingsData = {
@@ -283,6 +296,9 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
   const request = latestRequests.length
     ? latestRequests.map(({ type }) => requestTypeLabels[type]).join(", ")
     : "No request yet";
+  const bmi = patient.heightCm && patient.weightKg
+    ? patient.weightKg / (patient.heightCm / 100) ** 2
+    : null;
 
   return {
     id: patient.id,
@@ -296,6 +312,12 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     contact: patient.contactNo ?? "Not provided",
     agency: patient.agency ?? "Not provided",
     designation: patient.designation ?? "Not provided",
+    civilStatus: patient.civilStatus
+      ? patient.civilStatus.charAt(0) + patient.civilStatus.slice(1).toLowerCase()
+      : "Not provided",
+    heightCm: patient.heightCm,
+    weightKg: patient.weightKg,
+    bmi,
     request,
     status: latestVisit ? visitStatusLabels[latestVisit.status] : "No visit yet",
   };
@@ -338,6 +360,7 @@ function toVisitWorkflow(
     vaccinations: visit.vaccinations.map((record) => ({
       id: record.id,
       vaccine: record.vaccine,
+      dose: record.dose ?? "",
       givenBy: record.givenBy ?? "",
       nextDose: record.nextDose ? formatDisplayDate(record.nextDose) : "",
       remarks: record.remarks ?? "",
@@ -563,81 +586,63 @@ export async function getPatientWorkflowProfile(id: string): Promise<PatientWork
   };
 }
 
-export async function getInventoryLedgerData(search?: string, month?: string): Promise<InventoryLedgerData> {
+export async function getInventoryLedgerData(search?: string, month?: string, expiryFilter = "all", sort = "name_asc"): Promise<InventoryLedgerData> {
   const normalizedSearch = search?.trim();
   const { start, end, key, label } = getMonthRange(month);
-  const items = await prisma.inventoryItem.findMany({
-    where: normalizedSearch
-      ? {
-          OR: [
-            { name: { contains: normalizedSearch, mode: "insensitive" } },
-            { unit: { contains: normalizedSearch, mode: "insensitive" } },
-            {
-              category: {
-                equals:
-                  normalizedSearch.toUpperCase() in InventoryCategory
-                    ? (normalizedSearch.toUpperCase() as InventoryCategory)
-                    : undefined,
-              },
-            },
-          ],
-        }
-      : undefined,
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-    include: {
-      movements: {
-        orderBy: {
-          createdAt: "asc",
-        },
-      },
-    },
-  });
+  const now = new Date();
+  const addMonths = (months: number) => new Date(now.getFullYear(), now.getMonth() + months, now.getDate(), 23, 59, 59, 999);
+  const expiryWhere: Prisma.InventoryItemWhereInput = expiryFilter === "expired"
+    ? { expirationDate: { lt: now } }
+    : ["1", "3", "6"].includes(expiryFilter)
+      ? { expirationDate: { gte: now, lte: addMonths(Number(expiryFilter)) } }
+      : {};
+  const searchWhere: Prisma.InventoryItemWhereInput = normalizedSearch ? { OR: [
+    { name: { contains: normalizedSearch, mode: "insensitive" } },
+    { dosage: { contains: normalizedSearch, mode: "insensitive" } },
+    { brandName: { contains: normalizedSearch, mode: "insensitive" } },
+    { classification: { contains: normalizedSearch, mode: "insensitive" } },
+    { unit: { contains: normalizedSearch, mode: "insensitive" } },
+  ] } : {};
+  const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] =
+    sort === "name_desc" ? [{ name: "desc" }] : sort === "expiry_asc" ? [{ expirationDate: { sort: "asc", nulls: "last" } }] :
+    sort === "expiry_desc" ? [{ expirationDate: { sort: "desc", nulls: "last" } }] : sort === "stock_asc" ? [{ stock: "asc" }] :
+    sort === "stock_desc" ? [{ stock: "desc" }] : sort === "brand_asc" ? [{ brandName: { sort: "asc", nulls: "last" } }] :
+    sort === "classification_asc" ? [{ classification: { sort: "asc", nulls: "last" } }] : [{ name: "asc" }, { expirationDate: "asc" }];
+  const [items, alertItems] = await Promise.all([
+    prisma.inventoryItem.findMany({ where: { AND: [searchWhere, expiryWhere] }, orderBy, include: { movements: { orderBy: { createdAt: "asc" } } } }),
+    prisma.inventoryItem.findMany({ where: { stock: { gt: 0 }, expirationDate: { lte: addMonths(6) } }, select: { expirationDate: true } }),
+  ]);
 
   return {
     rows: items.map((item) => {
-      const monthlyMovements = item.movements.filter(
-        (movement) => movement.createdAt >= start && movement.createdAt < end
-      );
+      const monthlyMovements = item.movements.filter((movement) => movement.createdAt >= start && movement.createdAt < end);
       const laterMovements = item.movements.filter((movement) => movement.createdAt >= end);
       const endingStock = item.stock - laterMovements.reduce((sum, movement) => sum + movement.quantityChange, 0);
-      const received = monthlyMovements
-        .filter((movement) => movement.quantityChange > 0)
-        .reduce((sum, movement) => sum + movement.quantityChange, 0);
-      const dispensed = monthlyMovements
-        .filter((movement) => movement.quantityChange < 0)
-        .reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
+      const received = monthlyMovements.filter((movement) => movement.quantityChange > 0).reduce((sum, movement) => sum + movement.quantityChange, 0);
+      const dispensed = monthlyMovements.filter((movement) => movement.quantityChange < 0).reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
       const beginningStock = endingStock - received + dispensed;
-
       return {
-        id: item.id,
-        item: item.name,
-        dosage: "—",
-        brandName: "—",
-        category: item.category.charAt(0) + item.category.slice(1).toLowerCase(),
-        pcsPerBox: "—",
-        expirationDate: "—",
-        stock: item.stock,
-        unit: item.unit,
-        reorder: item.reorderLevel,
-        status: item.stock <= 0 ? "Out of stock" : item.stock <= item.reorderLevel ? "Low stock" : "Healthy",
-        beginningStock: Math.max(0, beginningStock),
-        received,
-        dispensed,
-        endingStock: Math.max(0, endingStock),
-        netMovement: received - dispensed,
-        createdAt: formatDisplayDate(item.createdAt),
-        beginningBoxes: "0",
-        beginningPieces: String(Math.max(0, beginningStock)),
-        monthIn: String(received),
-        monthOutPieces: String(dispensed),
-        monthOutBoxes: "0",
-        remainingPieces: String(Math.max(0, endingStock)),
-        remainingBoxes: "0",
+        id: item.id, item: item.name, dosage: item.dosage ?? "—", brandName: item.brandName ?? "—",
+        classification: item.classification ?? item.category.charAt(0) + item.category.slice(1).toLowerCase(),
+        category: item.category.charAt(0) + item.category.slice(1).toLowerCase(), pcsPerBox: item.pcsPerBox?.toString() ?? "—",
+        expirationDate: item.expirationDate ? formatDisplayDate(item.expirationDate) : "—",
+        expirationDateValue: item.expirationDate?.toISOString().slice(0, 10) ?? "",
+        expiryStatus: !item.expirationDate ? "No expiry" as const : item.expirationDate < now ? "Expired" as const : item.expirationDate <= addMonths(1) ? "Within 1 month" as const : item.expirationDate <= addMonths(3) ? "Within 3 months" as const : item.expirationDate <= addMonths(6) ? "Within 6 months" as const : "Safe" as const,
+        stock: item.stock, unit: item.unit, reorder: item.reorderLevel,
+        status: item.stock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel ? "Low stock" as const : "Healthy" as const,
+        beginningStock: Math.max(0, beginningStock), received, dispensed, endingStock: Math.max(0, endingStock), netMovement: received - dispensed,
+        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: item.pcsPerBox ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox)) : "—",
+        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthOutPieces: String(dispensed), monthOutBoxes: "0",
+        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: item.pcsPerBox ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox)) : "—",
       };
     }),
-    selectedMonth: key,
-    selectedMonthLabel: label,
-    monthOptions: getInventoryMonthOptions(start),
+    selectedMonth: key, selectedMonthLabel: label, monthOptions: getInventoryMonthOptions(start), expiryFilter, sort,
+    expiryAlerts: {
+      expired: alertItems.filter((item) => item.expirationDate && item.expirationDate < now).length,
+      withinOne: alertItems.filter((item) => item.expirationDate && item.expirationDate >= now && item.expirationDate <= addMonths(1)).length,
+      withinThree: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(1) && item.expirationDate <= addMonths(3)).length,
+      withinSix: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(3) && item.expirationDate <= addMonths(6)).length,
+    },
   };
 }
 
@@ -648,9 +653,26 @@ export async function getInventoryOptions(clinicId: string) {
     select: {
       id: true,
       name: true,
+      dosage: true,
+      brandName: true,
+      expirationDate: true,
       unit: true,
       stock: true,
     },
+  });
+}
+
+export async function getVaccineOptions(clinicId: string) {
+  const defaults = ["Flu vaccine", "Pneumococcal", "HPV"];
+  await prisma.vaccineCatalog.createMany({
+    data: defaults.map((name) => ({ clinicId, name })),
+    skipDuplicates: true,
+  });
+
+  return prisma.vaccineCatalog.findMany({
+    where: { clinicId },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
   });
 }
 

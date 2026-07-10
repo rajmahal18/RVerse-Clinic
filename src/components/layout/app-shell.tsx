@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Bell, LogOut, Menu, Network } from "lucide-react";
 import { logoutAction } from "@/app/actions/workflow";
 import { navItems } from "@/data/clinic";
@@ -12,6 +13,8 @@ import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [requestCount, setRequestCount] = useState(0);
+  useEffect(() => { fetch("/api/item-requests/count").then((response) => response.ok ? response.json() : null).then((data) => data && setRequestCount(data.count)).catch(() => undefined); }, [pathname]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -38,7 +41,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
               >
                 <Icon className="h-5 w-5" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/item-requests" && requestCount > 0 ? <span className="grid min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-black text-white">{requestCount > 99 ? "99+" : requestCount}</span> : null}
               </Link>
             );
           })}

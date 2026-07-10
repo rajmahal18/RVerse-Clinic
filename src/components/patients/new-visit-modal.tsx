@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ServiceRequestedFields } from "@/components/patients/service-requested-fields";
 
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
 
@@ -15,12 +16,12 @@ export function NewVisitModal({
   action,
   patientId,
   requestOptions,
-  defaultRequestType,
+  defaultRequestTypes,
 }: {
   action: ServerFormAction;
   patientId: string;
   requestOptions: RequestOption[];
-  defaultRequestType: string;
+  defaultRequestTypes: string[];
 }) {
   const [open, setOpen] = useState(false);
 
@@ -36,7 +37,7 @@ export function NewVisitModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-visit-title"
-            className="w-full max-w-md overflow-hidden rounded-2xl border bg-white shadow-2xl"
+            className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
@@ -51,18 +52,9 @@ export function NewVisitModal({
               </Button>
             </div>
 
-            <form action={action} className="grid gap-3 p-4">
+            <form action={action} className="grid min-h-0 gap-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <input type="hidden" name="patientId" value={patientId} />
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                Request
-                <select name="requestType" defaultValue={defaultRequestType} className="h-10 rounded-xl border px-3 font-normal outline-none focus:ring-2 focus:ring-primary/30">
-                  {requestOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <ServiceRequestedFields options={requestOptions} defaultValues={defaultRequestTypes} />
               <label className="grid gap-2 text-sm font-semibold text-slate-700">
                 Assigned staff
                 <input name="nurseOnDuty" className="h-10 rounded-xl border px-3 font-normal outline-none focus:ring-2 focus:ring-primary/30" placeholder="Assigned staff" />
