@@ -16,6 +16,7 @@ const requestTypeLabels: Record<RequestType, string> = {
   EMERGENCY: "Emergency Medical Services",
   MEDICAL_ALLOWANCE: "Medical Allowance",
   REFERRAL: "Referral",
+  FIRST_AID_KIT: "Provision of First Aid Kit",
 };
 
 const visitStatusLabels: Record<VisitStatus, string> = {

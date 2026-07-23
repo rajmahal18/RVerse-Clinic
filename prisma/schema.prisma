@@ -37,6 +37,7 @@ enum RequestType {
   EMERGENCY
   MEDICAL_ALLOWANCE
   REFERRAL
+  FIRST_AID_KIT
 }
 
 enum InventoryCategory {

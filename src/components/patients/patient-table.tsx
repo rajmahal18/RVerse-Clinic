@@ -24,6 +24,11 @@ function buildPageHref(basePath: string, page: number, searchQuery?: string) {
   return `${basePath}?${params.toString()}`;
 }
 
+function formatPatientName(patient: PatientTableRow) {
+  const middleInitial = patient.middleName.trim() ? ` ${patient.middleName.trim().charAt(0).toUpperCase()}.` : "";
+  return `${patient.lastName}, ${patient.firstName}${middleInitial}`;
+}
+
 export function PatientTable({
   rows,
   currentPage = 1,
@@ -41,7 +46,48 @@ export function PatientTable({
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-soft">
-      <div className="overflow-x-auto scrollbar-thin">
+      <div className="divide-y-8 divide-slate-100 bg-slate-100 lg:hidden">
+        {rows.map((patient) => (
+          <Link
+            key={patient.id}
+            href={`/patients/${patient.id}`}
+            className="block w-full border-y border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition active:bg-slate-50"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-black uppercase text-slate-950">
+                  {formatPatientName(patient)}
+                </p>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  {patient.age} yrs / {patient.gender} / {patient.birthDate}
+                </p>
+              </div>
+              <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
+              <Badge className="bg-slate-100 text-slate-700">{patient.status}</Badge>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <p className="min-w-0">
+                <span className="block text-xs font-bold uppercase text-slate-400">Contact</span>
+                <span className="block truncate text-slate-700">{patient.contact}</span>
+              </p>
+              <p className="min-w-0">
+                <span className="block text-xs font-bold uppercase text-slate-400">Agency</span>
+                <span className="block truncate text-slate-700">{patient.agency}</span>
+              </p>
+            </div>
+          </Link>
+        ))}
+        {rows.length === 0 ? (
+          <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">
+            No patient records found for this view yet.
+          </p>
+        ) : null}
+      </div>
+
+      <div className="hidden overflow-x-auto scrollbar-thin lg:block">
         <table className="min-w-[1050px] w-full text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
             <tr>

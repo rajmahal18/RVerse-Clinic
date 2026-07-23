@@ -24,6 +24,7 @@ export function InventoryTable({
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedItem = ledger.rows.find((item) => item.id === selectedId);
+
   return (
     <div className="space-y-4">
       <div className="rounded-[28px] border bg-[linear-gradient(135deg,#eefbf6,#ffffff_45%,#f8fafc)] p-4 shadow-soft">
@@ -36,24 +37,74 @@ export function InventoryTable({
               <span className="font-semibold text-slate-800">{ledger.selectedMonthLabel}</span>.
             </p>
           </div>
-          <MonthSelectForm action="/inventory" selectedMonth={ledger.selectedMonth} options={ledger.monthOptions} searchQuery={searchQuery} preserveParams={{ expiry: ledger.expiryFilter, sort: ledger.sort }} />
+          <MonthSelectForm
+            action="/inventory"
+            selectedMonth={ledger.selectedMonth}
+            options={ledger.monthOptions}
+            searchQuery={searchQuery}
+            preserveParams={{ expiry: ledger.expiryFilter, sort: ledger.sort }}
+          />
         </div>
       </div>
 
       {(ledger.expiryAlerts.expired + ledger.expiryAlerts.withinOne + ledger.expiryAlerts.withinThree + ledger.expiryAlerts.withinSix) > 0 ? (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div><p className="font-black">Expiration attention needed</p><p className="mt-0.5 text-amber-800">{ledger.expiryAlerts.expired} expired · {ledger.expiryAlerts.withinOne} within 1 month · {ledger.expiryAlerts.withinThree} within 3 months · {ledger.expiryAlerts.withinSix} within 6 months</p></div>
+          <div>
+            <p className="font-black">Expiration attention needed</p>
+            <p className="mt-0.5 text-amber-800">
+              {ledger.expiryAlerts.expired} expired / {ledger.expiryAlerts.withinOne} within 1 month /{" "}
+              {ledger.expiryAlerts.withinThree} within 3 months / {ledger.expiryAlerts.withinSix} within 6 months
+            </p>
+          </div>
         </div>
       ) : null}
 
       <InventoryControls search={searchQuery} month={ledger.selectedMonth} expiry={ledger.expiryFilter} sort={ledger.sort} />
 
-      <div className="divide-y overflow-hidden rounded-2xl border bg-white md:hidden">
-        {ledger.rows.map((item) => <div key={item.id} className="space-y-2 px-4 py-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-900">{item.item}</p><p className="text-sm text-slate-500">{item.dosage} · {item.brandName}</p></div><span className={`rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expiryStatus}</span></div><div className="grid grid-cols-2 gap-2 text-sm"><p><span className="text-slate-400">Expires</span><br /><b>{item.expirationDate}</b></p><p><span className="text-slate-400">Remaining</span><br /><b>{item.remainingPieces} {item.unit}</b></p><p><span className="text-slate-400">Class</span><br />{item.classification}</p><p><span className="text-slate-400">Stock status</span><br />{item.status}</p></div></div>)}
+      <div className="divide-y-8 divide-slate-100 overflow-hidden rounded-2xl border bg-slate-100 lg:hidden">
+        {ledger.rows.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setSelectedId(item.id)}
+            className="block w-full border-y border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition active:bg-slate-50"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-black text-slate-900">{item.item}</p>
+                <p className="truncate text-sm text-slate-500">{item.dosage} / {item.brandName}</p>
+              </div>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>
+                {item.expiryStatus}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <p>
+                <span className="block text-xs font-bold uppercase text-slate-400">Expires</span>
+                <b>{item.expirationDate}</b>
+              </p>
+              <p>
+                <span className="block text-xs font-bold uppercase text-slate-400">Remaining</span>
+                <b>{item.remainingPieces} {item.unit}</b>
+              </p>
+              <p className="min-w-0">
+                <span className="block text-xs font-bold uppercase text-slate-400">Class</span>
+                <span className="block truncate text-slate-700">{item.classification}</span>
+              </p>
+              <p>
+                <span className="block text-xs font-bold uppercase text-slate-400">Stock</span>
+                <span className="font-semibold text-slate-700">{item.status}</span>
+              </p>
+            </div>
+          </button>
+        ))}
+        {ledger.rows.length === 0 ? (
+          <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No inventory items found for this view yet.</p>
+        ) : null}
       </div>
 
-      <div className="hidden overflow-hidden rounded-[28px] border bg-white shadow-soft md:block">
+      <div className="hidden overflow-hidden rounded-[28px] border bg-white shadow-soft lg:block">
         <div className="overflow-x-auto scrollbar-thin">
           <table className="min-w-[1480px] w-full border-separate border-spacing-0 text-left text-sm">
             <thead>
@@ -65,9 +116,7 @@ export function InventoryTable({
                 <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Pcs/Box</th>
                 <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Expiration Date</th>
                 <th colSpan={2} className="border-b border-r bg-[#7eb24f] px-4 py-4 text-slate-950">Beginning Stocks</th>
-                <th colSpan={5} className="border-b bg-blue-500 px-4 py-4 text-white">
-                  {ledger.selectedMonthLabel}
-                </th>
+                <th colSpan={5} className="border-b bg-blue-500 px-4 py-4 text-white">{ledger.selectedMonthLabel}</th>
               </tr>
               <tr className="text-center text-xs font-bold text-slate-900">
                 <th className="border-b border-r bg-[#93c36b] px-4 py-3">Box (T)</th>
@@ -87,7 +136,9 @@ export function InventoryTable({
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.brandName}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.classification}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.pcsPerBox}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span></td>
+                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
+                  </td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningBoxes}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningPieces}</td>
                   <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.monthIn}</td>

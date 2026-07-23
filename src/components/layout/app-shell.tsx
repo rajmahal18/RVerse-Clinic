@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, Menu, Network } from "lucide-react";
+import { Bell, LogOut, Menu, Network, X } from "lucide-react";
 import { logoutAction } from "@/app/actions/workflow";
 import { navItems } from "@/data/clinic";
 import { cn } from "@/lib/utils";
@@ -14,10 +14,46 @@ import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [requestCount, setRequestCount] = useState(0);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useEffect(() => { fetch("/api/item-requests/count").then((response) => response.ok ? response.json() : null).then((data) => data && setRequestCount(data.count)).catch(() => undefined); }, [pathname]);
+  useEffect(() => { setMobileNavOpen(false); }, [pathname]);
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileNavOpen]);
+
+  const renderNavigation = () => (
+    <nav className="space-y-1 p-3 md:p-4">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 md:px-4 md:py-3",
+              active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white"
+            )}
+          >
+            <Icon className="h-5 w-5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {item.href === "/item-requests" && requestCount > 0 ? (
+              <span className="grid min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-black text-white">
+                {requestCount > 99 ? "99+" : requestCount}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
         <Link href="/" className="flex h-16 items-center gap-3 border-b px-6">
           <OcmLogo className="h-11 w-11" />
@@ -26,28 +62,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <h1 className="font-black tracking-tight">THE CLINIC</h1>
           </div>
         </Link>
-        <nav className="space-y-1 p-4">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950",
-                  active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white"
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="flex-1">{item.label}</span>
-                {item.href === "/item-requests" && requestCount > 0 ? <span className="grid min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-black text-white">{requestCount > 99 ? "99+" : requestCount}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
+        {renderNavigation()}
         <div className="absolute bottom-4 left-4 right-4 rounded-2xl border bg-teal-50 p-4 text-sm text-teal-900">
+          <div className="flex items-center gap-2 font-bold">
+            <Network className="h-4 w-4" /> LAN-ready mode
+          </div>
+        </div>
+      </aside>
+      <div
+        className={cn(
+          "fixed inset-0 z-40 bg-slate-950/40 opacity-0 backdrop-blur-[2px] transition lg:hidden",
+          mobileNavOpen ? "pointer-events-auto opacity-100" : "pointer-events-none"
+        )}
+        aria-hidden="true"
+        onClick={() => setMobileNavOpen(false)}
+      />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex w-[min(86vw,22rem)] -translate-x-full flex-col border-r bg-white shadow-2xl transition-transform duration-200 lg:hidden",
+          mobileNavOpen && "translate-x-0"
+        )}
+        aria-label="Mobile navigation"
+        aria-hidden={!mobileNavOpen}
+      >
+        <div className="flex h-16 items-center gap-3 border-b px-4">
+          <Link href="/" className="flex min-w-0 flex-1 items-center gap-3">
+            <OcmLogo className="h-10 w-10 shrink-0" />
+            <div className="min-w-0">
+              <p className="truncate text-xs text-muted-foreground">Office of the Chief Minister</p>
+              <h1 className="truncate font-black tracking-tight">THE CLINIC</h1>
+            </div>
+          </Link>
+          <Button variant="ghost" size="icon" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{renderNavigation()}</div>
+        <div className="m-3 rounded-xl border bg-teal-50 p-3 text-sm text-teal-900">
           <div className="flex items-center gap-2 font-bold">
             <Network className="h-4 w-4" /> LAN-ready mode
           </div>
@@ -55,7 +106,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="lg:pl-72">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-white/85 px-4 backdrop-blur md:px-8">
-          <Button variant="ghost" size="icon" className="lg:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="Open navigation"
+            aria-expanded={mobileNavOpen}
+          >
             <Menu className="h-5 w-5" />
           </Button>
           <Link href="/" className="flex items-center gap-2 lg:hidden">
@@ -82,7 +140,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">DR</div>
           </div>
         </header>
-        <main className="p-4 md:p-8">{children}</main>
+        <main className="p-3 md:p-8">{children}</main>
       </div>
     </div>
   );

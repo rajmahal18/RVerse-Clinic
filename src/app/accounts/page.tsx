@@ -1,11 +1,12 @@
 import { UserRole } from "@prisma/client";
-import { CheckCircle2, CircleOff, UserPlus } from "lucide-react";
-import { createUserAction, toggleUserStatusAction } from "@/app/actions/workflow";
+import { CheckCircle2, UserPlus } from "lucide-react";
+import { createUserAction } from "@/app/actions/workflow";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ActionAlert } from "@/components/ui/action-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AccountList } from "@/components/accounts/account-list";
 import { getClinicSettingsData } from "@/lib/patient-view";
 
 function roleLabel(role: string) {
@@ -44,60 +45,7 @@ export default async function AccountsPage({
             <Badge className="w-fit bg-blue-50 text-blue-700">{settings.users.length} total accounts</Badge>
           </div>
 
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full min-w-[780px] text-left text-sm">
-              <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  {["Name", "Email", "Role", "Status", "Action"].map((header) => (
-                    <th key={header} className="px-4 py-3 font-bold">
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {settings.users.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-bold text-slate-900">{user.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{user.email}</td>
-                    <td className="px-4 py-3">
-                      <Badge className="bg-slate-100 text-slate-700">{roleLabel(user.role)}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}>
-                        {user.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <form action={toggleUserStatusAction}>
-                        <input type="hidden" name="redirectTo" value="/accounts" />
-                        <input type="hidden" name="userId" value={user.id} />
-                        <input type="hidden" name="isActive" value={String(!user.isActive)} />
-                        <Button type="submit" size="sm" variant={user.isActive ? "outline" : "default"}>
-                          {user.isActive ? (
-                            <>
-                              <CircleOff className="h-4 w-4" /> Deactivate
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-4 w-4" /> Activate
-                            </>
-                          )}
-                        </Button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-                {settings.users.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
-                      No accounts configured yet.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+          <AccountList users={settings.users} />
         </section>
 
         <aside className="rounded-2xl border bg-white p-4 shadow-soft">

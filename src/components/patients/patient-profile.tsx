@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, ClipboardPlus, Pencil, Plus, Save, Syringe } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardPlus, FileText, Pencil, Plus, Save, Syringe } from "lucide-react";
 import { RequestType, VisitStatus } from "@prisma/client";
 import {
   addVaccinationRecordAction,
@@ -34,6 +34,7 @@ const requestOptions = [
   { value: RequestType.MEDICAL_ALLOWANCE, label: "Medical Allowance" },
   { value: RequestType.EMERGENCY, label: "Emergency Medical Services" },
   { value: RequestType.REFERRAL, label: "Referral" },
+  { value: RequestType.FIRST_AID_KIT, label: "Provision of First Aid Kit" },
 ];
 
 const statusOptions = [
@@ -60,6 +61,11 @@ export async function PatientProfile({ id }: { id: string }) {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="ghost" size="icon" className="shrink-0 border bg-white" aria-label="Back to patient records">
+              <Link href="/patients">
+                <ArrowLeft className="h-5 w-5" />
+              </Link>
+            </Button>
             <h2 className="text-3xl font-black tracking-tight uppercase">
               {patient.lastName}, {patient.firstName} {patient.middleName}
             </h2>
@@ -78,6 +84,11 @@ export async function PatientProfile({ id }: { id: string }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
+            <Link href={`/patients/${patient.id}/forms`}>
+              <FileText className="h-4 w-4" /> Generated Forms
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
             <Link href={`/patients/${patient.id}/edit`}>
               <Pencil className="h-4 w-4" /> Edit Patient
             </Link>
@@ -91,12 +102,17 @@ export async function PatientProfile({ id }: { id: string }) {
         </div>
       </div>
 
-      <section className="rounded-2xl border bg-white shadow-soft">
-        <div className="flex flex-col gap-3 border-b bg-slate-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div>
+      <details open className="group rounded-2xl border bg-white shadow-soft">
+        <summary className="flex cursor-pointer list-none items-start justify-between gap-3 border-b bg-slate-50 px-4 py-3 marker:hidden">
+          <div className="min-w-0">
             <h3 className="text-base font-black text-slate-900">Patient Information</h3>
             <p className="text-sm text-slate-500">Basic profile details and current visit status.</p>
           </div>
+          <span className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl border bg-white text-slate-500 transition group-open:rotate-180">
+            <ChevronDown className="h-4 w-4" />
+          </span>
+        </summary>
+        <div className="border-b bg-white px-4 py-3">
           {latestVisit ? (
             <VisitStatusModal
               action={updateVisitStatusAction}
@@ -127,7 +143,7 @@ export async function PatientProfile({ id }: { id: string }) {
             </div>
           ))}
         </div>
-      </section>
+      </details>
 
       {latestVisit ? (
         <PatientRecordTabs
@@ -259,7 +275,40 @@ export async function PatientProfile({ id }: { id: string }) {
                     </Button>
                   </form>
 
-                  <div className="overflow-x-auto">
+                  <div className="space-y-3 lg:hidden">
+                    {latestVisit.medicines.map((medicine) => (
+                      <div key={medicine.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-black text-slate-900">{medicine.itemName}</p>
+                            <p className="mt-0.5 text-sm text-slate-500">Qty {medicine.quantity} / {medicine.frequency || "-"} / {medicine.duration || "-"}</p>
+                          </div>
+                          <Badge className={medicine.status === "RELEASED" ? "shrink-0 bg-emerald-50 text-emerald-700" : "shrink-0 bg-amber-50 text-amber-700"}>
+                            {medicine.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 border-t pt-3">
+                          {medicine.status === "RELEASED" ? (
+                            <span className="text-xs text-slate-500">Released by {medicine.releasedBy || "Clinic staff"}</span>
+                          ) : (
+                            <form action={dispenseMedicineAction} className="grid gap-2">
+                              <input type="hidden" name="patientId" value={patient.id} />
+                              <input type="hidden" name="medicineRequestId" value={medicine.id} />
+                              <input name="releasedBy" className="h-10 rounded-xl border px-3 text-sm" placeholder="Released by" />
+                              <Button size="sm" type="submit">Dispense</Button>
+                            </form>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {latestVisit.medicines.length === 0 ? (
+                      <p className="rounded-2xl border bg-white px-4 py-8 text-center text-sm text-slate-500">
+                        No medicine requests recorded for this visit.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="hidden overflow-x-auto lg:block">
                     <table className="min-w-[720px] w-full text-sm">
                       <thead className="bg-slate-100 text-slate-500">
                         <tr>
@@ -321,7 +370,40 @@ export async function PatientProfile({ id }: { id: string }) {
                   <CardTitle>Assessment History</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
+                  <div className="space-y-3 lg:hidden">
+                    {patient.visitHistory.map((visit) => (
+                      <div key={visit.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black text-slate-900">{visit.timeIn}</p>
+                            <p className="mt-0.5 text-sm text-slate-500">{visit.nurseOnDuty || "No assigned staff"}</p>
+                          </div>
+                          <Badge className="shrink-0 bg-slate-100 text-slate-700">{visit.status}</Badge>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm">
+                          <p>
+                            <span className="block text-xs font-bold uppercase text-slate-400">Request</span>
+                            <span className="text-slate-700">{visit.requests.map((request) => request.label).join(", ") || "-"}</span>
+                          </p>
+                          <p>
+                            <span className="block text-xs font-bold uppercase text-slate-400">Chief Complaint</span>
+                            <span className="text-slate-700">{visit.chiefComplaint || "-"}</span>
+                          </p>
+                          <p>
+                            <span className="block text-xs font-bold uppercase text-slate-400">Diagnosis</span>
+                            <span className="text-slate-700">{visit.diagnosis || "-"}</span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {patient.visitHistory.length === 0 ? (
+                      <p className="rounded-2xl border bg-white px-4 py-8 text-center text-sm text-slate-500">
+                        No assessment history recorded yet.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="hidden overflow-x-auto lg:block">
                     <table className="min-w-[840px] w-full text-sm">
                       <thead className="bg-slate-100 text-slate-500">
                         <tr>

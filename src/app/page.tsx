@@ -119,29 +119,29 @@ export default async function DashboardPage() {
   return (
     <AppShell>
       <PageHeader title="Dashboard" eyebrow="Home / Dashboard" />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2 md:gap-4">
         <Card className="bg-gradient-to-br from-teal-600 to-teal-500 text-white">
-          <CardHeader>
-            <CardTitle>Clinic Overview</CardTitle>
+          <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+            <CardTitle className="text-sm md:text-lg">Clinic Overview</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-4xl font-black">{monthlyInteractionCount.toLocaleString()}</p>
-            <p className="text-sm text-teal-50">total patient interactions this month</p>
+          <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+            <p className="text-2xl font-black md:text-4xl">{monthlyInteractionCount.toLocaleString()}</p>
+            <p className="text-xs text-teal-50 md:text-sm">interactions this month</p>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UsersRound className="h-5 w-5 text-primary" /> Patient Records
+          <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+            <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
+              <UsersRound className="h-4 w-4 text-primary md:h-5 md:w-5" /> Patient Records
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-4xl font-black">{patientCount.toLocaleString()}</p>
-            <p className="text-sm text-muted-foreground">registered patients</p>
+          <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+            <p className="text-2xl font-black md:text-4xl">{patientCount.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground md:text-sm">registered patients</p>
           </CardContent>
         </Card>
       </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 md:mt-6 md:gap-4 xl:grid-cols-5">
         {queueCards.map((queue) => {
           const Icon = queue.icon;
 
@@ -149,28 +149,30 @@ export default async function DashboardPage() {
             <Link
               key={queue.title}
               href={queue.href}
-              className="group rounded-3xl border bg-white p-5 shadow-soft transition hover:-translate-y-1 hover:shadow-xl"
+              className="group flex items-center gap-3 rounded-xl border bg-white p-3 shadow-soft transition hover:-translate-y-1 hover:shadow-xl sm:block sm:rounded-2xl md:p-5"
             >
-              <div className={`mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl ${queue.tone}`}>
-                <Icon className="h-6 w-6" />
+              <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:mb-4 md:h-12 md:w-12 md:rounded-2xl ${queue.tone}`}>
+                <Icon className="h-5 w-5 md:h-6 md:w-6" />
               </div>
-              <p className="text-sm font-semibold text-slate-500">{queue.title}</p>
-              <div className="mt-2 flex items-end justify-between">
-                <span className="text-4xl font-black">{queue.count}</span>
-                <ArrowRight className="h-5 w-5 text-slate-400 transition group-hover:translate-x-1" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-500">{queue.title}</p>
+                <div className="flex items-end justify-between gap-3 sm:mt-2">
+                  <span className="text-2xl font-black md:text-4xl">{queue.count}</span>
+                  <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1" />
+                </div>
               </div>
             </Link>
           );
         })}
       </div>
       <DashboardAnalytics />
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <Card className="mt-3 md:mt-6">
+        <CardHeader className="p-4 pb-2 md:p-5 md:pb-2">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
             <FileText className="h-5 w-5 text-primary" /> Clinic Operations
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm text-slate-600 md:grid-cols-3">
+        <CardContent className="grid gap-2 p-4 pt-0 text-sm text-slate-600 md:grid-cols-3 md:gap-3 md:p-5 md:pt-0">
           <p>Monitor patient records, queue activity, vaccination, and reporting from one workspace.</p>
           <p>Queue and records tables stay scrollable on smaller screens so details remain readable.</p>
           <p>Use the dashboard as a quick entry point for day-to-day clinic work and status checking.</p>

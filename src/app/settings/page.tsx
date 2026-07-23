@@ -57,9 +57,9 @@ export default async function SettingsPage({
               <Button type="submit">Add User</Button>
             </form>
 
-            <div className="space-y-3">
+            <div className="space-y-3 rounded-2xl bg-slate-100 p-2">
               {settings.users.map((user) => (
-                <div key={user.id} className="flex flex-col gap-3 rounded-2xl border px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div key={user.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="font-semibold text-slate-800">{user.name}</p>
                     <p className="text-sm text-slate-500">{user.email}</p>

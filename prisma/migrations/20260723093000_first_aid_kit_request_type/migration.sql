@@ -1,0 +1,1 @@
+ALTER TYPE "RequestType" ADD VALUE 'FIRST_AID_KIT';

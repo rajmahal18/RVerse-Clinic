@@ -1,0 +1,221 @@
+import { Prisma, RequestType } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medical-certificate" | "referral-form";
+
+export const clinicForms: { slug: ClinicFormSlug; title: string; scope: "patient" | "visit"; filenamePrefix: string }[] = [
+  { slug: "employee-information", title: "Employee Information", scope: "patient", filenamePrefix: "employee-information" },
+  { slug: "assessment-monitoring", title: "Assessment Monitoring Sheet", scope: "patient", filenamePrefix: "assessment-monitoring" },
+  { slug: "medical-certificate", title: "Medical Certificate", scope: "visit", filenamePrefix: "medical-certificate" },
+  { slug: "referral-form", title: "Referral Form", scope: "visit", filenamePrefix: "referral-form" },
+];
+
+export type ClinicFormData = NonNullable<Awaited<ReturnType<typeof getClinicFormData>>>;
+
+type PatientWithFormData = Prisma.PatientGetPayload<{
+  include: {
+    clinic: true;
+    visits: {
+      include: {
+        requests: true;
+        medicines: true;
+        vaccinations: true;
+        referrals: true;
+      };
+    };
+  };
+}>;
+
+const requestTypeLabels: Record<RequestType, string> = {
+  CONSULTATION: "Medical Consultation",
+  MEDICINES: "Provision of Medicine",
+  CS_211_MEDICAL_CERTIFICATE: "CS 211 Medical Certificate",
+  REGULAR_MEDICAL_CERTIFICATE: "Medical Certificate",
+  VACCINATION: "Provision of Vaccine",
+  EMERGENCY: "Emergency Medical Services",
+  MEDICAL_ALLOWANCE: "Medical Allowance",
+  REFERRAL: "Referral",
+  FIRST_AID_KIT: "Provision of First Aid Kit",
+};
+
+export const clinicFormDefaults = {
+  physicianName: "DR. QURAESSA MIA S. TAKI, RMT, MPM, DPPS",
+  physicianPosition: "Medical Officer V",
+  nurseName: "AMINA C. NAKAN, RN",
+  nursePosition: "The Clinic Nurse",
+  certificateRevision: "OCMTC_MC_2025_REV_03",
+  referralRevision: "OCMTC_RF_2025_REV_02",
+  officeAddress: "Ground Floor OCM Main Building, Bangsamoro Government Center, Gov. Gutierrez St. Rosary Heights VII, Cotabato City",
+  officeEmail: "clinic@bangsamoro.gov.ph",
+};
+
+function clean(value: string | null | undefined) {
+  return value?.trim() ?? "";
+}
+
+function fullName(patient: Pick<PatientWithFormData, "lastName" | "firstName" | "middleName">) {
+  return [patient.firstName, patient.middleName, patient.lastName].map(clean).filter(Boolean).join(" ");
+}
+
+function formatDate(value: Date | null | undefined) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(value);
+}
+
+function formatShortDate(value: Date | null | undefined) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }).format(value);
+}
+
+function formatTime(value: Date | null | undefined) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
+}
+
+function ageAt(birthDate: Date, asOf = new Date()) {
+  let age = asOf.getFullYear() - birthDate.getFullYear();
+  const monthDifference = asOf.getMonth() - birthDate.getMonth();
+
+  if (monthDifference < 0 || (monthDifference === 0 && asOf.getDate() < birthDate.getDate())) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function genderLabel(value: string) {
+  return value.charAt(0) + value.slice(1).toLowerCase();
+}
+
+function ordinalDay(value: Date) {
+  const day = value.getDate();
+  const mod100 = day % 100;
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
+  return `${day}${suffix}`;
+}
+
+function visitServices(visit: PatientWithFormData["visits"][number]) {
+  return visit.requests.map((request) => requestTypeLabels[request.type]).join(", ");
+}
+
+function medicineLine(medicine: PatientWithFormData["visits"][number]["medicines"][number]) {
+  return [medicine.itemName, medicine.frequency, medicine.duration].map(clean).filter(Boolean).join(" - ");
+}
+
+export async function getClinicFormData(patientId: string, visitId?: string) {
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    include: {
+      clinic: true,
+      visits: {
+        orderBy: { timeIn: "desc" },
+        include: {
+          requests: true,
+          medicines: true,
+          vaccinations: true,
+          referrals: true,
+        },
+      },
+    },
+  });
+
+  if (!patient) return null;
+
+  const latestVisit = patient.visits[0] ?? null;
+  const selectedVisit = (visitId ? patient.visits.find((visit) => visit.id === visitId) : latestVisit) ?? latestVisit;
+  const completedOrLatestVisit = patient.visits.find((visit) => visit.status === "COMPLETED") ?? latestVisit;
+  const issueDate = new Date();
+  const selectedDate = selectedVisit?.timeIn ?? issueDate;
+  const clinicAddress = clean(patient.clinic.address) || clinicFormDefaults.officeAddress;
+  const clinicEmail = clean(patient.clinic.email) || clinicFormDefaults.officeEmail;
+
+  return {
+    patient: {
+      id: patient.id,
+      fullName: fullName(patient),
+      birthDate: formatDate(patient.birthDate),
+      shortBirthDate: formatShortDate(patient.birthDate),
+      age: String(ageAt(patient.birthDate, selectedDate)),
+      ageSex: `${ageAt(patient.birthDate, selectedDate)}/${genderLabel(patient.gender).charAt(0)}`,
+      gender: genderLabel(patient.gender),
+      civilStatus: clean(patient.civilStatus),
+      address: clean(patient.address),
+      contact: clean(patient.contactNo),
+      officeDivision: clean(patient.agency),
+      designation: clean(patient.designation),
+      height: patient.heightCm ? `${patient.heightCm.toFixed(1)} cm` : "",
+      weight: patient.weightKg ? `${patient.weightKg.toFixed(1)} kg` : "",
+    },
+    clinic: {
+      name: clean(patient.clinic.name) || "The Clinic",
+      address: clinicAddress,
+      email: clinicEmail,
+    },
+    selectedVisit: selectedVisit
+      ? {
+          id: selectedVisit.id,
+          date: formatDate(selectedVisit.timeIn),
+          shortDate: formatShortDate(selectedVisit.timeIn),
+          timeIn: formatTime(selectedVisit.timeIn),
+          timeOut: formatTime(selectedVisit.timeOut),
+          chiefComplaint: clean(selectedVisit.chiefComplaint),
+          bloodPressure: clean(selectedVisit.bloodPressure),
+          rbs: clean(selectedVisit.rbs),
+          temperature: clean(selectedVisit.temperature),
+          pulseRate: clean(selectedVisit.pulseRate),
+          respiratoryRate: clean(selectedVisit.respiratoryRate),
+          diagnosis: clean(selectedVisit.diagnosis),
+          treatmentPlan: clean(selectedVisit.treatmentPlan),
+          progressNotes: clean(selectedVisit.progressNotes),
+          nurseOnDuty: clean(selectedVisit.nurseOnDuty),
+          services: visitServices(selectedVisit),
+          medicines: selectedVisit.medicines.map(medicineLine).filter(Boolean),
+          referral: selectedVisit.referrals[0] ?? null,
+        }
+      : null,
+    latestVisit: completedOrLatestVisit
+      ? {
+          date: formatDate(completedOrLatestVisit.timeIn),
+          reason: clean(completedOrLatestVisit.chiefComplaint),
+          medicalHistory: clean(completedOrLatestVisit.progressNotes),
+          medicines: completedOrLatestVisit.medicines.map(medicineLine).filter(Boolean),
+        }
+      : null,
+    visits: [...patient.visits]
+      .sort((a, b) => a.timeIn.getTime() - b.timeIn.getTime())
+      .map((visit) => ({
+        id: visit.id,
+        date: formatShortDate(visit.timeIn),
+        timeIn: formatTime(visit.timeIn),
+        chiefComplaint: clean(visit.chiefComplaint),
+        bloodPressure: clean(visit.bloodPressure),
+        rbs: clean(visit.rbs),
+        temperature: clean(visit.temperature),
+        pulseRate: clean(visit.pulseRate),
+        services: visitServices(visit),
+        timeOut: formatTime(visit.timeOut),
+        nurseOnDuty: clean(visit.nurseOnDuty),
+      })),
+    vaccinations: patient.visits
+      .flatMap((visit) => visit.vaccinations.map((record) => ({ ...record, visitDate: visit.timeIn })))
+      .sort((a, b) => a.visitDate.getTime() - b.visitDate.getTime())
+      .map((record) => ({
+        vaccine: clean(record.vaccine),
+        dose: clean(record.dose),
+        date: formatShortDate(record.visitDate),
+      })),
+    issued: {
+      date: formatDate(issueDate),
+      ordinalDay: ordinalDay(issueDate),
+      month: new Intl.DateTimeFormat("en-US", { month: "long" }).format(issueDate),
+      year: String(issueDate.getFullYear()),
+    },
+    signatory: clinicFormDefaults,
+  };
+}
+
+export function clinicFormFilename(form: ClinicFormSlug, data: ClinicFormData) {
+  const formConfig = clinicForms.find((item) => item.slug === form);
+  const datePart = data.selectedVisit?.shortDate.replaceAll("/", "-");
+  return [formConfig?.filenamePrefix ?? form, data.patient.id, datePart].filter(Boolean).join("-");
+}

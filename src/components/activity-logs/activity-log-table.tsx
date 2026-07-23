@@ -46,7 +46,25 @@ function MetadataDetails({ metadata }: { metadata: unknown }) {
 
   if (changes.length > 0) {
     return (
-      <div className="overflow-x-auto rounded-xl border">
+      <>
+      <div className="space-y-3 lg:hidden">
+        {changes.map((change) => (
+          <div key={change.field} className="rounded-xl border bg-slate-50 px-3 py-2 text-sm">
+            <p className="font-bold text-slate-800">{change.field}</p>
+            <div className="mt-2 grid gap-2">
+              <p>
+                <span className="block text-xs font-bold uppercase text-slate-400">Previous</span>
+                <span className="whitespace-pre-wrap text-slate-600">{formatValue(change.before)}</span>
+              </p>
+              <p>
+                <span className="block text-xs font-bold uppercase text-slate-400">Current</span>
+                <span className="whitespace-pre-wrap text-slate-900">{formatValue(change.after)}</span>
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto rounded-xl border lg:block">
         <table className="w-full min-w-[560px] text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
             <tr>
@@ -68,6 +86,7 @@ function MetadataDetails({ metadata }: { metadata: unknown }) {
           </tbody>
         </table>
       </div>
+      </>
     );
   }
 
@@ -96,7 +115,42 @@ export function ActivityLogTable({ logs }: { logs: ActivityLogRow[] }) {
           <Activity className="h-4 w-4 text-primary" />
           Latest 100 records
         </div>
-        <div className="overflow-x-auto scrollbar-thin">
+        <div className="divide-y-8 divide-slate-100 bg-slate-100 lg:hidden">
+          {logs.map((log) => (
+            <button
+              key={log.id}
+              type="button"
+              onClick={() => setSelectedLogId(log.id)}
+              className="block w-full border-y border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition active:bg-slate-50"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-black text-slate-900">{log.action}</p>
+                  <p className="mt-0.5 text-sm text-slate-500">{log.module} / {log.createdAt}</p>
+                </div>
+                <Badge className={log.status === "FAILED" ? "shrink-0 bg-rose-50 text-rose-700" : "shrink-0 bg-emerald-50 text-emerald-700"}>
+                  {log.status}
+                </Badge>
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm text-slate-700">{log.description}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <p className="min-w-0">
+                  <span className="block text-xs font-bold uppercase text-slate-400">Record</span>
+                  <span className="block truncate text-slate-700">{log.entityType}</span>
+                </p>
+                <p className="min-w-0">
+                  <span className="block text-xs font-bold uppercase text-slate-400">User</span>
+                  <span className="block truncate text-slate-700">{log.user}</span>
+                </p>
+              </div>
+            </button>
+          ))}
+          {logs.length === 0 ? (
+            <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No activity logs found.</p>
+          ) : null}
+        </div>
+
+        <div className="hidden overflow-x-auto scrollbar-thin lg:block">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
               <tr>

@@ -28,3 +28,501 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 
 .scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+.clinic-print-screen {
+  min-height: 100vh;
+  overflow-x: auto;
+  background: #e2e8f0;
+  padding: 24px;
+}
+
+.clinic-form-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: white;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9pt;
+  line-height: 1.18;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.employee-form-page {
+  padding: 7mm;
+}
+
+.employee-section-title {
+  background: #d9d9d9;
+  font-weight: 800;
+}
+
+.employee-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.employee-info-table th,
+.employee-info-table td {
+  border: 1px solid #999;
+  height: 6.2mm;
+  padding: 0.8mm 1mm;
+  overflow: hidden;
+  vertical-align: top;
+  word-break: break-word;
+  font-size: 8.4pt;
+}
+
+.employee-info-table .label {
+  font-size: 10.5pt;
+  font-weight: 400;
+}
+
+.employee-info-table .employee-label-col {
+  width: 38mm;
+}
+
+.employee-info-table .employee-small-label-col {
+  width: 22mm;
+}
+
+.employee-info-table .employee-small-value-col {
+  width: 24mm;
+}
+
+.employee-name-row td {
+  height: 12mm;
+}
+
+.employee-address-row td {
+  height: 16mm;
+}
+
+.employee-main-title,
+.employee-medical-title {
+  padding: 2mm 0;
+  text-align: center;
+  font-size: 17pt;
+}
+
+.employee-subtitle {
+  padding: 1mm 1.5mm;
+  font-size: 13pt;
+}
+
+.employee-medical-title {
+  margin-top: 2mm;
+  border: 1px solid #d9d9d9;
+}
+
+.employee-medical-grid {
+  display: grid;
+  grid-template-columns: 53% 47%;
+  border-left: 1px solid #999;
+  border-bottom: 1px solid #999;
+}
+
+.employee-left,
+.employee-right {
+  min-height: 165mm;
+  border-right: 1px solid #999;
+}
+
+.employee-measure-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 11mm;
+  border-bottom: 1px solid #999;
+  font-size: 13pt;
+}
+
+.employee-measure-row > div {
+  padding: 2mm 1.2mm;
+  border-right: 1px solid #999;
+}
+
+.employee-vaccine-table,
+.assessment-table,
+.vital-signs-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.employee-vaccine-table th,
+.employee-vaccine-table td {
+  border: 1px solid #999;
+  height: 5.8mm;
+  padding: 0.6mm 1mm;
+  font-size: 8pt;
+}
+
+.employee-vaccine-table th,
+.employee-box-title {
+  background: #d9d9d9;
+  text-align: center;
+  font-size: 12pt;
+  font-weight: 500;
+}
+
+.vaccine-strip {
+  width: 14mm;
+  background: #d9d9d9;
+  text-align: center;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.covid-cell,
+.others-cell,
+.center {
+  text-align: center;
+}
+
+.covid-cell,
+.others-cell {
+  font-size: 11pt;
+}
+
+.employee-box-title {
+  border-top: 1px solid #999;
+  border-bottom: 1px solid #999;
+  padding: 1mm;
+}
+
+.employee-allergy-box {
+  height: 27mm;
+  padding: 2mm 1.2mm;
+  font-size: 13pt;
+  border-bottom: 1px solid #999;
+}
+
+.employee-allergy-box p + p {
+  margin-top: 9mm;
+}
+
+.employee-medication-box {
+  height: 40mm;
+  padding: 2mm;
+  overflow: hidden;
+  font-size: 8pt;
+}
+
+.employee-history-box {
+  height: 99mm;
+  padding: 2mm;
+  overflow: hidden;
+  font-size: 8pt;
+}
+
+.employee-additional-box {
+  height: 50mm;
+  padding: 1mm;
+  overflow: hidden;
+  font-size: 13pt;
+}
+
+.employee-additional-box p {
+  margin: 0 0 1mm;
+}
+
+.assessment-page {
+  padding: 6mm 6mm 7mm;
+}
+
+.assessment-header {
+  text-align: center;
+  font-size: 13pt;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.assessment-info-row {
+  display: grid;
+  grid-template-columns: 34% 18% 28% 20%;
+  gap: 2mm;
+  margin-top: 5mm;
+  font-size: 10pt;
+}
+
+.assessment-page h1 {
+  margin: 3mm 0 2mm;
+  text-align: center;
+  font-size: 19pt;
+  font-weight: 900;
+}
+
+.assessment-table th,
+.assessment-table td {
+  border: 1px solid #333;
+  height: 5.45mm;
+  padding: 0.5mm;
+  text-align: center;
+  vertical-align: top;
+  font-size: 6.8pt;
+  overflow: hidden;
+}
+
+.assessment-table th {
+  height: 7mm;
+  font-size: 7.3pt;
+  vertical-align: middle;
+}
+
+.assessment-table th:nth-child(1), .assessment-table td:nth-child(1) { width: 8%; }
+.assessment-table th:nth-child(2), .assessment-table td:nth-child(2) { width: 9%; }
+.assessment-table th:nth-child(3), .assessment-table td:nth-child(3) { width: 17%; }
+.assessment-table th:nth-child(4), .assessment-table td:nth-child(4) { width: 8%; }
+.assessment-table th:nth-child(5), .assessment-table td:nth-child(5) { width: 9%; }
+.assessment-table th:nth-child(6), .assessment-table td:nth-child(6) { width: 7%; }
+.assessment-table th:nth-child(7), .assessment-table td:nth-child(7) { width: 6.5%; }
+.assessment-table th:nth-child(8), .assessment-table td:nth-child(8) { width: 18.5%; }
+.assessment-table th:nth-child(9), .assessment-table td:nth-child(9) { width: 9%; }
+.assessment-table th:nth-child(10), .assessment-table td:nth-child(10) { width: 8%; }
+
+.assessment-table .left {
+  text-align: left;
+}
+
+.certificate-page,
+.referral-page {
+  position: relative;
+  padding: 13mm 28mm 12mm;
+}
+
+.clinic-letterhead {
+  display: grid;
+  grid-template-columns: 28mm 1fr;
+  align-items: center;
+  gap: 5mm;
+}
+
+.clinic-letterhead img {
+  width: 25mm;
+  height: 25mm;
+  object-fit: contain;
+}
+
+.clinic-office-name {
+  font-size: 12pt;
+  font-weight: 900;
+}
+
+.clinic-region-name {
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.clinic-head-rule {
+  margin-top: 2mm;
+  border-top: 1px solid #777;
+}
+
+.clinic-letterhead-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24pt;
+  letter-spacing: 7pt;
+}
+
+.clinic-document-title {
+  margin: 15mm 0 10mm;
+  text-align: center;
+  font-size: 20pt;
+  font-weight: 900;
+  letter-spacing: 7pt;
+}
+
+.certificate-intro {
+  max-width: 165mm;
+  margin-bottom: 9mm;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.clinic-form-row {
+  display: flex;
+  gap: 7mm;
+  align-items: flex-end;
+}
+
+.clinic-form-line {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 2mm;
+  margin-bottom: 4mm;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.clinic-form-line.short { flex: 0.45; }
+.clinic-form-line.medium { flex: 0.9; }
+.clinic-form-line.wide { flex: 1.4; }
+.clinic-form-line.date-line { width: 90mm; flex: none; }
+
+.clinic-form-label {
+  white-space: nowrap;
+}
+
+.clinic-form-underline {
+  min-height: 5mm;
+  flex: 1;
+  border-bottom: 1px solid #000;
+  padding: 0 2mm;
+  font-weight: 700;
+}
+
+.box-label {
+  margin: 3mm 0 1mm;
+  font-size: 10pt;
+  font-weight: 800;
+}
+
+.certificate-box {
+  border: 2px solid #000;
+  padding: 1.5mm;
+  overflow: hidden;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.diagnosis-box { height: 40mm; }
+.remarks-box { height: 34mm; }
+
+.certificate-purpose,
+.issuance-line {
+  margin-top: 8mm;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.clinic-signatory {
+  margin-top: 23mm;
+  font-size: 10pt;
+  font-style: italic;
+}
+
+.clinic-signatory-name {
+  font-weight: 900;
+  font-style: normal;
+}
+
+.clinic-official-footer {
+  position: absolute;
+  left: 28mm;
+  right: 28mm;
+  bottom: 7mm;
+  font-size: 6pt;
+  text-align: center;
+}
+
+.clinic-validity,
+.clinic-revision {
+  text-align: left;
+  font-weight: 900;
+}
+
+.clinic-footer-rule {
+  margin: 6mm 0 1mm;
+  border-top: 2px solid #000;
+}
+
+.referral-page .clinic-document-title {
+  margin: 9mm 0 8mm;
+}
+
+.referral-fields {
+  font-size: 10pt;
+}
+
+.vital-signs-table {
+  margin-top: 5mm;
+  font-size: 9pt;
+}
+
+.vital-signs-table th,
+.vital-signs-table td {
+  border: 1px solid #999;
+  padding: 1.2mm;
+}
+
+.vital-signs-table th {
+  background: #d9d9d9;
+  font-size: 11pt;
+}
+
+.referral-narratives {
+  margin-top: 7mm;
+}
+
+.referral-narratives section {
+  min-height: 20mm;
+  margin-bottom: 3mm;
+  overflow: hidden;
+}
+
+.referral-narratives h2 {
+  margin-bottom: 3mm;
+  font-size: 10pt;
+  font-weight: 900;
+}
+
+.referral-narratives p {
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.referral-nurse {
+  margin-top: 5mm;
+}
+
+.referral-physician {
+  margin-top: 11mm;
+}
+
+.referral-page .clinic-signatory {
+  font-size: 9.5pt;
+}
+
+.referral-page .clinic-official-footer {
+  bottom: 5mm;
+}
+
+.referral-page .clinic-footer-rule {
+  margin-top: 3mm;
+}
+
+@media print {
+  html,
+  body {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    background: white !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .clinic-print-screen {
+    padding: 0;
+    overflow: visible;
+    background: white;
+  }
+
+  .clinic-form-page {
+    margin: 0;
+    box-shadow: none !important;
+  }
+}
