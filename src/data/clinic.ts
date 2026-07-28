@@ -1,7 +1,7 @@
 import { Activity, CalendarClock, ClipboardList, FileHeart, Gauge, PackageCheck, Pill, Settings, ShieldPlus, Syringe, UserCog, UsersRound } from "lucide-react";
 
 export const navItems = [
-  { href: "/", label: "Dashboard", icon: Gauge },
+  { href: "/dashboard", label: "Dashboard", icon: Gauge },
   { href: "/patients", label: "Patient Records", icon: UsersRound },
   { href: "/todays-patients", label: "Today’s Patient", icon: CalendarClock },
   { href: "/follow-ups", label: "For Follow up", icon: ClipboardList },

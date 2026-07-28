@@ -898,7 +898,7 @@ export async function updateClinicSettingsAction(formData: FormData) {
   });
 
   revalidatePath("/settings");
-  revalidatePath("/");
+  revalidatePath("/dashboard");
   redirect("/settings");
 }
 
@@ -969,7 +969,7 @@ export async function toggleUserStatusAction(formData: FormData) {
 }
 
 export async function loginAction(formData: FormData) {
-  const next = optionalString(formData, "next") ?? "/";
+  const next = optionalString(formData, "next") ?? "/dashboard";
   const destination = await runAction("/login", "Authentication", "Sign in", async () => {
     const email = requiredString(formData, "email").toLowerCase();
     const password = requiredString(formData, "password");
@@ -999,7 +999,7 @@ export async function loginAction(formData: FormData) {
       description: `${user.name} signed in.`,
     });
 
-    return next.startsWith("/") ? next : "/";
+    return next.startsWith("/") ? next : "/dashboard";
   });
 
   redirect(destination);

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { AUTH_COOKIE_NAME, verifyMiddlewareSession } from "@/lib/auth-edge";
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/", "/login"];
 
 function isPublicPath(pathname: string) {
   return (
@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   const hasSession = await verifyMiddlewareSession(request.cookies.get(AUTH_COOKIE_NAME)?.value);
 
   if (pathname === "/login" && hasSession) {
-    return NextResponse.redirect(new URL("/", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   if (!isPublicPath(pathname) && !hasSession) {

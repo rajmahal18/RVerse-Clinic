@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
-        <Link href="/" className="flex h-16 items-center gap-3 border-b px-6">
+        <Link href="/dashboard" className="flex h-16 items-center gap-3 border-b px-6">
           <OcmLogo className="h-11 w-11" />
           <div>
             <p className="text-sm text-muted-foreground">Office of the Chief Minister</p>
@@ -86,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-hidden={!mobileNavOpen}
       >
         <div className="flex h-16 items-center gap-3 border-b px-4">
-          <Link href="/" className="flex min-w-0 flex-1 items-center gap-3">
+          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3">
             <OcmLogo className="h-10 w-10 shrink-0" />
             <div className="min-w-0">
               <p className="truncate text-xs text-muted-foreground">Office of the Chief Minister</p>
@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <Link href="/" className="flex items-center gap-2 lg:hidden">
+          <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
             <OcmLogo className="h-9 w-9" />
             <span className="text-sm font-black tracking-tight">THE CLINIC</span>
           </Link>
