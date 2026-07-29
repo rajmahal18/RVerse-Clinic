@@ -20,7 +20,7 @@ export default async function PatientFormsPage({
 
   return (
     <AppShell>
-      <PageHeader title="Generated Forms" />
+      <PageHeader title="Clinic Forms" />
       <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">
         <div className="border-b bg-slate-50 px-4 py-3">
           <h2 className="font-black text-slate-900">{data.patient.fullName}</h2>

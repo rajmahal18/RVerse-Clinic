@@ -17,11 +17,13 @@ export function NewVisitModal({
   patientId,
   requestOptions,
   defaultRequestTypes,
+  assignedStaffName,
 }: {
   action: ServerFormAction;
   patientId: string;
   requestOptions: RequestOption[];
   defaultRequestTypes: string[];
+  assignedStaffName?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -45,7 +47,7 @@ export function NewVisitModal({
                 <h2 id="new-visit-title" className="text-lg font-black text-slate-900">
                   New Visit
                 </h2>
-                <p className="text-sm text-slate-500">Start a visit record for this patient.</p>
+                <p className="text-sm text-slate-500">Add this patient to the clinic queue.</p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close new visit">
                 <X className="h-5 w-5" />
@@ -55,15 +57,17 @@ export function NewVisitModal({
             <form action={action} className="grid min-h-0 gap-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <input type="hidden" name="patientId" value={patientId} />
               <ServiceRequestedFields options={requestOptions} defaultValues={defaultRequestTypes} />
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">
+              <div className="grid gap-2 text-sm font-semibold text-slate-700">
                 Assigned staff
-                <input name="nurseOnDuty" className="h-10 rounded-xl border px-3 font-normal outline-none focus:ring-2 focus:ring-primary/30" placeholder="Assigned staff" />
-              </label>
+                <div className="rounded-xl border bg-slate-50 px-3 py-2 font-normal text-slate-700">
+                  {assignedStaffName || "Signed-in account"}
+                </div>
+              </div>
               <div className="flex justify-end gap-2 pt-1">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit">Start Visit</Button>
+                <Button type="submit">Add to Queue</Button>
               </div>
             </form>
           </div>

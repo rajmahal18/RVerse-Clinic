@@ -23,15 +23,22 @@ function bytesToBase64Url(bytes: ArrayBuffer) {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-export async function verifyMiddlewareSession(token: string | undefined) {
+type MiddlewareSession = {
+  exp: number;
+  role?: string;
+  userId?: string;
+  email?: string;
+};
+
+export async function verifyMiddlewareSession(token: string | undefined): Promise<MiddlewareSession | null> {
   if (!token) {
-    return false;
+    return null;
   }
 
   const [encodedPayload, signature] = token.split(".");
 
   if (!encodedPayload || !signature) {
-    return false;
+    return null;
   }
 
   const key = await crypto.subtle.importKey(
@@ -44,14 +51,24 @@ export async function verifyMiddlewareSession(token: string | undefined) {
   const expectedSignature = bytesToBase64Url(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(encodedPayload)));
 
   if (expectedSignature !== signature) {
-    return false;
+    return null;
   }
 
   try {
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload))) as { exp?: number };
-    return typeof payload.exp === "number" && payload.exp > Date.now();
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload))) as { exp?: number; role?: string; userId?: string; email?: string };
+
+    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) {
+      return null;
+    }
+
+    return {
+      exp: payload.exp,
+      role: payload.role,
+      userId: payload.userId,
+      email: payload.email,
+    };
   } catch {
-    return false;
+    return null;
   }
 }
 

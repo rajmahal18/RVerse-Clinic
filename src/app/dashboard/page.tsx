@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, ClipboardList, FileText, ShieldPlus, Syringe, UsersRound, Activity } from "lucide-react";
+import { ArrowRight, CalendarClock, ClipboardList, FileText, ShieldPlus, Syringe, UsersRound, Activity, PackageCheck, Pill } from "lucide-react";
 import { RequestType, VisitStatus } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { DashboardAnalytics } from "@/components/dashboard/dashboard-analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { canAccessPath, isAppRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,7 @@ export default async function DashboardPage() {
   const today = getDayRange();
   const month = getMonthRange();
   const [
+    currentUser,
     patientCount,
     monthlyInteractionCount,
     todaysPatientCount,
@@ -37,7 +40,10 @@ export default async function DashboardPage() {
     followUpCount,
     vaccinationCount,
     emergencyCount,
+    pendingItemRequestCount,
+    lowStockItems,
   ] = await Promise.all([
+    getCurrentUser(),
     prisma.patient.count(),
     prisma.visit.count({
       where: {
@@ -79,7 +85,12 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.medicineRequest.count({ where: { status: "REQUESTED" } }),
+    prisma.inventoryItem.findMany({ select: { stock: true, reorderLevel: true } }),
   ]);
+  const role = isAppRole(currentUser?.role) ? currentUser.role : "RECORDS";
+  const canViewPatients = canAccessPath(role, "/patients");
+  const lowStockCount = lowStockItems.filter((item) => item.stock <= item.reorderLevel).length;
   const queueCards = [
     {
       title: "Today's Patient",
@@ -116,33 +127,72 @@ export default async function DashboardPage() {
       href: "/emergency-cases",
       icon: ShieldPlus,
     },
-  ];
+    {
+      title: "Pending Item Requests",
+      count: pendingItemRequestCount,
+      tone: "bg-indigo-50 text-indigo-700",
+      href: "/item-requests",
+      icon: PackageCheck,
+    },
+    {
+      title: "Low Stock Items",
+      count: lowStockCount,
+      tone: "bg-orange-50 text-orange-700",
+      href: "/inventory",
+      icon: Pill,
+    },
+  ].filter((queue) => canAccessPath(role, queue.href));
 
   return (
     <AppShell>
       <PageHeader title="Dashboard" eyebrow="Home / Dashboard" />
-      <div className="grid grid-cols-2 gap-2 md:gap-4">
-        <Card className="bg-gradient-to-br from-teal-600 to-teal-500 text-white">
-          <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
-            <CardTitle className="text-sm md:text-lg">Clinic Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-            <p className="text-2xl font-black md:text-4xl">{monthlyInteractionCount.toLocaleString()}</p>
-            <p className="text-xs text-teal-50 md:text-sm">interactions this month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
-            <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
-              <UsersRound className="h-4 w-4 text-primary md:h-5 md:w-5" /> Patient Records
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-            <p className="text-2xl font-black md:text-4xl">{patientCount.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground md:text-sm">registered patients</p>
-          </CardContent>
-        </Card>
-      </div>
+      {canViewPatients ? (
+        <div className="grid grid-cols-2 gap-2 md:gap-4">
+          <Card className="bg-gradient-to-br from-teal-600 to-teal-500 text-white">
+            <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+              <CardTitle className="text-sm md:text-lg">Clinic Overview</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+              <p className="text-2xl font-black md:text-4xl">{monthlyInteractionCount.toLocaleString()}</p>
+              <p className="text-xs text-teal-50 md:text-sm">interactions this month</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
+                <UsersRound className="h-4 w-4 text-primary md:h-5 md:w-5" /> Patient Records
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+              <p className="text-2xl font-black md:text-4xl">{patientCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground md:text-sm">registered patients</p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2 md:gap-4">
+          <Card className="bg-gradient-to-br from-indigo-600 to-indigo-500 text-white">
+            <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+              <CardTitle className="text-sm md:text-lg">Item Requests</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+              <p className="text-2xl font-black md:text-4xl">{pendingItemRequestCount.toLocaleString()}</p>
+              <p className="text-xs text-indigo-50 md:text-sm">pending approval</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
+                <Pill className="h-4 w-4 text-primary md:h-5 md:w-5" /> Inventory
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+              <p className="text-2xl font-black md:text-4xl">{lowStockCount.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground md:text-sm">low stock items</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       <div className="mt-3 grid gap-2 sm:grid-cols-2 md:mt-6 md:gap-4 xl:grid-cols-5">
         {queueCards.map((queue) => {
           const Icon = queue.icon;
@@ -167,7 +217,7 @@ export default async function DashboardPage() {
           );
         })}
       </div>
-      <DashboardAnalytics />
+      {canViewPatients ? <DashboardAnalytics /> : null}
       <Card className="mt-3 md:mt-6">
         <CardHeader className="p-4 pb-2 md:p-5 md:pb-2">
           <CardTitle className="flex items-center gap-2 text-base md:text-lg">
@@ -175,9 +225,19 @@ export default async function DashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-2 p-4 pt-0 text-sm text-slate-600 md:grid-cols-3 md:gap-3 md:p-5 md:pt-0">
-          <p>Monitor patient records, queue activity, vaccination, and reporting from one workspace.</p>
-          <p>Queue and records tables stay scrollable on smaller screens so details remain readable.</p>
-          <p>Use the dashboard as a quick entry point for day-to-day clinic work and status checking.</p>
+          {canViewPatients ? (
+            <>
+              <p>Monitor patient records, queue activity, vaccination, and reporting from one workspace.</p>
+              <p>Queue and records tables stay scrollable on smaller screens so details remain readable.</p>
+              <p>Use the dashboard as a quick entry point for day-to-day clinic work and status checking.</p>
+            </>
+          ) : (
+            <>
+              <p>Monitor item requests and inventory stock status from the dashboard.</p>
+              <p>Use the request queue for approval and release decisions.</p>
+              <p>Open inventory to review medicine, vaccine, supply, and equipment records.</p>
+            </>
+          )}
         </CardContent>
       </Card>
     </AppShell>

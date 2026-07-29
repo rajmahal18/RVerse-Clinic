@@ -6,7 +6,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "The Clinic",
-  description: "Clinic records and inventory layout prototype",
+  description: "Clinic records, visits, inventory, and reporting system",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icons/ocmlogo.png",

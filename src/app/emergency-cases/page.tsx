@@ -1,7 +1,20 @@
+import { ShieldPlus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 
 export default function EmergencyPage() {
-  return <AppShell><PageHeader title="Medical Emergency Cases" eyebrow="Home / Medical Emergency Cases" /><Card><CardContent className="p-8 text-center text-slate-500">Emergency case triage board placeholder. Future logic: priority, chief complaint, vitals, assigned staff, and outcome.</CardContent></Card></AppShell>;
+  return (
+    <AppShell>
+      <PageHeader title="Emergency Cases" />
+      <section className="border bg-white px-4 py-10 text-center shadow-sm">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-rose-50 text-rose-700">
+          <ShieldPlus className="h-6 w-6" />
+        </div>
+        <h3 className="mt-4 text-lg font-black text-slate-900">No emergency cases recorded</h3>
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+          Emergency visits will appear here when a patient visit is tagged for emergency medical services.
+        </p>
+      </section>
+    </AppShell>
+  );
 }

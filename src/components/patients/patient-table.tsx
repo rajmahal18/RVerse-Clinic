@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CalendarClock, MapPin, Phone, Stethoscope, UserRound, type LucideIcon } from "lucide-react";
 import type { PatientTableRow } from "@/lib/patient-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,17 @@ type PatientTableProps = {
   pageSize?: number;
   basePath?: string;
   searchQuery?: string;
+  queryParams?: Record<string, string | undefined>;
 };
 
-function buildPageHref(basePath: string, page: number, searchQuery?: string) {
+function buildPageHref(basePath: string, page: number, searchQuery?: string, queryParams?: Record<string, string | undefined>) {
   const params = new URLSearchParams({ page: String(page) });
+
+  Object.entries(queryParams ?? {}).forEach(([key, value]) => {
+    if (value?.trim()) {
+      params.set(key, value.trim());
+    }
+  });
 
   if (searchQuery?.trim()) {
     params.set("q", searchQuery.trim());
@@ -29,6 +36,50 @@ function formatPatientName(patient: PatientTableRow) {
   return `${patient.lastName}, ${patient.firstName}${middleInitial}`;
 }
 
+function statusTone(status: string) {
+  if (status === "Completed") return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  if (status === "Cancelled") return "bg-rose-50 text-rose-700 ring-rose-200";
+  if (status === "For follow up") return "bg-amber-50 text-amber-700 ring-amber-200";
+  if (status === "In progress") return "bg-blue-50 text-blue-700 ring-blue-200";
+  if (status === "Queued") return "bg-violet-50 text-violet-700 ring-violet-200";
+  return "bg-slate-100 text-slate-700 ring-slate-200";
+}
+
+function InfoLine({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-slate-600">
+      <Icon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <span className="min-w-0 truncate">{children}</span>
+    </span>
+  );
+}
+
+function GenderBadge({ gender }: { gender: string }) {
+  if (gender === "Male") {
+    return (
+      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-black text-blue-700 ring-1 ring-blue-200">
+        <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
+        Male
+      </span>
+    );
+  }
+
+  if (gender === "Female") {
+    return (
+      <span className="inline-flex w-fit items-center gap-1 rounded-full bg-pink-50 px-2 py-0.5 text-xs font-black text-pink-700 ring-1 ring-pink-200">
+        <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
+        Female
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex w-fit items-center rounded-full bg-violet-50 px-2 py-0.5 text-xs font-black text-violet-700 ring-1 ring-violet-200">
+      {gender}
+    </span>
+  );
+}
+
 export function PatientTable({
   rows,
   currentPage = 1,
@@ -37,6 +88,7 @@ export function PatientTable({
   pageSize = rows.length,
   basePath = "/patients",
   searchQuery,
+  queryParams,
 }: PatientTableProps) {
   const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = totalCount === 0 ? 0 : Math.min(currentPage * pageSize, totalCount);
@@ -58,25 +110,24 @@ export function PatientTable({
                 <p className="truncate text-base font-black uppercase text-slate-950">
                   {formatPatientName(patient)}
                 </p>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  {patient.age} yrs / {patient.gender} / {patient.birthDate}
-                </p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold">
+                  <GenderBadge gender={patient.gender} />
+                  <InfoLine icon={UserRound}>{patient.age} yrs / DOB {patient.birthDate}</InfoLine>
+                  <InfoLine icon={Phone}>{patient.contact}</InfoLine>
+                </div>
               </div>
               <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
-              <Badge className="bg-slate-100 text-slate-700">{patient.status}</Badge>
+            <div className="mt-3 grid gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
+                <Badge className={statusTone(patient.status)}>{patient.status}</Badge>
+              </div>
+              <InfoLine icon={CalendarClock}>Last visit: {patient.latestVisitAt}</InfoLine>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <p className="min-w-0">
-                <span className="block text-xs font-bold uppercase text-slate-400">Contact</span>
-                <span className="block truncate text-slate-700">{patient.contact}</span>
-              </p>
-              <p className="min-w-0">
-                <span className="block text-xs font-bold uppercase text-slate-400">Agency</span>
-                <span className="block truncate text-slate-700">{patient.agency}</span>
-              </p>
+            <div className="mt-3 grid gap-1 text-xs font-semibold">
+              <InfoLine icon={MapPin}>{patient.address}</InfoLine>
+              <InfoLine icon={BriefcaseBusiness}>{patient.agency} / {patient.designation}</InfoLine>
             </div>
           </Link>
         ))}
@@ -88,20 +139,15 @@ export function PatientTable({
       </div>
 
       <div className="hidden overflow-x-auto scrollbar-thin lg:block">
-        <table className="min-w-[1050px] w-full text-left text-sm">
+        <table className="min-w-[1120px] w-full text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               {[
-                "Last Name",
-                "First Name",
-                "Middle",
-                "Age",
-                "Date of Birth",
-                "Gender",
-                "Address",
-                "Contact number",
-                "Agency",
-                "Designation",
+                "Patient",
+                "Profile",
+                "Contact",
+                "Office",
+                "Latest Visit",
                 "Request",
                 "",
               ].map((header) => (
@@ -114,66 +160,60 @@ export function PatientTable({
           <tbody className="divide-y">
             {rows.map((patient) => (
               <tr key={patient.id} className="group hover:bg-slate-50">
-                <td className="font-bold">
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 text-slate-950 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.lastName}
+                <td className="w-[25%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 text-slate-950 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <p className="font-black uppercase leading-5">{formatPatientName(patient)}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <GenderBadge gender={patient.gender} />
+                      <span className="text-xs font-semibold text-slate-500">{patient.middleName || "No middle name"}</span>
+                    </div>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.firstName}
+                <td className="w-[16%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <div className="grid gap-1.5 text-xs font-semibold">
+                      <InfoLine icon={UserRound}>{patient.age} yrs</InfoLine>
+                      <span className="text-slate-500">DOB {patient.birthDate}</span>
+                      <span className="text-slate-500">BMI {patient.bmi ? patient.bmi.toFixed(1) : "N/A"}</span>
+                    </div>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.middleName}
+                <td className="w-[18%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <div className="grid gap-1.5 text-xs font-semibold">
+                      <InfoLine icon={Phone}>{patient.contact}</InfoLine>
+                      <InfoLine icon={MapPin}>{patient.address}</InfoLine>
+                    </div>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.age}
+                <td className="w-[16%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <p className="font-bold leading-5 text-slate-800">{patient.agency}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{patient.designation}</p>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.birthDate}
+                <td className="w-[16%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <div className="grid gap-2">
+                      <Badge className={statusTone(patient.status)}>{patient.status}</Badge>
+                      <InfoLine icon={CalendarClock}>{patient.latestVisitAt}</InfoLine>
+                      {patient.latestVisitOut ? <span className="text-xs font-semibold text-slate-500">Out: {patient.latestVisitOut}</span> : null}
+                    </div>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.gender}
+                <td className="w-[16%] align-top">
+                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                    <div className="flex items-start gap-2">
+                      <Stethoscope className="mt-1 h-4 w-4 shrink-0 text-blue-500" />
+                      <Badge className="max-w-[12rem] whitespace-normal bg-blue-50 text-blue-700">{patient.request}</Badge>
+                    </div>
                   </Link>
                 </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.address}
-                  </Link>
-                </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.contact}
-                  </Link>
-                </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.agency}
-                  </Link>
-                </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    {patient.designation}
-                  </Link>
-                </td>
-                <td>
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-3 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
-                  </Link>
-                </td>
-                <td>
+                <td className="w-12 align-top">
                   <Link
                     href={`/patients/${patient.id}`}
                     aria-label={`Open patient record for ${patient.lastName}, ${patient.firstName}`}
-                    className="grid place-items-center px-4 py-3 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30"
+                    className="grid place-items-center px-4 py-4 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30"
                   >
                     <ArrowRight className="h-4 w-4" />
                   </Link>
@@ -182,7 +222,7 @@ export function PatientTable({
             ))}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
                   No patient records found for this view yet.
                 </td>
               </tr>
@@ -200,20 +240,20 @@ export function PatientTable({
           <Button asChild variant="outline" size="sm" disabled={currentPage <= 1}>
             <Link
               aria-disabled={currentPage <= 1}
-              href={currentPage <= 1 ? basePath : buildPageHref(basePath, currentPage - 1, searchQuery)}
+              href={currentPage <= 1 ? basePath : buildPageHref(basePath, currentPage - 1, searchQuery, queryParams)}
             >
               Previous
             </Link>
           </Button>
           {pageNumbers.map((page) => (
             <Button key={page} asChild variant={page === currentPage ? "default" : "outline"} size="sm">
-              <Link href={buildPageHref(basePath, page, searchQuery)}>{page}</Link>
+              <Link href={buildPageHref(basePath, page, searchQuery, queryParams)}>{page}</Link>
             </Button>
           ))}
           <Button asChild variant="outline" size="sm" disabled={currentPage >= totalPages}>
             <Link
               aria-disabled={currentPage >= totalPages}
-              href={currentPage >= totalPages ? basePath : buildPageHref(basePath, currentPage + 1, searchQuery)}
+              href={currentPage >= totalPages ? basePath : buildPageHref(basePath, currentPage + 1, searchQuery, queryParams)}
             >
               Next
             </Link>

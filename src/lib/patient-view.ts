@@ -68,6 +68,27 @@ export type PatientTableRow = {
   bmi: number | null;
   request: string;
   status: string;
+  statusCode: VisitStatus | "NO_VISIT";
+  requestTypes: RequestType[];
+  latestVisitAt: string;
+  latestVisitOut: string;
+  latestVisitDateValue: string;
+  latestVisitTimestamp: number;
+  genderCode: PatientGender;
+};
+
+export type PatientTableFilters = {
+  status?: string;
+  request?: string;
+  gender?: string;
+  agency?: string;
+  ageGroup?: string;
+  lastVisit?: string;
+  sort?: string;
+};
+
+export type PatientFilterOptions = {
+  agencies: string[];
 };
 
 export type PatientProfileData = PatientTableRow & {
@@ -234,6 +255,20 @@ function calculateAge(birthDate: Date) {
   return age;
 }
 
+function getBirthDateRangeForAge(age: number) {
+  const today = new Date();
+  const oldestBirthDate = new Date(today.getFullYear() - age - 1, today.getMonth(), today.getDate() + 1);
+  const youngestBirthDate = new Date(today.getFullYear() - age, today.getMonth(), today.getDate());
+
+  oldestBirthDate.setHours(0, 0, 0, 0);
+  youngestBirthDate.setHours(23, 59, 59, 999);
+
+  return {
+    gte: oldestBirthDate,
+    lte: youngestBirthDate,
+  };
+}
+
 function formatGender(gender: PatientGender) {
   return gender.charAt(0) + gender.slice(1).toLowerCase();
 }
@@ -291,6 +326,102 @@ function paginateRows(rows: PatientTableRow[], page: number, pageSize: number): 
   };
 }
 
+function hasPatientTableFilters(options?: PatientTableFilters) {
+  return Boolean(
+    options?.status ||
+      options?.request ||
+      options?.gender ||
+      options?.agency ||
+      options?.ageGroup ||
+      options?.lastVisit ||
+      (options?.sort && options.sort !== "name_asc")
+  );
+}
+
+function getLastVisitRange(filter?: string) {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (filter === "today") {
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return { start: start.getTime(), end: end.getTime() };
+  }
+
+  if (filter === "week") {
+    start.setDate(start.getDate() - 6);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    return { start: start.getTime(), end: end.getTime() };
+  }
+
+  if (filter === "month") {
+    start.setDate(1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return { start: start.getTime(), end: end.getTime() };
+  }
+
+  return null;
+}
+
+function matchesAgeGroup(age: number, ageGroup?: string) {
+  if (!ageGroup) return true;
+  if (ageGroup === "18_29") return age >= 18 && age <= 29;
+  if (ageGroup === "30_44") return age >= 30 && age <= 44;
+  if (ageGroup === "45_59") return age >= 45 && age <= 59;
+  if (ageGroup === "60_plus") return age >= 60;
+  return true;
+}
+
+function applyPatientTableFilters(rows: PatientTableRow[], options?: PatientTableFilters) {
+  const status = options?.status;
+  const request = options?.request;
+  const gender = options?.gender;
+  const agency = options?.agency;
+  const lastVisitRange = getLastVisitRange(options?.lastVisit);
+
+  return rows.filter((row) => {
+    const statusMatches =
+      !status ||
+      (status === "ACTIVE" &&
+        (row.statusCode === VisitStatus.QUEUED || row.statusCode === VisitStatus.IN_PROGRESS || row.statusCode === VisitStatus.FOR_FOLLOW_UP)) ||
+      (status === "NO_VISIT" && row.statusCode === "NO_VISIT") ||
+      row.statusCode === status;
+    const requestMatches = !request || row.requestTypes.includes(request as RequestType);
+    const genderMatches = !gender || row.genderCode === gender;
+    const agencyMatches = !agency || row.agency === agency;
+    const lastVisitMatches = !lastVisitRange || (row.latestVisitTimestamp >= lastVisitRange.start && row.latestVisitTimestamp < lastVisitRange.end);
+
+    return statusMatches && requestMatches && genderMatches && agencyMatches && matchesAgeGroup(row.age, options?.ageGroup) && lastVisitMatches;
+  });
+}
+
+function sortPatientTableRows(rows: PatientTableRow[], sort = "name_asc") {
+  const statusPriority: Record<string, number> = {
+    [VisitStatus.IN_PROGRESS]: 1,
+    [VisitStatus.QUEUED]: 2,
+    [VisitStatus.FOR_FOLLOW_UP]: 3,
+    NO_VISIT: 4,
+    [VisitStatus.COMPLETED]: 5,
+    [VisitStatus.CANCELLED]: 6,
+  };
+  const compareName = (a: PatientTableRow, b: PatientTableRow) =>
+    a.lastName.localeCompare(b.lastName) ||
+    a.firstName.localeCompare(b.firstName) ||
+    a.middleName.localeCompare(b.middleName);
+
+  return [...rows].sort((a, b) => {
+    if (sort === "name_desc") return -compareName(a, b);
+    if (sort === "age_asc") return a.age - b.age || compareName(a, b);
+    if (sort === "age_desc") return b.age - a.age || compareName(a, b);
+    if (sort === "last_visit_asc") return a.latestVisitTimestamp - b.latestVisitTimestamp || compareName(a, b);
+    if (sort === "last_visit_desc") return b.latestVisitTimestamp - a.latestVisitTimestamp || compareName(a, b);
+    if (sort === "status_priority") return (statusPriority[a.statusCode] ?? 99) - (statusPriority[b.statusCode] ?? 99) || compareName(a, b);
+    return compareName(a, b);
+  });
+}
+
 function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
   const latestVisit = patient.visits[0];
   const latestRequests = latestVisit?.requests ?? [];
@@ -321,6 +452,13 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     bmi,
     request,
     status: latestVisit ? visitStatusLabels[latestVisit.status] : "No visit yet",
+    statusCode: latestVisit?.status ?? "NO_VISIT",
+    requestTypes: latestRequests.map(({ type }) => type),
+    latestVisitAt: latestVisit ? formatDateTime(latestVisit.timeIn) : "No visit yet",
+    latestVisitOut: latestVisit?.timeOut ? formatDateTime(latestVisit.timeOut) : "",
+    latestVisitDateValue: latestVisit ? formatDate(latestVisit.timeIn) : "",
+    latestVisitTimestamp: latestVisit?.timeIn.getTime() ?? 0,
+    genderCode: patient.gender,
   };
 }
 
@@ -381,6 +519,10 @@ function getPatientSearchWhere(search?: string): Prisma.PatientWhereInput | unde
   if (!normalizedSearch) {
     return undefined;
   }
+  const numericSearch = Number(normalizedSearch);
+  const ageSearch = Number.isInteger(numericSearch) && numericSearch >= 0 && numericSearch <= 130
+    ? getBirthDateRangeForAge(numericSearch)
+    : null;
 
   return {
     OR: [
@@ -390,6 +532,7 @@ function getPatientSearchWhere(search?: string): Prisma.PatientWhereInput | unde
       { contactNo: { contains: normalizedSearch, mode: "insensitive" } },
       { agency: { contains: normalizedSearch, mode: "insensitive" } },
       { designation: { contains: normalizedSearch, mode: "insensitive" } },
+      ...(ageSearch ? [{ birthDate: ageSearch }] : []),
     ],
   };
 }
@@ -416,11 +559,12 @@ export async function getPatientTableRows(
   filter?: string,
   page = 1,
   pageSize = 25,
-  search?: string
+  search?: string,
+  options?: PatientTableFilters
 ): Promise<PatientListResult> {
   const where = getPatientSearchWhere(search);
 
-  if (!filter && !where) {
+  if (!filter && !where && !hasPatientTableFilters(options)) {
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(100, Math.max(10, pageSize));
     const totalCount = await prisma.patient.count();
@@ -454,7 +598,7 @@ export async function getPatientTableRows(
 
   const normalizedFilter = filter?.trim().toLowerCase();
   const patients = await listPatients(where);
-  let rows = patients.map(toPatientTableRow);
+  let rows = sortPatientTableRows(applyPatientTableFilters(patients.map(toPatientTableRow), options), options?.sort);
 
   if (normalizedFilter) {
     rows = rows.filter(
@@ -465,6 +609,27 @@ export async function getPatientTableRows(
   }
 
   return paginateRows(rows, page, pageSize);
+}
+
+export async function getPatientFilterOptions(): Promise<PatientFilterOptions> {
+  const agencies = await prisma.patient.findMany({
+    where: {
+      agency: {
+        not: null,
+      },
+    },
+    distinct: ["agency"],
+    orderBy: {
+      agency: "asc",
+    },
+    select: {
+      agency: true,
+    },
+  });
+
+  return {
+    agencies: agencies.map((patient) => patient.agency).filter((agency): agency is string => Boolean(agency)),
+  };
 }
 
 export async function getTodaysPatientTableRows(

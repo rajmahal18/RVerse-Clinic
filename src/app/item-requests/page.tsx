@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { ActionAlert } from "@/components/ui/action-alert";
 import { ItemRequestList } from "@/components/item-requests/item-request-list";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 const formatDate = (value: Date) => new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" }).format(value);
 
@@ -15,7 +17,8 @@ export default async function ItemRequestsPage({
 }) {
   const params = await searchParams;
   const historyView = params?.view === "history";
-  const [pendingCount, historyCount, requests] = await Promise.all([
+  const [currentUser, pendingCount, historyCount, requests] = await Promise.all([
+    getCurrentUser(),
     prisma.medicineRequest.count({ where: { status: "REQUESTED" } }),
     prisma.medicineRequest.count({ where: { status: { in: ["APPROVED", "REJECTED", "RELEASED"] } } }),
     prisma.medicineRequest.findMany({
@@ -24,6 +27,7 @@ export default async function ItemRequestsPage({
       include: { inventoryItem: true, visit: { include: { patient: true } } },
     }),
   ]);
+  const canResolveRequests = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.SUPPLY_OFFICER;
   const requestRows = requests.map((request) => ({
     id: request.id,
     itemName: request.itemName,
@@ -70,7 +74,7 @@ export default async function ItemRequestsPage({
             </p>
           </div>
         </div>
-        <ItemRequestList requests={requestRows} historyView={historyView} />
+        <ItemRequestList requests={requestRows} historyView={historyView} canResolveRequests={canResolveRequests} />
       </section>
     </AppShell>
   );

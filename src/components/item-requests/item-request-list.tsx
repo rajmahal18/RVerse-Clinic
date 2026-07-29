@@ -39,7 +39,15 @@ function DecisionActions({ requestId, compact = false }: { requestId: string; co
   );
 }
 
-export function ItemRequestList({ requests, historyView }: { requests: ItemRequestListRow[]; historyView: boolean }) {
+export function ItemRequestList({
+  requests,
+  historyView,
+  canResolveRequests,
+}: {
+  requests: ItemRequestListRow[];
+  historyView: boolean;
+  canResolveRequests: boolean;
+}) {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? null,
@@ -65,7 +73,7 @@ export function ItemRequestList({ requests, historyView }: { requests: ItemReque
                 Batch: {request.dosage || "-"} / {request.brandName || "-"} / Requested {request.createdAt}
               </p>
             </button>
-            {!historyView ? (
+            {!historyView && canResolveRequests ? (
               <div className="hidden md:block">
                 <DecisionActions requestId={request.id} />
               </div>
@@ -114,7 +122,7 @@ export function ItemRequestList({ requests, historyView }: { requests: ItemReque
                 </div>
               ))}
             </div>
-            {!historyView ? (
+            {!historyView && canResolveRequests ? (
               <div className="border-t bg-white p-4">
                 <DecisionActions requestId={selectedRequest.id} compact />
               </div>

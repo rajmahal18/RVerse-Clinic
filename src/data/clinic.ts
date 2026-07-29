@@ -3,7 +3,7 @@ import { Activity, CalendarClock, ClipboardList, FileHeart, Gauge, PackageCheck,
 export const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: Gauge },
   { href: "/patients", label: "Patient Records", icon: UsersRound },
-  { href: "/todays-patients", label: "Today’s Patient", icon: CalendarClock },
+  { href: "/todays-patients", label: "Today's Patient", icon: CalendarClock },
   { href: "/follow-ups", label: "For Follow up", icon: ClipboardList },
   { href: "/vaccination", label: "Vaccination", icon: Syringe },
   { href: "/emergency-cases", label: "Emergency Cases", icon: ShieldPlus },
@@ -64,7 +64,7 @@ export const patients = [
 ];
 
 export const queues = [
-  { title: "Today’s Patient", count: 18, tone: "bg-teal-50 text-teal-700", href: "/todays-patients", icon: CalendarClock },
+  { title: "Today's Patient", count: 18, tone: "bg-teal-50 text-teal-700", href: "/todays-patients", icon: CalendarClock },
   { title: "Completed", count: 42, tone: "bg-emerald-50 text-emerald-700", href: "/todays-patients", icon: Activity },
   { title: "For Follow up", count: 9, tone: "bg-amber-50 text-amber-700", href: "/follow-ups", icon: ClipboardList },
   { title: "Vaccination", count: 12, tone: "bg-blue-50 text-blue-700", href: "/vaccination", icon: Syringe },
@@ -72,8 +72,8 @@ export const queues = [
 ];
 
 export const visitHistory = [
-  { date: "2025/07/06", time: "09:30 AM", chiefComplaint: "Dizziness", bp: "150/90", rbs: "98", temp: "37.1", pr: "82", rr: "18", services: "Consultation, Medicines", vaccine: "—", diagnosis: "Hypertension Stage II", timeout: "10:15 AM", nod: "Dr. Mamadra", status: "Pending" },
-  { date: "2025/06/14", time: "11:10 AM", chiefComplaint: "Cough & cold", bp: "120/80", rbs: "—", temp: "36.9", pr: "76", rr: "18", services: "Medicines", vaccine: "—", diagnosis: "URTI", timeout: "11:35 AM", nod: "Nurse Ana", status: "Completed" },
+  { date: "2025/07/06", time: "09:30 AM", chiefComplaint: "Dizziness", bp: "150/90", rbs: "98", temp: "37.1", pr: "82", rr: "18", services: "Consultation, Medicines", vaccine: "-", diagnosis: "Hypertension Stage II", timeout: "10:15 AM", nod: "Dr. Mamadra", status: "Pending" },
+  { date: "2025/06/14", time: "11:10 AM", chiefComplaint: "Cough & cold", bp: "120/80", rbs: "-", temp: "36.9", pr: "76", rr: "18", services: "Medicines", vaccine: "-", diagnosis: "URTI", timeout: "11:35 AM", nod: "Nurse Ana", status: "Completed" },
 ];
 
 export const inventoryItems = [

@@ -9,8 +9,8 @@ type PatientRecordTab = {
   content: React.ReactNode;
 };
 
-export function PatientRecordTabs({ tabs }: { tabs: PatientRecordTab[] }) {
-  const [activeTab, setActiveTab] = useState(tabs[0]?.id ?? "");
+export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordTab[]; defaultTabId?: string }) {
+  const [activeTab, setActiveTab] = useState(defaultTabId ?? tabs[0]?.id ?? "");
   const selectedTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 
   return (
