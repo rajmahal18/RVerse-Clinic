@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound, XCircle } from "lucide-react";
 import { createAccountAction, loginAction } from "@/app/actions/workflow";
+import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 import { OcmLogo } from "@/components/layout/ocm-logo";
 
@@ -118,6 +119,7 @@ export default function LoginPage() {
               </div>
 
               <form action={isCreateAccount ? createAccountAction : loginAction} className="space-y-4">
+                <CsrfField />
                 {isCreateAccount ? (
                   <label className="block">
                     <span className="mb-2 block text-sm font-bold text-slate-700">Full name</span>

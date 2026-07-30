@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, X, XIcon } from "lucide-react";
 import { resolveItemRequestAction } from "@/app/actions/workflow";
+import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
 export type ItemRequestListRow = {
@@ -28,6 +29,7 @@ function StatusPill({ status }: { status: string }) {
 function DecisionActions({ requestId, compact = false }: { requestId: string; compact?: boolean }) {
   return (
     <form action={resolveItemRequestAction} className={compact ? "grid grid-cols-2 gap-2" : "flex gap-2"}>
+      <CsrfField />
       <input type="hidden" name="requestId" value={requestId} />
       <Button name="decision" value="REJECT" type="submit" variant="outline" className="text-rose-700">
         <X className="h-4 w-4" /> Reject

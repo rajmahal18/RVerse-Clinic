@@ -28,6 +28,7 @@ type MiddlewareSession = {
   role?: string;
   userId?: string;
   email?: string;
+  sessionVersion?: number;
 };
 
 export async function verifyMiddlewareSession(token: string | undefined): Promise<MiddlewareSession | null> {
@@ -55,9 +56,15 @@ export async function verifyMiddlewareSession(token: string | undefined): Promis
   }
 
   try {
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload))) as { exp?: number; role?: string; userId?: string; email?: string };
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encodedPayload))) as {
+      exp?: number;
+      role?: string;
+      userId?: string;
+      email?: string;
+      sessionVersion?: number;
+    };
 
-    if (typeof payload.exp !== "number" || payload.exp <= Date.now()) {
+    if (typeof payload.exp !== "number" || typeof payload.sessionVersion !== "number" || payload.exp <= Date.now()) {
       return null;
     }
 
@@ -66,6 +73,7 @@ export async function verifyMiddlewareSession(token: string | undefined): Promis
       role: payload.role,
       userId: payload.userId,
       email: payload.email,
+      sessionVersion: payload.sessionVersion,
     };
   } catch {
     return null;

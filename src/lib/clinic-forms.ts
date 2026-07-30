@@ -1,4 +1,10 @@
 import { Prisma, RequestType } from "@prisma/client";
+import {
+  formatLongDate,
+  formatShortDate as formatAppShortDate,
+  formatTime as formatAppTime,
+  APP_TIME_ZONE,
+} from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
 
 export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medical-certificate" | "referral-form";
@@ -59,24 +65,28 @@ function fullName(patient: Pick<PatientWithFormData, "lastName" | "firstName" | 
 
 function formatDate(value: Date | null | undefined) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric", year: "numeric" }).format(value);
+  return formatLongDate(value);
 }
 
 function formatShortDate(value: Date | null | undefined) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }).format(value);
+  return formatAppShortDate(value);
 }
 
 function formatTime(value: Date | null | undefined) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(value);
+  return formatAppTime(value);
 }
 
 function ageAt(birthDate: Date, asOf = new Date()) {
-  let age = asOf.getFullYear() - birthDate.getFullYear();
-  const monthDifference = asOf.getMonth() - birthDate.getMonth();
+  const birth = formatAppShortDate(birthDate).split("/").map(Number);
+  const current = formatAppShortDate(asOf).split("/").map(Number);
+  const [birthMonth, birthDay, birthYear] = birth;
+  const [currentMonth, currentDay, currentYear] = current;
+  let age = currentYear - birthYear;
+  const monthDifference = currentMonth - birthMonth;
 
-  if (monthDifference < 0 || (monthDifference === 0 && asOf.getDate() < birthDate.getDate())) {
+  if (monthDifference < 0 || (monthDifference === 0 && currentDay < birthDay)) {
     age -= 1;
   }
 
@@ -88,7 +98,7 @@ function genderLabel(value: string) {
 }
 
 function ordinalDay(value: Date) {
-  const day = value.getDate();
+  const day = Number(formatAppShortDate(value).split("/")[1]);
   const mod100 = day % 100;
   const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
   return `${day}${suffix}`;
@@ -207,8 +217,8 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
     issued: {
       date: formatDate(issueDate),
       ordinalDay: ordinalDay(issueDate),
-      month: new Intl.DateTimeFormat("en-US", { month: "long" }).format(issueDate),
-      year: String(issueDate.getFullYear()),
+      month: new Intl.DateTimeFormat("en-PH", { timeZone: APP_TIME_ZONE, month: "long" }).format(issueDate),
+      year: new Intl.DateTimeFormat("en-PH", { timeZone: APP_TIME_ZONE, year: "numeric" }).format(issueDate),
     },
     signatory: clinicFormDefaults,
   };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CsrfField } from "@/components/security/csrf-field";
 import { ServiceRequestedFields } from "@/components/patients/service-requested-fields";
 
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
@@ -55,6 +56,7 @@ export function NewVisitModal({
             </div>
 
             <form action={action} className="grid min-h-0 gap-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <CsrfField />
               <input type="hidden" name="patientId" value={patientId} />
               <ServiceRequestedFields options={requestOptions} defaultValues={defaultRequestTypes} />
               <div className="grid gap-2 text-sm font-semibold text-slate-700">

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { CheckCircle2, CircleOff, X } from "lucide-react";
 import { toggleUserStatusAction } from "@/app/actions/workflow";
 import type { ClinicSettingsData } from "@/lib/patient-view";
+import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -24,6 +25,7 @@ function StatusBadge({ active }: { active: boolean }) {
 function ToggleAccountForm({ user, compact = false }: { user: AccountUser; compact?: boolean }) {
   return (
     <form action={toggleUserStatusAction}>
+      <CsrfField />
       <input type="hidden" name="redirectTo" value="/accounts" />
       <input type="hidden" name="userId" value={user.id} />
       <input type="hidden" name="isActive" value={String(!user.isActive)} />

@@ -71,14 +71,16 @@ function SelectField({
   name,
   value,
   children,
+  className = "",
 }: {
   label: string;
   name: string;
   value?: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <label className="grid min-w-[9.5rem] flex-1 gap-1 text-xs font-bold uppercase tracking-wide text-slate-500 sm:flex-none">
+    <label className={`grid min-w-0 gap-1 text-xs font-bold uppercase tracking-wide text-slate-500 sm:min-w-[9.5rem] sm:flex-1 ${className}`}>
       {label}
       <select
         name={name}
@@ -95,13 +97,12 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
   return (
     <form action="/patients" onChange={(event) => event.currentTarget.requestSubmit()} className="mb-4 border bg-white px-3 py-3 shadow-sm">
       {searchQuery ? <input type="hidden" name="q" value={searchQuery} /> : null}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="flex h-10 items-center gap-2 px-1 text-sm font-black text-slate-800">
+      <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_minmax(0,1fr)] items-end gap-x-2 gap-y-2 sm:flex sm:flex-wrap">
+        <div className="flex h-10 items-center justify-center text-slate-600 sm:w-10" aria-label="Filters">
           <Filter className="h-4 w-4 text-primary" />
-          Filters
         </div>
 
-        <SelectField label="Status" name="status" value={filters.status}>
+        <SelectField label="Status" name="status" value={filters.status} className="col-start-2">
           {statusOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -109,7 +110,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <SelectField label="Last Visit" name="lastVisit" value={filters.lastVisit}>
+        <SelectField label="Last Visit" name="lastVisit" value={filters.lastVisit} className="col-start-3">
           {lastVisitOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -117,7 +118,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <SelectField label="Request" name="request" value={filters.request}>
+        <SelectField label="Request" name="request" value={filters.request} className="col-start-2">
           {requestOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -125,7 +126,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <SelectField label="Office" name="agency" value={filters.agency}>
+        <SelectField label="Office" name="agency" value={filters.agency} className="col-start-3">
           <option value="">All offices</option>
           {options.agencies.map((agency) => (
             <option key={agency} value={agency}>
@@ -134,7 +135,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <SelectField label="Gender" name="gender" value={filters.gender}>
+        <SelectField label="Gender" name="gender" value={filters.gender} className="col-start-2">
           {genderOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -142,7 +143,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <SelectField label="Age" name="ageGroup" value={filters.ageGroup}>
+        <SelectField label="Age" name="ageGroup" value={filters.ageGroup} className="col-start-3">
           {ageOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -150,7 +151,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           ))}
         </SelectField>
 
-        <label className="grid min-w-[11rem] flex-1 gap-1 text-xs font-bold uppercase tracking-wide text-slate-500 sm:flex-none">
+        <label className="col-start-2 grid min-w-0 gap-1 text-xs font-bold uppercase tracking-wide text-slate-500 sm:min-w-[11rem] sm:flex-[2_1_16rem]">
           Sort
           <span className="relative">
             <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -168,7 +169,7 @@ export function PatientFilterBar({ filters, options, searchQuery }: PatientFilte
           </span>
         </label>
 
-        <Button asChild variant="outline" size="sm" className="h-10">
+        <Button asChild variant="outline" size="sm" className="col-start-3 h-10">
           <Link href={searchQuery ? `/patients?q=${encodeURIComponent(searchQuery)}` : "/patients"}>
             <RotateCcw className="h-4 w-4" /> Reset
           </Link>

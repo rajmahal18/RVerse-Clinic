@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
+import { AUTH_COOKIE_SECURE } from "@/lib/security-config";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_DAYS = 7;
@@ -9,6 +10,7 @@ type SessionPayload = {
   userId: string;
   email: string;
   role: string;
+  sessionVersion: number;
   exp: number;
 };
 
@@ -54,7 +56,7 @@ export function verifySessionToken(token: string | undefined): SessionPayload | 
   try {
     const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as SessionPayload;
 
-    if (!payload.userId || !payload.email || payload.exp < Date.now()) {
+    if (!payload.userId || !payload.email || typeof payload.sessionVersion !== "number" || payload.exp < Date.now()) {
       return null;
     }
 
@@ -70,7 +72,7 @@ export async function setAuthCookie(token: string) {
   cookieStore.set(AUTH_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: AUTH_COOKIE_SECURE,
     path: "/",
     maxAge: SESSION_DAYS * 24 * 60 * 60,
   });
@@ -93,6 +95,7 @@ export async function getCurrentUser() {
     where: {
       id: session.userId,
       email: session.email,
+      sessionVersion: session.sessionVersion,
       isActive: true,
     },
     select: {

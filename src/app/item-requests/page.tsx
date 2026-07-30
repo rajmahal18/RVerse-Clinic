@@ -6,9 +6,10 @@ import { ActionAlert } from "@/components/ui/action-alert";
 import { ItemRequestList } from "@/components/item-requests/item-request-list";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { formatDateTime } from "@/lib/date-time";
 import { UserRole } from "@prisma/client";
 
-const formatDate = (value: Date) => new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short" }).format(value);
+const formatDate = (value: Date) => formatDateTime(value);
 
 export default async function ItemRequestsPage({
   searchParams,

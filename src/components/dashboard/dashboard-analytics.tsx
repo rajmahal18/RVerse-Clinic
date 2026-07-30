@@ -1,5 +1,6 @@
 import { Activity, PieChart, UsersRound } from "lucide-react";
 import { PatientGender } from "@prisma/client";
+import { calculateAgeInAppTimeZone } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
 
 type Segment = {
@@ -12,18 +13,7 @@ type Segment = {
 const radialCircumference = 2 * Math.PI * 42;
 
 function calculateAge(birthDate: Date) {
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDifference = today.getMonth() - birthDate.getMonth();
-
-  if (
-    monthDifference < 0 ||
-    (monthDifference === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age -= 1;
-  }
-
-  return age;
+  return calculateAgeInAppTimeZone(birthDate);
 }
 
 function GenderChart({ segments }: { segments: Segment[] }) {

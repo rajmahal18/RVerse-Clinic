@@ -7,26 +7,10 @@ import { DashboardAnalytics } from "@/components/dashboard/dashboard-analytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { getDayRange, getMonthRange } from "@/lib/date-time";
 import { canAccessPath, isAppRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
-
-function getDayRange(date = new Date()) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  return { start, end };
-}
-
-function getMonthRange(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 1, 0, 0, 0, 0);
-
-  return { start, end };
-}
 
 export default async function DashboardPage() {
   const today = getDayRange();
@@ -55,10 +39,22 @@ export default async function DashboardPage() {
     }),
     prisma.visit.count({
       where: {
-        timeIn: {
-          gte: today.start,
-          lt: today.end,
-        },
+        OR: [
+          {
+            timeIn: {
+              gte: today.start,
+              lt: today.end,
+            },
+          },
+          {
+            timeIn: {
+              lt: today.start,
+            },
+            status: {
+              in: [VisitStatus.QUEUED, VisitStatus.IN_PROGRESS],
+            },
+          },
+        ],
       },
     }),
     prisma.visit.count({

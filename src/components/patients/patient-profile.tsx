@@ -23,10 +23,12 @@ import { ChiefComplaintField } from "@/components/patients/chief-complaint-field
 import { ServiceRequestedFields } from "@/components/patients/service-requested-fields";
 import { VaccinationFields } from "@/components/patients/vaccination-fields";
 import { MedicineScheduleFields } from "@/components/patients/medicine-schedule-fields";
+import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
+import { formatDateKey } from "@/lib/date-time";
 
 const requestOptions = [
   { value: RequestType.CONSULTATION, label: "Medical Consultation" },
@@ -225,6 +227,7 @@ export async function PatientProfile({ id }: { id: string }) {
                       Assessment fields, medicine requests, vaccination records, and follow-up scheduling will open after the visit is started.
                     </p>
                     <form action={startVisitAction} className="mt-5">
+                      <CsrfField />
                       <input type="hidden" name="patientId" value={patient.id} />
                       <input type="hidden" name="visitId" value={activeVisit.id} />
                       <Button type="submit" size="lg" className="h-12">
@@ -235,6 +238,7 @@ export async function PatientProfile({ id }: { id: string }) {
                 </div>
               ) : (
               <form action={updateVisitAction} className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
+                <CsrfField />
                 <input type="hidden" name="patientId" value={patient.id} />
                 <input type="hidden" name="visitId" value={activeVisit.id} />
                 <section className="space-y-4">
@@ -337,6 +341,7 @@ export async function PatientProfile({ id }: { id: string }) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <form action={requestMedicineAction} className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_90px_minmax(170px,220px)_minmax(150px,200px)_auto]">
+                    <CsrfField />
                     <input type="hidden" name="patientId" value={patient.id} />
                     <input type="hidden" name="visitId" value={activeVisit.id} />
                     <label className="grid gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
@@ -344,7 +349,7 @@ export async function PatientProfile({ id }: { id: string }) {
                       <select name="inventoryItemId" className="h-10 min-w-0 rounded-xl border px-3 text-sm font-normal normal-case tracking-normal text-slate-800">
                         {inventoryOptions.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.name}{item.dosage ? ` ${item.dosage}` : ""}{item.brandName ? ` · ${item.brandName}` : ""} · exp {item.expirationDate ? item.expirationDate.toISOString().slice(0, 10) : "N/A"} ({item.stock} {item.unit})
+                            {item.name}{item.dosage ? ` ${item.dosage}` : ""}{item.brandName ? ` · ${item.brandName}` : ""} · exp {item.expirationDate ? formatDateKey(item.expirationDate) : "N/A"} ({item.stock} {item.unit})
                           </option>
                         ))}
                       </select>
@@ -376,6 +381,7 @@ export async function PatientProfile({ id }: { id: string }) {
                             <span className="text-xs text-slate-500">Released by {medicine.releasedBy || "Clinic staff"}</span>
                           ) : (
                             <form action={dispenseMedicineAction} className="grid gap-2">
+                              <CsrfField />
                               <input type="hidden" name="patientId" value={patient.id} />
                               <input type="hidden" name="medicineRequestId" value={medicine.id} />
                               <input name="releasedBy" className="h-10 rounded-xl border px-3 text-sm" placeholder="Released by" />
@@ -422,6 +428,7 @@ export async function PatientProfile({ id }: { id: string }) {
                                 </span>
                               ) : (
                                 <form action={dispenseMedicineAction} className="flex flex-wrap gap-2">
+                                  <CsrfField />
                                   <input type="hidden" name="patientId" value={patient.id} />
                                   <input type="hidden" name="medicineRequestId" value={medicine.id} />
                                   <input name="releasedBy" className="w-28 rounded-xl border px-2 py-1 text-xs" placeholder="Released by" />
@@ -462,6 +469,7 @@ export async function PatientProfile({ id }: { id: string }) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <form action={scheduleFollowUpAction} className="grid gap-3">
+                    <CsrfField />
                     <input type="hidden" name="patientId" value={patient.id} />
                     <input type="hidden" name="visitId" value={activeVisit.id} />
                     <input name="scheduledFor" type="datetime-local" className="rounded-xl border px-3 py-2 text-sm" />
@@ -500,6 +508,7 @@ export async function PatientProfile({ id }: { id: string }) {
                   <details className="rounded-xl border border-dashed bg-slate-50 px-3 py-2">
                     <summary className="cursor-pointer text-sm font-bold text-primary">Add vaccine to catalog</summary>
                     <form action={addVaccineOptionAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <CsrfField />
                       <input type="hidden" name="patientId" value={patient.id} />
                       <input type="hidden" name="clinicId" value={patient.clinicId} />
                       <input name="vaccineName" required className="h-10 min-w-0 flex-1 rounded-xl border bg-white px-3 text-sm" placeholder="New vaccine name" />
@@ -507,6 +516,7 @@ export async function PatientProfile({ id }: { id: string }) {
                     </form>
                   </details>
                   <form action={addVaccinationRecordAction} className="grid gap-3">
+                    <CsrfField />
                     <input type="hidden" name="patientId" value={patient.id} />
                     <input type="hidden" name="visitId" value={activeVisit.id} />
                     <VaccinationFields vaccines={vaccineOptions} />

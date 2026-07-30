@@ -14,7 +14,8 @@
     "db:init": "docker compose up -d postgres",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
-    "import:patients": "node --env-file=.env scripts/import-patients.mjs"
+    "import:patients": "node --env-file=.env scripts/import-patients.mjs",
+    "backup": "powershell -ExecutionPolicy Bypass -File scripts/backup-postgres.ps1"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

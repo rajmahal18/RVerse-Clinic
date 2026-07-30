@@ -6,6 +6,17 @@ import {
   VisitStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  addMonths,
+  calculateAgeInAppTimeZone,
+  formatDateKey,
+  formatDateTime,
+  formatDisplayDate,
+  formatMonthLabel,
+  getDayRange,
+  getDateParts,
+  getMonthRange,
+} from "@/lib/date-time";
 
 const requestTypeLabels: Record<RequestType, string> = {
   CONSULTATION: "Medical Consultation",
@@ -52,6 +63,7 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
 
 export type PatientTableRow = {
   id: string;
+  latestVisitId: string;
   lastName: string;
   firstName: string;
   middleName: string;
@@ -71,9 +83,11 @@ export type PatientTableRow = {
   statusCode: VisitStatus | "NO_VISIT";
   requestTypes: RequestType[];
   latestVisitAt: string;
+  latestVisitDay: string;
   latestVisitOut: string;
   latestVisitDateValue: string;
   latestVisitTimestamp: number;
+  isCarriedOverQueue: boolean;
   genderCode: PatientGender;
 };
 
@@ -102,6 +116,11 @@ export type PatientListResult = {
   currentPage: number;
   pageSize: number;
   totalPages: number;
+};
+
+export type TodaysPatientQueueSections = {
+  previousQueue: PatientListResult;
+  todaysQueue: PatientListResult;
 };
 
 export type PatientVisitWorkflow = {
@@ -214,54 +233,14 @@ export type ClinicSettingsData = {
   }[];
 };
 
-function formatDate(value: Date) {
-  return value.toISOString().slice(0, 10);
-}
-
-function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
-
-function formatDisplayDate(value: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-  }).format(value);
-}
-
-function formatMonthLabel(value: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(value);
-}
-
 function calculateAge(birthDate: Date) {
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDifference = today.getMonth() - birthDate.getMonth();
-
-  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-
-  return age;
+  return calculateAgeInAppTimeZone(birthDate);
 }
 
 function getBirthDateRangeForAge(age: number) {
-  const today = new Date();
-  const oldestBirthDate = new Date(today.getFullYear() - age - 1, today.getMonth(), today.getDate() + 1);
-  const youngestBirthDate = new Date(today.getFullYear() - age, today.getMonth(), today.getDate());
-
-  oldestBirthDate.setHours(0, 0, 0, 0);
-  youngestBirthDate.setHours(23, 59, 59, 999);
+  const today = getDateParts(new Date());
+  const oldestBirthDate = new Date(Date.UTC(today.year - age - 1, today.month - 1, today.day + 1, -8, 0, 0, 0));
+  const youngestBirthDate = new Date(Date.UTC(today.year - age, today.month - 1, today.day, 15, 59, 59, 999));
 
   return {
     gte: oldestBirthDate,
@@ -273,37 +252,12 @@ function formatGender(gender: PatientGender) {
   return gender.charAt(0) + gender.slice(1).toLowerCase();
 }
 
-function getDayRange(date = new Date()) {
-  const start = new Date(date);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-
-  return { start, end };
-}
-
-function getMonthRange(month?: string) {
-  const monthPattern = /^\d{4}-\d{2}$/;
-  const baseDate = month && monthPattern.test(month) ? new Date(`${month}-01T00:00:00`) : new Date();
-  const year = baseDate.getFullYear();
-  const monthIndex = baseDate.getMonth();
-  const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-  const end = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
-
-  return {
-    start,
-    end,
-    key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
-    label: formatMonthLabel(start),
-  };
-}
-
 function getInventoryMonthOptions(current = new Date()): InventoryMonthOption[] {
   return Array.from({ length: 12 }, (_, index) => {
-    const optionDate = new Date(current.getFullYear(), current.getMonth() - index, 1);
+    const optionDate = new Date(current);
+    optionDate.setUTCMonth(optionDate.getUTCMonth() - index);
     return {
-      value: `${optionDate.getFullYear()}-${String(optionDate.getMonth() + 1).padStart(2, "0")}`,
+      value: formatDateKey(optionDate).slice(0, 7),
       label: formatMonthLabel(optionDate),
     };
   });
@@ -340,25 +294,20 @@ function hasPatientTableFilters(options?: PatientTableFilters) {
 
 function getLastVisitRange(filter?: string) {
   const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
+  const today = getDayRange(now);
 
   if (filter === "today") {
-    const end = new Date(start);
-    end.setDate(end.getDate() + 1);
-    return { start: start.getTime(), end: end.getTime() };
+    return { start: today.start.getTime(), end: today.end.getTime() };
   }
 
   if (filter === "week") {
-    start.setDate(start.getDate() - 6);
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
-    return { start: start.getTime(), end: end.getTime() };
+    const start = new Date(today.start);
+    start.setUTCDate(start.getUTCDate() - 6);
+    return { start: start.getTime(), end: today.end.getTime() };
   }
 
   if (filter === "month") {
-    start.setDate(1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const { start, end } = getMonthRange();
     return { start: start.getTime(), end: end.getTime() };
   }
 
@@ -434,11 +383,12 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
 
   return {
     id: patient.id,
+    latestVisitId: latestVisit?.id ?? "",
     lastName: patient.lastName,
     firstName: patient.firstName,
     middleName: patient.middleName ?? "",
     age: calculateAge(patient.birthDate),
-    birthDate: formatDate(patient.birthDate),
+    birthDate: formatDateKey(patient.birthDate),
     gender: formatGender(patient.gender),
     address: patient.address ?? "Not provided",
     contact: patient.contactNo ?? "Not provided",
@@ -455,9 +405,11 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     statusCode: latestVisit?.status ?? "NO_VISIT",
     requestTypes: latestRequests.map(({ type }) => type),
     latestVisitAt: latestVisit ? formatDateTime(latestVisit.timeIn) : "No visit yet",
+    latestVisitDay: latestVisit ? formatDisplayDate(latestVisit.timeIn) : "",
     latestVisitOut: latestVisit?.timeOut ? formatDateTime(latestVisit.timeOut) : "",
-    latestVisitDateValue: latestVisit ? formatDate(latestVisit.timeIn) : "",
+    latestVisitDateValue: latestVisit ? formatDateKey(latestVisit.timeIn) : "",
     latestVisitTimestamp: latestVisit?.timeIn.getTime() ?? 0,
+    isCarriedOverQueue: false,
     genderCode: patient.gender,
   };
 }
@@ -639,15 +591,29 @@ export async function getTodaysPatientTableRows(
 ): Promise<PatientListResult> {
   const { start, end } = getDayRange();
   const searchWhere = getPatientSearchWhere(search);
-  const where = {
-    ...(searchWhere ?? {}),
-    visits: {
-      some: {
+  const activeCarryOverWhere = {
+    timeIn: {
+      lt: start,
+    },
+    status: {
+      in: [VisitStatus.QUEUED, VisitStatus.IN_PROGRESS],
+    },
+  } satisfies Prisma.VisitWhereInput;
+  const visibleVisitWhere = {
+    OR: [
+      {
         timeIn: {
           gte: start,
           lt: end,
         },
       },
+      activeCarryOverWhere,
+    ],
+  } satisfies Prisma.VisitWhereInput;
+  const where = {
+    ...(searchWhere ?? {}),
+    visits: {
+      some: visibleVisitWhere,
     },
   } satisfies Prisma.PatientWhereInput;
 
@@ -656,12 +622,7 @@ export async function getTodaysPatientTableRows(
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: {
       visits: {
-        where: {
-          timeIn: {
-            gte: start,
-            lt: end,
-          },
-        },
+        where: visibleVisitWhere,
         orderBy: {
           timeIn: "desc",
         },
@@ -673,7 +634,124 @@ export async function getTodaysPatientTableRows(
     },
   });
 
-  return paginateRows(patients.map(toPatientTableRow), page, pageSize);
+  const statusPriority: Record<string, number> = {
+    [VisitStatus.IN_PROGRESS]: 1,
+    [VisitStatus.QUEUED]: 2,
+    [VisitStatus.FOR_FOLLOW_UP]: 3,
+    [VisitStatus.COMPLETED]: 4,
+    [VisitStatus.CANCELLED]: 5,
+  };
+  const rows = patients
+    .map((patient) => {
+      const row = toPatientTableRow(patient);
+      return {
+        ...row,
+        isCarriedOverQueue: Boolean(
+          patient.visits[0] &&
+            patient.visits[0].timeIn < start &&
+            (patient.visits[0].status === VisitStatus.QUEUED || patient.visits[0].status === VisitStatus.IN_PROGRESS)
+        ),
+      };
+    })
+    .sort((a, b) => {
+      if (a.isCarriedOverQueue !== b.isCarriedOverQueue) return a.isCarriedOverQueue ? -1 : 1;
+      return (
+        (statusPriority[a.statusCode] ?? 99) - (statusPriority[b.statusCode] ?? 99) ||
+        a.latestVisitTimestamp - b.latestVisitTimestamp ||
+        a.lastName.localeCompare(b.lastName) ||
+        a.firstName.localeCompare(b.firstName)
+      );
+    });
+
+  return paginateRows(rows, page, pageSize);
+}
+
+async function getQueueRowsByVisitWhere(
+  visitWhere: Prisma.VisitWhereInput,
+  page: number,
+  pageSize: number,
+  search?: string,
+  isCarriedOverQueue = false
+): Promise<PatientListResult> {
+  const searchWhere = getPatientSearchWhere(search);
+  const where = {
+    ...(searchWhere ?? {}),
+    visits: {
+      some: visitWhere,
+    },
+  } satisfies Prisma.PatientWhereInput;
+
+  const patients = await prisma.patient.findMany({
+    where,
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: {
+      visits: {
+        where: visitWhere,
+        orderBy: {
+          timeIn: "desc",
+        },
+        take: 1,
+        include: {
+          requests: true,
+        },
+      },
+    },
+  });
+
+  const statusPriority: Record<string, number> = {
+    [VisitStatus.IN_PROGRESS]: 1,
+    [VisitStatus.QUEUED]: 2,
+    [VisitStatus.FOR_FOLLOW_UP]: 3,
+    [VisitStatus.COMPLETED]: 4,
+    [VisitStatus.CANCELLED]: 5,
+  };
+  const rows = patients
+    .map((patient) => ({
+      ...toPatientTableRow(patient),
+      isCarriedOverQueue,
+    }))
+    .sort((a, b) => {
+      return (
+        (statusPriority[a.statusCode] ?? 99) - (statusPriority[b.statusCode] ?? 99) ||
+        a.latestVisitTimestamp - b.latestVisitTimestamp ||
+        a.lastName.localeCompare(b.lastName) ||
+        a.firstName.localeCompare(b.firstName)
+      );
+    });
+
+  return paginateRows(rows, page, pageSize);
+}
+
+export async function getTodaysPatientQueueSections(
+  previousPage = 1,
+  todayPage = 1,
+  pageSize = 25,
+  search?: string
+): Promise<TodaysPatientQueueSections> {
+  const { start, end } = getDayRange();
+  const previousQueueWhere = {
+    timeIn: {
+      lt: start,
+    },
+    status: {
+      in: [VisitStatus.QUEUED, VisitStatus.IN_PROGRESS],
+    },
+  } satisfies Prisma.VisitWhereInput;
+  const todaysQueueWhere = {
+    timeIn: {
+      gte: start,
+      lt: end,
+    },
+  } satisfies Prisma.VisitWhereInput;
+  const [previousQueue, todaysQueue] = await Promise.all([
+    getQueueRowsByVisitWhere(previousQueueWhere, previousPage, pageSize, search, true),
+    getQueueRowsByVisitWhere(todaysQueueWhere, todayPage, pageSize, search, false),
+  ]);
+
+  return {
+    previousQueue,
+    todaysQueue,
+  };
 }
 
 export async function getPatientProfile(id: string): Promise<PatientProfileData | null> {
@@ -756,11 +834,10 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
   const normalizedSearch = search?.trim();
   const { start, end, key, label } = getMonthRange(month);
   const now = new Date();
-  const addMonths = (months: number) => new Date(now.getFullYear(), now.getMonth() + months, now.getDate(), 23, 59, 59, 999);
   const expiryWhere: Prisma.InventoryItemWhereInput = expiryFilter === "expired"
     ? { expirationDate: { lt: now } }
     : ["1", "3", "6"].includes(expiryFilter)
-      ? { expirationDate: { gte: now, lte: addMonths(Number(expiryFilter)) } }
+      ? { expirationDate: { gte: now, lte: addMonths(now, Number(expiryFilter)) } }
       : {};
   const searchWhere: Prisma.InventoryItemWhereInput = normalizedSearch ? { OR: [
     { name: { contains: normalizedSearch, mode: "insensitive" } },
@@ -776,7 +853,7 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
     sort === "classification_asc" ? [{ classification: { sort: "asc", nulls: "last" } }] : [{ name: "asc" }, { expirationDate: "asc" }];
   const [items, alertItems] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { AND: [searchWhere, expiryWhere] }, orderBy, include: { movements: { orderBy: { createdAt: "asc" } } } }),
-    prisma.inventoryItem.findMany({ where: { stock: { gt: 0 }, expirationDate: { lte: addMonths(6) } }, select: { expirationDate: true } }),
+    prisma.inventoryItem.findMany({ where: { stock: { gt: 0 }, expirationDate: { lte: addMonths(now, 6) } }, select: { expirationDate: true } }),
   ]);
 
   return {
@@ -792,8 +869,8 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
         classification: item.classification ?? item.category.charAt(0) + item.category.slice(1).toLowerCase(),
         category: item.category.charAt(0) + item.category.slice(1).toLowerCase(), pcsPerBox: item.pcsPerBox?.toString() ?? "—",
         expirationDate: item.expirationDate ? formatDisplayDate(item.expirationDate) : "—",
-        expirationDateValue: item.expirationDate?.toISOString().slice(0, 10) ?? "",
-        expiryStatus: !item.expirationDate ? "No expiry" as const : item.expirationDate < now ? "Expired" as const : item.expirationDate <= addMonths(1) ? "Within 1 month" as const : item.expirationDate <= addMonths(3) ? "Within 3 months" as const : item.expirationDate <= addMonths(6) ? "Within 6 months" as const : "Safe" as const,
+        expirationDateValue: item.expirationDate ? formatDateKey(item.expirationDate) : "",
+        expiryStatus: !item.expirationDate ? "No expiry" as const : item.expirationDate < now ? "Expired" as const : item.expirationDate <= addMonths(now, 1) ? "Within 1 month" as const : item.expirationDate <= addMonths(now, 3) ? "Within 3 months" as const : item.expirationDate <= addMonths(now, 6) ? "Within 6 months" as const : "Safe" as const,
         stock: item.stock, unit: item.unit, reorder: item.reorderLevel,
         status: item.stock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel ? "Low stock" as const : "Healthy" as const,
         beginningStock: Math.max(0, beginningStock), received, dispensed, endingStock: Math.max(0, endingStock), netMovement: received - dispensed,
@@ -805,9 +882,9 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
     selectedMonth: key, selectedMonthLabel: label, monthOptions: getInventoryMonthOptions(start), expiryFilter, sort,
     expiryAlerts: {
       expired: alertItems.filter((item) => item.expirationDate && item.expirationDate < now).length,
-      withinOne: alertItems.filter((item) => item.expirationDate && item.expirationDate >= now && item.expirationDate <= addMonths(1)).length,
-      withinThree: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(1) && item.expirationDate <= addMonths(3)).length,
-      withinSix: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(3) && item.expirationDate <= addMonths(6)).length,
+      withinOne: alertItems.filter((item) => item.expirationDate && item.expirationDate >= now && item.expirationDate <= addMonths(now, 1)).length,
+      withinThree: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(now, 1) && item.expirationDate <= addMonths(now, 3)).length,
+      withinSix: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(now, 3) && item.expirationDate <= addMonths(now, 6)).length,
     },
   };
 }

@@ -1,6 +1,7 @@
 import { PatientGender } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { MeasurementFields } from "@/components/patients/measurement-fields";
+import { CsrfField } from "@/components/security/csrf-field";
 
 type PatientFormValues = {
   patientId?: string;
@@ -29,6 +30,7 @@ export function PatientForm({
 }) {
   return (
     <form action={action} className="grid gap-4 rounded-[28px] border bg-white p-5 shadow-soft md:grid-cols-2">
+      <CsrfField />
       {values?.patientId ? <input type="hidden" name="patientId" value={values.patientId} /> : null}
       <label className="grid gap-2 text-sm font-semibold text-slate-700">
         Last name

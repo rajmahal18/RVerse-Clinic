@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Activity, Eye, X } from "lucide-react";
-import { ActivityLogRow } from "@/lib/activity-log-view";
+import type { ActivityLogGroup, ActivityLogRow } from "@/lib/activity-log-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -101,108 +101,122 @@ function MetadataDetails({ metadata }: { metadata: unknown }) {
   );
 }
 
-export function ActivityLogTable({ logs }: { logs: ActivityLogRow[] }) {
+export function ActivityLogTable({ groups, totalCount }: { groups: ActivityLogGroup[]; totalCount: number }) {
   const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+  const logs = useMemo(() => groups.flatMap((group) => group.logs), [groups]);
   const selectedLog = useMemo(
     () => logs.find((log) => log.id === selectedLogId) ?? null,
     [logs, selectedLogId]
   );
+  const heading = totalCount === 500 ? "Latest 500 records" : `${totalCount.toLocaleString()} records`;
 
   return (
     <>
       <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">
         <div className="flex items-center gap-2 border-b bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
           <Activity className="h-4 w-4 text-primary" />
-          Latest 100 records
+          {heading}
         </div>
         <div className="divide-y-8 divide-slate-100 bg-slate-100 lg:hidden">
-          {logs.map((log) => (
-            <button
-              key={log.id}
-              type="button"
-              onClick={() => setSelectedLogId(log.id)}
-              className="block w-full border-y border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition active:bg-slate-50"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-black text-slate-900">{log.action}</p>
-                  <p className="mt-0.5 text-sm text-slate-500">{log.module} / {log.createdAt}</p>
-                </div>
-                <Badge className={log.status === "FAILED" ? "shrink-0 bg-rose-50 text-rose-700" : "shrink-0 bg-emerald-50 text-emerald-700"}>
-                  {log.status}
-                </Badge>
+          {groups.map((group) => (
+            <div key={group.dateKey}>
+              <div className="sticky top-0 z-10 border-y border-slate-200 bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
+                {group.label}
               </div>
-              <p className="mt-3 line-clamp-2 text-sm text-slate-700">{log.description}</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <p className="min-w-0">
-                  <span className="block text-xs font-bold uppercase text-slate-400">Record</span>
-                  <span className="block truncate text-slate-700">{log.entityType}</span>
-                </p>
-                <p className="min-w-0">
-                  <span className="block text-xs font-bold uppercase text-slate-400">User</span>
-                  <span className="block truncate text-slate-700">{log.user}</span>
-                </p>
-              </div>
-            </button>
+              {group.logs.map((log) => (
+                <button
+                  key={log.id}
+                  type="button"
+                  onClick={() => setSelectedLogId(log.id)}
+                  className="block w-full border-b border-slate-200 bg-white px-4 py-3 text-left transition active:bg-slate-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-black text-slate-900">{log.action}</p>
+                      <p className="mt-0.5 text-sm text-slate-500">{log.module} / {log.createdAt}</p>
+                    </div>
+                    <Badge className={log.status === "FAILED" ? "shrink-0 bg-rose-50 text-rose-700" : "shrink-0 bg-emerald-50 text-emerald-700"}>
+                      {log.status}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-sm text-slate-700">{log.description}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <p className="min-w-0">
+                      <span className="block text-xs font-bold uppercase text-slate-400">Record</span>
+                      <span className="block truncate text-slate-700">{log.entityType}</span>
+                    </p>
+                    <p className="min-w-0">
+                      <span className="block text-xs font-bold uppercase text-slate-400">User</span>
+                      <span className="block truncate text-slate-700">{log.user}</span>
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
           ))}
-          {logs.length === 0 ? (
+          {totalCount === 0 ? (
             <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No activity logs found.</p>
           ) : null}
         </div>
 
-        <div className="hidden overflow-x-auto scrollbar-thin lg:block">
-          <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                {["Date", "Module", "Action", "Status", "Record", "User", "Details"].map((header) => (
-                  <th key={header} className="px-4 py-3 font-bold">
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {logs.map((log) => (
-                <tr
-                  key={log.id}
-                  tabIndex={0}
-                  role="button"
-                  onClick={() => setSelectedLogId(log.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      setSelectedLogId(log.id);
-                    }
-                  }}
-                  className="cursor-pointer transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30"
-                >
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.createdAt}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{log.module}</td>
-                  <td className="px-4 py-3 text-slate-700">{log.action}</td>
-                  <td className="px-4 py-3">
-                    <Badge className={log.status === "FAILED" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}>
-                      {log.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{log.entityType}</td>
-                  <td className="px-4 py-3 text-slate-600">{log.user}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{log.description}</span>
-                      <Eye className="h-4 w-4 shrink-0 text-slate-400" />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {logs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
-                    No activity logs found.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+        <div className="hidden lg:block">
+          {groups.map((group) => (
+            <div key={group.dateKey} className="border-b last:border-b-0">
+              <div className="border-b bg-slate-50 px-4 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
+                {group.label}
+              </div>
+              <div className="overflow-x-auto scrollbar-thin">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-white text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      {["Time", "Module", "Action", "Status", "Record", "User", "Details"].map((header) => (
+                        <th key={header} className="px-4 py-3 font-bold">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {group.logs.map((log) => (
+                      <tr
+                        key={log.id}
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => setSelectedLogId(log.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setSelectedLogId(log.id);
+                          }
+                        }}
+                        className="cursor-pointer transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.createdAt}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-900">{log.module}</td>
+                        <td className="px-4 py-3 text-slate-700">{log.action}</td>
+                        <td className="px-4 py-3">
+                          <Badge className={log.status === "FAILED" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}>
+                            {log.status}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{log.entityType}</td>
+                        <td className="px-4 py-3 text-slate-600">{log.user}</td>
+                        <td className="px-4 py-3 text-slate-600">
+                          <div className="flex items-center justify-between gap-3">
+                            <span>{log.description}</span>
+                            <Eye className="h-4 w-4 shrink-0 text-slate-400" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          {totalCount === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-slate-500">No activity logs found.</p>
+          ) : null}
         </div>
       </section>
 

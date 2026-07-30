@@ -2,6 +2,7 @@ import { UserRole } from "@prisma/client";
 import { createUserAction, toggleUserStatusAction, updateClinicSettingsAction } from "@/app/actions/workflow";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { CsrfField } from "@/components/security/csrf-field";
 import { ActionAlert } from "@/components/ui/action-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,7 @@ export default async function SettingsPage({
           </CardHeader>
           <CardContent>
             <form action={updateClinicSettingsAction} className="grid gap-4">
+              <CsrfField />
               <input name="name" defaultValue={settings.clinic.name} className="rounded-xl border px-3 py-2 text-sm" placeholder="Clinic name" />
               <input name="address" defaultValue={settings.clinic.address} className="rounded-xl border px-3 py-2 text-sm" placeholder="Address" />
               <input name="contact" defaultValue={settings.clinic.contact} className="rounded-xl border px-3 py-2 text-sm" placeholder="Contact number" />
@@ -45,6 +47,7 @@ export default async function SettingsPage({
           </CardHeader>
           <CardContent className="space-y-4">
             <form action={createUserAction} className="grid gap-3 md:grid-cols-2">
+              <CsrfField />
               <input name="name" className="rounded-xl border px-3 py-2 text-sm" placeholder="Full name" />
               <input name="email" type="email" className="rounded-xl border px-3 py-2 text-sm" placeholder="Email" />
               <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="rounded-xl border px-3 py-2 text-sm">
@@ -66,6 +69,7 @@ export default async function SettingsPage({
                     <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{roleLabel(user.role)}</p>
                   </div>
                   <form action={toggleUserStatusAction}>
+                    <CsrfField />
                     <input type="hidden" name="userId" value={user.id} />
                     <input type="hidden" name="isActive" value={String(!user.isActive)} />
                     <Button type="submit" variant={user.isActive ? "outline" : "default"}>

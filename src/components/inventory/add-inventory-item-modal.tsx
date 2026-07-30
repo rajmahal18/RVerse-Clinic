@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CsrfField } from "@/components/security/csrf-field";
 
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
 
@@ -39,6 +40,7 @@ export function AddInventoryItemModal({ action }: { action: ServerFormAction }) 
             </div>
 
             <form action={action} className="grid min-h-0 gap-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-2">
+              <CsrfField />
               <div className="sm:col-span-2">
                 <h3 className="text-sm font-black text-slate-900">Medicine identity</h3>
                 <p className="text-xs text-slate-500">Each expiration date is maintained as a separate batch.</p>

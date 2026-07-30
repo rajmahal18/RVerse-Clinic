@@ -8,14 +8,20 @@ import {
   VisitStatus,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { clearAuthCookie, createSessionToken, getCurrentUser, setAuthCookie } from "@/lib/auth";
 import { appendActionFeedback, getActionErrorMessage } from "@/lib/action-feedback";
 import { writeActivityLog } from "@/lib/activity-log";
+import { assertValidCsrfToken } from "@/lib/csrf";
+import { formatDateKey, parseAppDateInput } from "@/lib/date-time";
 import { hashPassword, isStrongPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { TRUST_PROXY_HEADERS } from "@/lib/security-config";
 
 const MAIN_CLINIC_ID = "main-clinic";
+const LOGIN_ATTEMPT_WINDOW_MINUTES = 15;
+const LOGIN_ATTEMPT_LIMIT = 5;
 
 function requiredString(formData: FormData, key: string) {
   const value = String(formData.get(key) ?? "").trim();
@@ -98,7 +104,7 @@ function parseMedicineSchedule(formData: FormData) {
 }
 
 function parseDate(value: string) {
-  const parsed = new Date(value);
+  const parsed = parseAppDateInput(value);
 
   if (Number.isNaN(parsed.getTime())) {
     throw new Error("Invalid date value.");
@@ -117,6 +123,47 @@ async function ensureClinic() {
       address: "",
       contact: "",
       email: "",
+    },
+  });
+}
+
+async function getClientIpAddress() {
+  if (!TRUST_PROXY_HEADERS) {
+    return "unknown";
+  }
+
+  const headerStore = await headers();
+  const forwardedFor = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const realIp = headerStore.get("x-real-ip")?.trim();
+
+  return forwardedFor || realIp || "unknown";
+}
+
+async function isLoginRateLimited(email: string, ipAddress: string) {
+  const since = new Date(Date.now() - LOGIN_ATTEMPT_WINDOW_MINUTES * 60 * 1000);
+  const attemptScopes: Prisma.LoginAttemptWhereInput[] = [{ email }];
+  if (ipAddress !== "unknown") {
+    attemptScopes.push({ ipAddress });
+  }
+  const failedAttempts = await prisma.loginAttempt.count({
+    where: {
+      success: false,
+      createdAt: {
+        gte: since,
+      },
+      OR: attemptScopes,
+    },
+  });
+
+  return failedAttempts >= LOGIN_ATTEMPT_LIMIT;
+}
+
+async function recordLoginAttempt(email: string, ipAddress: string, success: boolean) {
+  await prisma.loginAttempt.create({
+    data: {
+      email,
+      ipAddress,
+      success,
     },
   });
 }
@@ -161,7 +208,7 @@ function isInventoryCategory(value: string): value is InventoryCategory {
 }
 
 function formatLogDate(value: Date) {
-  return value.toISOString().slice(0, 10);
+  return formatDateKey(value);
 }
 
 function getChangedFields(
@@ -182,6 +229,7 @@ function getChangedFields(
 }
 
 async function runAction<T>(
+  formData: FormData,
   failurePath: string,
   module: string,
   action: string,
@@ -189,6 +237,7 @@ async function runAction<T>(
   entity?: { type?: string; id?: string | null }
 ) {
   try {
+    await assertValidCsrfToken(formData);
     return await task();
   } catch (error) {
     const message = getActionErrorMessage(error);
@@ -207,7 +256,7 @@ async function runAction<T>(
 }
 
 export async function createPatientAction(formData: FormData) {
-  const patient = await runAction("/patients/new", "Patient Records", "Create patient", async () => {
+  const patient = await runAction(formData, "/patients/new", "Patient Records", "Create patient", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
     const clinic = await ensureClinic();
     const measurements = parseMeasurements(formData);
@@ -247,7 +296,7 @@ export async function createPatientAction(formData: FormData) {
 export async function updatePatientAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
 
-  await runAction(`/patients/${patientId}/edit`, "Patient Records", "Update patient", async () => {
+  await runAction(formData, `/patients/${patientId}/edit`, "Patient Records", "Update patient", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
     const currentPatient = await prisma.patient.findUnique({
       where: { id: patientId },
@@ -325,7 +374,7 @@ export async function updatePatientAction(formData: FormData) {
 
 export async function createVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
-  await runAction(`/patients/${patientId}`, "Patient Records", "Queue visit", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Patient Records", "Queue visit", async () => {
     const requestTypes = selectedRequestTypes(formData);
     if (!requestTypes.length) {
       throw new Error("Select at least one service requested.");
@@ -366,7 +415,7 @@ export async function startVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
 
-  await runAction(`/patients/${patientId}`, "Patient Records", "Start visit", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Patient Records", "Start visit", async () => {
     const nurseOnDuty = await getCurrentStaffName();
     const visit = await prisma.visit.update({
       where: { id: visitId },
@@ -398,7 +447,7 @@ export async function startVisitAction(formData: FormData) {
 export async function updateVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  await runAction(`/patients/${patientId}`, "Patient Records", "Update visit", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Patient Records", "Update visit", async () => {
     const requestTypes = selectedRequestTypes(formData);
     if (!requestTypes.length) {
       throw new Error("Select at least one service requested.");
@@ -422,7 +471,7 @@ export async function updateVisitAction(formData: FormData) {
           progressNotes: optionalString(formData, "progressNotes"),
           nurseOnDuty,
           status,
-          timeOut: status === VisitStatus.COMPLETED ? new Date() : null,
+          timeOut: status === VisitStatus.COMPLETED || status === VisitStatus.CANCELLED ? new Date() : null,
         },
         include: {
           patient: true,
@@ -474,7 +523,7 @@ export async function updateVisitStatusAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
 
-  await runAction(`/patients/${patientId}`, "Patient Records", "Update visit status", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Patient Records", "Update visit status", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const statusValue = requiredString(formData, "status");
     const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
@@ -495,7 +544,7 @@ export async function updateVisitStatusAction(formData: FormData) {
       data: {
         status,
         nurseOnDuty,
-        timeOut: status === VisitStatus.COMPLETED ? new Date() : null,
+        timeOut: status === VisitStatus.COMPLETED || status === VisitStatus.CANCELLED ? new Date() : null,
       },
       include: {
         patient: true,
@@ -527,8 +576,67 @@ export async function updateVisitStatusAction(formData: FormData) {
   redirect(`/patients/${patientId}`);
 }
 
+export async function cancelQueuedVisitAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  const redirectToValue = String(formData.get("redirectTo") ?? "/todays-patients");
+  const redirectTo = redirectToValue.startsWith("/") ? redirectToValue : "/todays-patients";
+
+  await runAction(formData, redirectTo, "Patient Records", "Cancel queued visit", async () => {
+    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const currentVisit = await prisma.visit.findUnique({
+      where: { id: visitId },
+      include: {
+        patient: true,
+      },
+    });
+
+    if (!currentVisit || currentVisit.patientId !== patientId) {
+      throw new Error("The selected visit was not found.");
+    }
+
+    if (currentVisit.status === VisitStatus.COMPLETED || currentVisit.status === VisitStatus.CANCELLED) {
+      throw new Error("This visit is already closed.");
+    }
+
+    const visit = await prisma.visit.update({
+      where: { id: visitId },
+      data: {
+        status: VisitStatus.CANCELLED,
+        timeOut: new Date(),
+      },
+      include: {
+        patient: true,
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: visit.patient.clinicId,
+      module: "Patient Records",
+      action: "Cancel queued visit",
+      entityType: "Visit",
+      entityId: visit.id,
+      description: `Cancelled queued visit for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
+      metadata: {
+        changes: {
+          status: {
+            before: currentVisit.status,
+            after: VisitStatus.CANCELLED,
+          },
+        },
+      },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/todays-patients");
+  revalidatePath("/follow-ups");
+  revalidatePath("/vaccination");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(appendActionFeedback(redirectTo, "message", "Queued visit cancelled."));
+}
+
 export async function createInventoryItemAction(formData: FormData) {
-  await runAction("/inventory", "Inventory", "Create item", async () => {
+  await runAction(formData, "/inventory", "Inventory", "Create item", async () => {
     await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     const clinic = await ensureClinic();
     const categoryValue = requiredString(formData, "category");
@@ -609,7 +717,7 @@ export async function createInventoryItemAction(formData: FormData) {
 export async function requestMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  await runAction(`/patients/${patientId}`, "Medicines", "Request medicine", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Medicines", "Request medicine", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const inventoryItemId = requiredString(formData, "inventoryItemId");
     const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
@@ -659,7 +767,7 @@ export async function requestMedicineAction(formData: FormData) {
 export async function dispenseMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const medicineRequestId = requiredString(formData, "medicineRequestId");
-  await runAction(`/patients/${patientId}`, "Medicines", "Dispense medicine", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Medicines", "Dispense medicine", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const releasedBy = optionalString(formData, "releasedBy") ?? "Clinic staff";
     const receivedBy = optionalString(formData, "receivedBy") ?? "Patient";
@@ -749,7 +857,7 @@ export async function dispenseMedicineAction(formData: FormData) {
 export async function scheduleFollowUpAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  await runAction(`/patients/${patientId}`, "Follow-ups", "Schedule follow-up", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Follow-ups", "Schedule follow-up", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
 
@@ -798,7 +906,7 @@ export async function scheduleFollowUpAction(formData: FormData) {
 export async function addVaccinationRecordAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  await runAction(`/patients/${patientId}`, "Vaccination", "Add vaccination record", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Vaccination", "Add vaccination record", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const vaccine = requiredString(formData, "vaccine");
     const doseSelection = optionalString(formData, "dose");
@@ -862,7 +970,7 @@ export async function addVaccinationRecordAction(formData: FormData) {
 export async function addInventoryQuantityAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
   const quantity = requiredPositiveInteger(formData, "quantity", "Quantity");
-  await runAction("/inventory", "Inventory", "Add quantity", async () => {
+  await runAction(formData, "/inventory", "Inventory", "Add quantity", async () => {
     await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     await prisma.$transaction([
       prisma.inventoryItem.update({ where: { id: itemId }, data: { stock: { increment: quantity } } }),
@@ -874,7 +982,7 @@ export async function addInventoryQuantityAction(formData: FormData) {
 
 export async function updateInventoryItemAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
-  await runAction("/inventory", "Inventory", "Update item", async () => {
+  await runAction(formData, "/inventory", "Inventory", "Update item", async () => {
     await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     const name = requiredString(formData, "name");
     const dosage = optionalString(formData, "dosage");
@@ -907,14 +1015,14 @@ export async function updateInventoryItemAction(formData: FormData) {
 
 export async function deleteInventoryItemAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
-  await runAction("/inventory", "Inventory", "Delete item", async () => { await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]); await prisma.inventoryItem.delete({ where: { id: itemId } }); }, { type: "InventoryItem", id: itemId });
+  await runAction(formData, "/inventory", "Inventory", "Delete item", async () => { await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]); await prisma.inventoryItem.delete({ where: { id: itemId } }); }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
 }
 
 export async function resolveItemRequestAction(formData: FormData) {
   const requestId = requiredString(formData, "requestId");
   const decision = requiredString(formData, "decision");
-  await runAction("/item-requests", "Medicines", `${decision} item request`, async () => {
+  await runAction(formData, "/item-requests", "Medicines", `${decision} item request`, async () => {
     await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
@@ -934,7 +1042,7 @@ export async function resolveItemRequestAction(formData: FormData) {
 
 export async function addVaccineOptionAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
-  await runAction(`/patients/${patientId}`, "Vaccination", "Add vaccine option", async () => {
+  await runAction(formData, `/patients/${patientId}`, "Vaccination", "Add vaccine option", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     const clinicId = requiredString(formData, "clinicId");
     const name = requiredString(formData, "vaccineName");
@@ -959,7 +1067,7 @@ export async function addVaccineOptionAction(formData: FormData) {
 }
 
 export async function updateClinicSettingsAction(formData: FormData) {
-  await runAction("/settings", "Settings", "Update clinic settings", async () => {
+  await runAction(formData, "/settings", "Settings", "Update clinic settings", async () => {
     await requireRole([UserRole.ADMIN]);
     const clinic = await ensureClinic();
 
@@ -990,7 +1098,7 @@ export async function updateClinicSettingsAction(formData: FormData) {
 
 export async function createUserAction(formData: FormData) {
   const redirectTo = optionalString(formData, "redirectTo") ?? "/settings";
-  await runAction(redirectTo, "Accounts", "Create user", async () => {
+  await runAction(formData, redirectTo, "Accounts", "Create user", async () => {
     await requireRole([UserRole.ADMIN]);
     const clinic = await ensureClinic();
     const roleValue = requiredString(formData, "role");
@@ -1032,12 +1140,15 @@ export async function toggleUserStatusAction(formData: FormData) {
   const nextActiveState = String(formData.get("isActive") ?? "") === "true";
   const redirectTo = String(formData.get("redirectTo") ?? "/settings");
 
-  await runAction(redirectTo, "Accounts", nextActiveState ? "Activate user" : "Deactivate user", async () => {
+  await runAction(formData, redirectTo, "Accounts", nextActiveState ? "Activate user" : "Deactivate user", async () => {
     await requireRole([UserRole.ADMIN]);
     const user = await prisma.user.update({
       where: { id: userId },
       data: {
         isActive: nextActiveState,
+        sessionVersion: {
+          increment: 1,
+        },
       },
     });
 
@@ -1058,22 +1169,50 @@ export async function toggleUserStatusAction(formData: FormData) {
 
 export async function loginAction(formData: FormData) {
   const next = optionalString(formData, "next") ?? "/dashboard";
-  const destination = await runAction("/login", "Authentication", "Sign in", async () => {
+  const destination = await runAction(formData, "/login", "Authentication", "Sign in", async () => {
     const email = requiredString(formData, "email").toLowerCase();
     const password = requiredString(formData, "password");
+    const ipAddress = await getClientIpAddress();
+
+    if (await isLoginRateLimited(email, ipAddress)) {
+      await writeActivityLog({
+        module: "Authentication",
+        action: "Sign in",
+        status: "FAILED",
+        description: `Blocked sign in after repeated failed attempts for ${email}.`,
+        metadata: { email, ipAddress, reason: "RATE_LIMITED" },
+      });
+      throw new Error(`Too many failed sign-in attempts. Try again in ${LOGIN_ATTEMPT_WINDOW_MINUTES} minutes.`);
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
     });
 
     if (!user || !user.isActive || !verifyPassword(password, user.passwordHash)) {
+      await recordLoginAttempt(email, ipAddress, false);
+      await writeActivityLog({
+        clinicId: user?.clinicId,
+        userId: user?.id,
+        module: "Authentication",
+        action: "Sign in",
+        status: "FAILED",
+        entityType: user ? "User" : undefined,
+        entityId: user?.id,
+        description: `Failed sign in for ${email}.`,
+        metadata: { email, ipAddress },
+      });
       throw new Error("Invalid email or password.");
     }
+
+    await recordLoginAttempt(email, ipAddress, true);
 
     await setAuthCookie(
       createSessionToken({
         userId: user.id,
         email: user.email,
         role: user.role,
+        sessionVersion: user.sessionVersion,
       })
     );
 
@@ -1085,6 +1224,7 @@ export async function loginAction(formData: FormData) {
       entityType: "User",
       entityId: user.id,
       description: `${user.name} signed in.`,
+      metadata: { ipAddress },
     });
 
     return next.startsWith("/") ? next : "/dashboard";
@@ -1094,7 +1234,7 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function createAccountAction(formData: FormData) {
-  await runAction("/login?mode=create-account", "Accounts", "Request account", async () => {
+  await runAction(formData, "/login?mode=create-account", "Accounts", "Request account", async () => {
     const clinic = await ensureClinic();
     const name = requiredString(formData, "name");
     const email = requiredString(formData, "email").toLowerCase();
@@ -1142,7 +1282,8 @@ export async function createAccountAction(formData: FormData) {
   redirect(`/login?message=${encodeURIComponent("Account request submitted. An admin must activate the account before sign in.")}`);
 }
 
-export async function logoutAction() {
+export async function logoutAction(formData: FormData) {
+  await assertValidCsrfToken(formData);
   await writeActivityLog({
     module: "Authentication",
     action: "Sign out",
@@ -1151,3 +1292,4 @@ export async function logoutAction() {
   await clearAuthCookie();
   redirect("/login");
 }
+

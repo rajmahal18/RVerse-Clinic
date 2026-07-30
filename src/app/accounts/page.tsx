@@ -3,6 +3,7 @@ import { CheckCircle2, UserPlus } from "lucide-react";
 import { createUserAction } from "@/app/actions/workflow";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { CsrfField } from "@/components/security/csrf-field";
 import { ActionAlert } from "@/components/ui/action-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export default async function AccountsPage({
           </div>
 
           <form action={createUserAction} className="grid gap-3">
+            <CsrfField />
             <input type="hidden" name="redirectTo" value="/accounts" />
             <input name="name" className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" placeholder="Full name" />
             <input name="email" type="email" className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" placeholder="Email address" />

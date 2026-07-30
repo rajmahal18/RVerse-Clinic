@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CsrfField } from "@/components/security/csrf-field";
 import { cn } from "@/lib/utils";
 
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
@@ -85,6 +86,7 @@ export function VisitStatusModal({
             </div>
 
             <form action={action} className="grid gap-4 p-4">
+              <CsrfField />
               <input type="hidden" name="patientId" value={patientId} />
               <input type="hidden" name="visitId" value={visitId} />
               <label className="grid gap-2 text-sm font-semibold text-slate-700">

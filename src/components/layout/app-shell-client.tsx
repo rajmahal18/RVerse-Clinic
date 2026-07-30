@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { OcmLogo } from "@/components/layout/ocm-logo";
 import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
+import { CsrfField } from "@/components/security/csrf-field";
 
 export function AppShellClient({
   children,
@@ -144,6 +145,7 @@ export function AppShellClient({
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
             </Button>
             <form action={logoutAction}>
+              <CsrfField />
               <Button type="submit" variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label="Sign out">
                 <LogOut className="h-5 w-5" />
               </Button>
