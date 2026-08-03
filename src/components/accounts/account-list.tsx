@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CheckCircle2, CircleOff, X } from "lucide-react";
-import { toggleUserStatusAction } from "@/app/actions/workflow";
+import { toggleUserStatusAction, updateUserDisplayNameAction } from "@/app/actions/workflow";
 import type { ClinicSettingsData } from "@/lib/patient-view";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +64,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-black text-slate-900">{user.name}</p>
+                {user.displayName ? <p className="truncate text-sm font-semibold text-teal-700">{user.displayName}</p> : null}
                 <p className="truncate text-sm text-slate-500">{user.email}</p>
               </div>
               <StatusBadge active={user.isActive} />
@@ -78,10 +79,10 @@ export function AccountList({ users }: { users: AccountUser[] }) {
       </div>
 
       <div className="hidden overflow-x-auto scrollbar-thin lg:block">
-        <table className="w-full min-w-[780px] text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              {["Name", "Email", "Role", "Status", "Action"].map((header) => (
+              {["Name", "Form Display", "Email", "Role", "Status", "Action"].map((header) => (
                 <th key={header} className="px-4 py-3 font-bold">
                   {header}
                 </th>
@@ -92,6 +93,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             {users.map((user) => (
               <tr key={user.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-bold text-slate-900">{user.name}</td>
+                <td className="px-4 py-3 font-semibold text-slate-700">{user.displayName || "-"}</td>
                 <td className="px-4 py-3 text-slate-600">{user.email}</td>
                 <td className="px-4 py-3">
                   <Badge className="bg-slate-100 text-slate-700">{roleLabel(user.role)}</Badge>
@@ -106,7 +108,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             ))}
             {users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
                   No accounts configured yet.
                 </td>
               </tr>
@@ -134,6 +136,26 @@ export function AccountList({ users }: { users: AccountUser[] }) {
               </Button>
             </div>
             <div className="grid gap-3 p-4">
+              <div className="rounded-xl border bg-slate-50 px-3 py-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Form display name</p>
+                <p className="mt-1 text-sm font-semibold text-slate-800">{selectedUser.displayName || "Uses account name"}</p>
+              </div>
+              <form action={updateUserDisplayNameAction} className="grid gap-2 rounded-xl border bg-white px-3 py-3">
+                <CsrfField />
+                <input type="hidden" name="redirectTo" value="/accounts" />
+                <input type="hidden" name="userId" value={selectedUser.id} />
+                <label className="grid gap-1 text-sm font-bold">
+                  Display name for forms
+                  <input
+                    name="displayName"
+                    defaultValue={selectedUser.displayName}
+                    className="h-10 rounded-xl border px-3 font-normal"
+                    placeholder="e.g. DR. JUAN D. SANTOS, MD"
+                  />
+                </label>
+                <p className="text-xs leading-5 text-slate-500">Used on certificates, referrals, and printable forms when available.</p>
+                <Button type="submit" size="sm">Save display name</Button>
+              </form>
               <div className="rounded-xl border bg-slate-50 px-3 py-2">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Role</p>
                 <p className="mt-1 text-sm font-semibold text-slate-800">{roleLabel(selectedUser.role)}</p>

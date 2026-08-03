@@ -58,9 +58,16 @@ export function AddInventoryItemModal({ action }: { action: ServerFormAction }) 
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Expiration date<input name="expirationDate" type="date" required={expiringItem} className="h-10 rounded-xl border px-3 font-normal" /></label>
               <div className="border-t pt-3 sm:col-span-2"><h3 className="text-sm font-black text-slate-900">Packaging and stock</h3></div>
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Pieces per box<input name="pcsPerBox" type="number" min="1" step="1" className="h-10 rounded-xl border px-3 font-normal" /></label>
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">Beginning stock (pieces)<input name="stock" type="number" min="0" step="1" className="h-10 rounded-xl border px-3 font-normal" defaultValue="0" /></label>
+              <label className="grid gap-2 text-sm font-semibold text-slate-700">Initial stock (pieces)<input name="stock" type="number" min="0" step="1" className="h-10 rounded-xl border px-3 font-normal" defaultValue="0" /></label>
+              <label className="grid gap-2 text-sm font-semibold text-slate-700">Stock entry type<select name="stockEntryType" defaultValue="ENCODED_EXISTING" className="h-10 rounded-xl border px-3 font-normal">
+                <option value="ENCODED_EXISTING">Existing stock encoded</option>
+                <option value="RECEIVED">New stock received</option>
+              </select></label>
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Stock unit<input name="unit" className="h-10 rounded-xl border px-3 font-normal" placeholder="e.g. tablet, piece" required /></label>
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Low-stock threshold<input name="reorderLevel" type="number" min="0" step="1" className="h-10 rounded-xl border px-3 font-normal" defaultValue="0" /></label>
+              <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 sm:col-span-2">
+                Use existing stock encoded for items already in the clinic before they were entered in the system. Use new stock received for newly delivered batches that should appear under monthly In.
+              </p>
               <div className="flex justify-end gap-2 sm:col-span-2">
                 <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancel

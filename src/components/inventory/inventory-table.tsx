@@ -36,6 +36,9 @@ export function InventoryTable({
               Review beginning balance, received quantities, dispensed quantities, and ending stock for{" "}
               <span className="font-semibold text-slate-800">{ledger.selectedMonthLabel}</span>.
             </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Encoded existing stock is included in beginning stocks. Only newly received stock appears under In.
+            </p>
           </div>
           <MonthSelectForm
             action="/inventory"

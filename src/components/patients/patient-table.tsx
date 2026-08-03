@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, CalendarClock, MapPin, Phone, Stethoscope, UserRound, XCircle, type LucideIcon } from "lucide-react";
+import { ArrowRight, BriefcaseBusiness, CalendarClock, MapPin, Phone, Stethoscope, Syringe, UserRound, XCircle, type LucideIcon } from "lucide-react";
 import { VisitStatus } from "@prisma/client";
 import type { PatientTableRow } from "@/lib/patient-view";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,8 @@ type PatientTableProps = {
   cancelRedirectTo?: string;
   pageParamName?: string;
   visitDateLabel?: string;
+  detailColumnLabel?: string;
+  hideContactColumn?: boolean;
   emptyState?: string;
   embedded?: boolean;
 };
@@ -97,6 +99,26 @@ function GenderBadge({ gender }: { gender: string }) {
   );
 }
 
+function RecordDetails({ patient }: { patient: PatientTableRow }) {
+  if (!patient.recordSummary) {
+    return null;
+  }
+  const Icon = patient.recordIcon === "calendar" ? CalendarClock : Syringe;
+
+  return (
+    <div className="grid gap-1 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-left lg:bg-white lg:px-0 lg:py-0 lg:border-0">
+      <div className="flex min-w-0 items-start gap-2 lg:items-center">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+        <div className="min-w-0">
+          <p className="break-words text-sm font-black text-slate-900">{patient.recordSummary}</p>
+          {patient.recordMeta ? <p className="mt-0.5 break-words text-xs font-semibold text-emerald-800 lg:line-clamp-2">{patient.recordMeta}</p> : null}
+        </div>
+      </div>
+      {patient.recordNote ? <p className="break-words text-xs text-slate-600 lg:line-clamp-2">{patient.recordNote}</p> : null}
+    </div>
+  );
+}
+
 export function PatientTable({
   rows,
   currentPage = 1,
@@ -110,6 +132,8 @@ export function PatientTable({
   cancelRedirectTo = basePath,
   pageParamName = "page",
   visitDateLabel = "Last visit",
+  detailColumnLabel = "Request",
+  hideContactColumn = false,
   emptyState = "No patient records found for this view yet.",
   embedded = false,
 }: PatientTableProps) {
@@ -145,6 +169,7 @@ export function PatientTable({
                 <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
               </div>
               <div className="mt-3 grid gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                <RecordDetails patient={patient} />
                 <div className="flex flex-wrap gap-2">
                   <Badge className="bg-blue-50 text-blue-700">{patient.request}</Badge>
                   <Badge className={statusTone(patient.status)}>{patient.status}</Badge>
@@ -187,12 +212,12 @@ export function PatientTable({
               {[
                 "Patient",
                 "Profile",
-                "Contact",
+                hideContactColumn ? null : "Contact",
                 "Office",
                 "Latest Visit",
-                "Request",
+                detailColumnLabel,
                 "",
-              ].map((header) => (
+              ].filter((header): header is string => header !== null).map((header) => (
                 <th key={header} className="px-4 py-3 font-bold">
                   {header}
                 </th>
@@ -202,7 +227,7 @@ export function PatientTable({
           <tbody className="divide-y">
             {rows.map((patient) => (
               <tr key={patient.id} className="group hover:bg-slate-50">
-                <td className="w-[25%] align-top">
+                <td className={cn("align-top", hideContactColumn ? "w-[22%]" : "w-[25%]")}>
                   <Link href={`/patients/${patient.id}`} className="block px-4 py-4 text-slate-950 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
                     <p className="font-black uppercase leading-5">{formatPatientName(patient)}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -211,7 +236,7 @@ export function PatientTable({
                     </div>
                   </Link>
                 </td>
-                <td className="w-[16%] align-top">
+                <td className={cn("align-top", hideContactColumn ? "w-[13%]" : "w-[16%]")}>
                   <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
                     <div className="grid gap-1.5 text-xs font-semibold">
                       <InfoLine icon={UserRound}>{patient.age} yrs</InfoLine>
@@ -220,21 +245,23 @@ export function PatientTable({
                     </div>
                   </Link>
                 </td>
-                <td className="w-[18%] align-top">
-                  <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    <div className="grid gap-1.5 text-xs font-semibold">
-                      <InfoLine icon={Phone}>{patient.contact}</InfoLine>
-                      <InfoLine icon={MapPin}>{patient.address}</InfoLine>
-                    </div>
-                  </Link>
-                </td>
-                <td className="w-[16%] align-top">
+                {hideContactColumn ? null : (
+                  <td className="w-[18%] align-top">
+                    <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
+                      <div className="grid gap-1.5 text-xs font-semibold">
+                        <InfoLine icon={Phone}>{patient.contact}</InfoLine>
+                        <InfoLine icon={MapPin}>{patient.address}</InfoLine>
+                      </div>
+                    </Link>
+                  </td>
+                )}
+                <td className={cn("align-top", hideContactColumn ? "w-[14%]" : "w-[16%]")}>
                   <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
                     <p className="font-bold leading-5 text-slate-800">{patient.agency}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-500">{patient.designation}</p>
                   </Link>
                 </td>
-                <td className="w-[16%] align-top">
+                <td className={cn("align-top", hideContactColumn ? "w-[16%]" : "w-[16%]")}>
                   <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
                     <div className="grid gap-2">
                       <Badge className={statusTone(patient.status)}>{patient.status}</Badge>
@@ -247,12 +274,19 @@ export function PatientTable({
                     </div>
                   </Link>
                 </td>
-                <td className="w-[16%] align-top">
+                <td className={cn("align-top", hideContactColumn ? "w-[28%]" : "w-[16%]")}>
                   <Link href={`/patients/${patient.id}`} className="block px-4 py-4 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
-                    <div className="flex items-start gap-2">
-                      <Stethoscope className="mt-1 h-4 w-4 shrink-0 text-blue-500" />
-                      <Badge className="max-w-[12rem] whitespace-normal bg-blue-50 text-blue-700">{patient.request}</Badge>
-                    </div>
+                    {patient.recordSummary ? (
+                      <div className={cn("grid gap-2", hideContactColumn ? "max-w-none" : "max-w-[16rem]")}>
+                        <RecordDetails patient={patient} />
+                        <Badge className="w-fit max-w-full whitespace-normal bg-blue-50 text-blue-700">{patient.request}</Badge>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <Stethoscope className="mt-1 h-4 w-4 shrink-0 text-blue-500" />
+                        <Badge className="max-w-[12rem] whitespace-normal bg-blue-50 text-blue-700">{patient.request}</Badge>
+                      </div>
+                    )}
                   </Link>
                 </td>
                 <td className="w-12 align-top">
@@ -287,7 +321,7 @@ export function PatientTable({
             ))}
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">
+                <td colSpan={hideContactColumn ? 6 : 7} className="px-4 py-10 text-center text-sm text-slate-500">
                   {emptyState}
                 </td>
               </tr>

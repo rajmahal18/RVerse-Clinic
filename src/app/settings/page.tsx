@@ -49,6 +49,7 @@ export default async function SettingsPage({
             <form action={createUserAction} className="grid gap-3 md:grid-cols-2">
               <CsrfField />
               <input name="name" className="rounded-xl border px-3 py-2 text-sm" placeholder="Full name" />
+              <input name="displayName" className="rounded-xl border px-3 py-2 text-sm" placeholder="Display name for forms" />
               <input name="email" type="email" className="rounded-xl border px-3 py-2 text-sm" placeholder="Email" />
               <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="rounded-xl border px-3 py-2 text-sm">
                 {Object.values(UserRole).map((role) => (

@@ -56,6 +56,8 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .landing-photo {
   animation-delay: 220ms;
   transform-origin: center right;
+  max-width: 100%;
+  contain: paint;
 }
 
 .landing-photo::after {
@@ -87,6 +89,7 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .landing-status-strip { animation-delay: 920ms; }
 
 .landing-status-item {
+  max-width: 100%;
   transition: background-color 220ms ease;
 }
 

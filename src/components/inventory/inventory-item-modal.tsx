@@ -43,6 +43,13 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
               Add quantity
               <input name="quantity" type="number" min="1" step="1" required className="h-10 rounded-xl border bg-white px-3 font-normal" />
             </label>
+            <label className="grid flex-1 gap-1 text-sm font-bold">
+              Stock entry type
+              <select name="stockEntryType" defaultValue="RECEIVED" className="h-10 rounded-xl border bg-white px-3 font-normal">
+                <option value="RECEIVED">New stock received</option>
+                <option value="ENCODED_EXISTING">Existing stock encoded</option>
+              </select>
+            </label>
             <Button>Add stock</Button>
           </form>
 

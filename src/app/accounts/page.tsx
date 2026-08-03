@@ -64,6 +64,7 @@ export default async function AccountsPage({
             <CsrfField />
             <input type="hidden" name="redirectTo" value="/accounts" />
             <input name="name" className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" placeholder="Full name" />
+            <input name="displayName" className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" placeholder="Display name for forms" />
             <input name="email" type="email" className="h-10 rounded-xl border px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" placeholder="Email address" />
             <input
               name="password"

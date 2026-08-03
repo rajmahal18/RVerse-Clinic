@@ -169,8 +169,8 @@ export default async function LandingPage() {
         </div>
       </header>
 
-      <section className="bg-[#f7f8f4] px-4 pb-8 pt-20 sm:px-6 lg:px-8">
-        <div className="mx-auto grid min-h-[calc(100svh-5rem)] max-w-[92rem] gap-7 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+      <section className="overflow-hidden bg-[#f7f8f4] px-4 pb-8 pt-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid min-h-[calc(100svh-5rem)] max-w-[92rem] min-w-0 gap-7 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
           <div className="flex min-w-0 flex-col justify-between gap-8 lg:min-h-[42rem]">
             <div>
               <div className="landing-kicker flex items-center gap-3 text-sm font-black text-teal-700">
@@ -195,8 +195,8 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          <div className="min-w-0">
-            <div className="landing-photo relative aspect-[4/3] min-h-[21rem] overflow-hidden border border-slate-950/10 bg-slate-200 shadow-[0_24px_80px_rgba(15,23,42,0.18)] sm:aspect-[16/11] lg:aspect-[5/4]">
+          <div className="min-w-0 overflow-hidden">
+            <div className="landing-photo relative w-full max-w-full aspect-[4/3] overflow-hidden border border-slate-950/10 bg-slate-200 shadow-[0_18px_48px_rgba(15,23,42,0.16)] sm:min-h-[21rem] sm:aspect-[16/11] sm:shadow-[0_24px_80px_rgba(15,23,42,0.18)] lg:aspect-[5/4]">
               <Image
                 src="/icons/ocmlanding.png"
                 alt="OCM Clinic staff using the clinic system"
@@ -205,16 +205,16 @@ export default async function LandingPage() {
                 priority
                 className="landing-photo-image object-cover object-[58%_center]"
               />
-              <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-slate-950/88 via-slate-950/38 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-slate-950/88 via-slate-950/38 to-transparent sm:h-44" />
               <div className="landing-photo-badge absolute left-4 top-4 border border-white/55 bg-white/72 px-3 py-2 text-xs font-black text-slate-950 shadow-sm backdrop-blur-md">
                 OCM CLINIC
               </div>
-              <div className="landing-status-strip absolute bottom-0 left-0 right-0 grid grid-cols-2 border-t border-white/18 bg-slate-950/68 text-xs font-black text-white backdrop-blur-md sm:grid-cols-4">
+              <div className="landing-status-strip absolute bottom-0 left-0 right-0 grid min-w-0 grid-cols-2 border-t border-white/18 bg-slate-950/68 text-[11px] font-black text-white backdrop-blur-md sm:grid-cols-4 sm:text-xs">
                 {statusItems.map((item) => {
                   const Icon = item.icon;
 
                   return (
-                    <div key={item.label} className="landing-status-item min-w-0 border-r border-white/14 p-3 last:border-r-0">
+                    <div key={item.label} className="landing-status-item min-w-0 border-r border-white/14 p-2.5 last:border-r-0 sm:p-3">
                       <div className="flex items-center gap-2 text-white/72">
                         <Icon className="h-4 w-4 shrink-0" />
                         <span className="truncate">{item.label}</span>

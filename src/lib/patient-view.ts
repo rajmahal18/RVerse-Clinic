@@ -38,6 +38,8 @@ const visitStatusLabels: Record<VisitStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
+const encodedStockReasons = new Set(["Opening stock", "Existing stock encoded"]);
+
 type PatientWithVisits = Prisma.PatientGetPayload<{
   include: {
     visits: {
@@ -89,6 +91,10 @@ export type PatientTableRow = {
   latestVisitTimestamp: number;
   isCarriedOverQueue: boolean;
   genderCode: PatientGender;
+  recordSummary?: string;
+  recordMeta?: string;
+  recordNote?: string;
+  recordIcon?: "calendar" | "syringe";
 };
 
 export type PatientTableFilters = {
@@ -227,6 +233,7 @@ export type ClinicSettingsData = {
   users: {
     id: string;
     name: string;
+    displayName: string;
     email: string;
     role: string;
     isActive: boolean;
@@ -411,6 +418,83 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     latestVisitTimestamp: latestVisit?.timeIn.getTime() ?? 0,
     isCarriedOverQueue: false,
     genderCode: patient.gender,
+  };
+}
+
+type VaccinationPatientRecord = Prisma.PatientGetPayload<{
+  include: {
+    visits: {
+      include: {
+        requests: true;
+        vaccinations: true;
+      };
+    };
+  };
+}>;
+
+type FollowUpPatientRecord = Prisma.PatientGetPayload<{
+  include: {
+    visits: {
+      include: {
+        requests: true;
+        followUps: true;
+      };
+    };
+  };
+}>;
+
+function toVaccinationPatientTableRow(patient: VaccinationPatientRecord): PatientTableRow {
+  const row = toPatientTableRow(patient);
+  const visit = patient.visits[0];
+  const latestRecord = visit?.vaccinations[0];
+  const vaccinationCount = visit?.vaccinations.length ?? 0;
+
+  if (!latestRecord) {
+    return {
+      ...row,
+      recordSummary: "No vaccine entry saved yet",
+      recordMeta: "Vaccination request only",
+      recordIcon: "syringe",
+    };
+  }
+
+  const meta = [
+    latestRecord.dose || null,
+    latestRecord.givenBy ? `Given by ${latestRecord.givenBy}` : null,
+    latestRecord.nextDose ? `Next dose ${formatDisplayDate(latestRecord.nextDose)}` : null,
+  ].filter(Boolean);
+
+  return {
+    ...row,
+    recordSummary: latestRecord.vaccine,
+    recordMeta: meta.join(" / ") || "No dose details recorded",
+    recordNote: [
+      latestRecord.remarks || null,
+      vaccinationCount > 1 ? `${vaccinationCount} vaccination records in this visit` : null,
+    ].filter(Boolean).join(" / "),
+    recordIcon: "syringe",
+  };
+}
+
+function toFollowUpPatientTableRow(patient: FollowUpPatientRecord): PatientTableRow {
+  const row = toPatientTableRow(patient);
+  const visit = patient.visits[0];
+  const latestFollowUp = visit?.followUps[0];
+  const followUpCount = visit?.followUps.length ?? 0;
+
+  if (!latestFollowUp) {
+    return row;
+  }
+
+  return {
+    ...row,
+    recordSummary: formatDateTime(latestFollowUp.scheduledFor),
+    recordMeta: latestFollowUp.status.replaceAll("_", " ").toLowerCase(),
+    recordNote: [
+      latestFollowUp.remarks || "No remarks",
+      followUpCount > 1 ? `${followUpCount} scheduled follow-ups in this visit` : null,
+    ].filter(Boolean).join(" / "),
+    recordIcon: "calendar",
   };
 }
 
@@ -754,6 +838,108 @@ export async function getTodaysPatientQueueSections(
   };
 }
 
+export async function getVaccinationPatientTableRows(
+  page = 1,
+  pageSize = 25,
+  search?: string
+): Promise<PatientListResult> {
+  const searchWhere = getPatientSearchWhere(search);
+  const vaccinationVisitWhere = {
+    OR: [
+      {
+        requests: {
+          some: {
+            type: RequestType.VACCINATION,
+          },
+        },
+      },
+      {
+        vaccinations: {
+          some: {},
+        },
+      },
+    ],
+  } satisfies Prisma.VisitWhereInput;
+  const where = {
+    ...(searchWhere ?? {}),
+    visits: {
+      some: vaccinationVisitWhere,
+    },
+  } satisfies Prisma.PatientWhereInput;
+
+  const patients = await prisma.patient.findMany({
+    where,
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: {
+      visits: {
+        where: vaccinationVisitWhere,
+        orderBy: {
+          timeIn: "desc",
+        },
+        take: 1,
+        include: {
+          requests: true,
+          vaccinations: {
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return paginateRows(patients.map(toVaccinationPatientTableRow), page, pageSize);
+}
+
+export async function getFollowUpPatientTableRows(
+  page = 1,
+  pageSize = 25,
+  search?: string
+): Promise<PatientListResult> {
+  const searchWhere = getPatientSearchWhere(search);
+  const followUpVisitWhere = {
+    followUps: {
+      some: {
+        status: "SCHEDULED",
+      },
+    },
+  } satisfies Prisma.VisitWhereInput;
+  const where = {
+    ...(searchWhere ?? {}),
+    visits: {
+      some: followUpVisitWhere,
+    },
+  } satisfies Prisma.PatientWhereInput;
+
+  const patients = await prisma.patient.findMany({
+    where,
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: {
+      visits: {
+        where: followUpVisitWhere,
+        orderBy: {
+          timeIn: "desc",
+        },
+        take: 1,
+        include: {
+          requests: true,
+          followUps: {
+            where: {
+              status: "SCHEDULED",
+            },
+            orderBy: {
+              scheduledFor: "asc",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return paginateRows(patients.map(toFollowUpPatientTableRow), page, pageSize);
+}
+
 export async function getPatientProfile(id: string): Promise<PatientProfileData | null> {
   const patient = await prisma.patient.findUnique({
     where: { id },
@@ -861,7 +1047,9 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
       const monthlyMovements = item.movements.filter((movement) => movement.createdAt >= start && movement.createdAt < end);
       const laterMovements = item.movements.filter((movement) => movement.createdAt >= end);
       const endingStock = item.stock - laterMovements.reduce((sum, movement) => sum + movement.quantityChange, 0);
-      const received = monthlyMovements.filter((movement) => movement.quantityChange > 0).reduce((sum, movement) => sum + movement.quantityChange, 0);
+      const received = monthlyMovements
+        .filter((movement) => movement.quantityChange > 0 && !encodedStockReasons.has(movement.reason))
+        .reduce((sum, movement) => sum + movement.quantityChange, 0);
       const dispensed = monthlyMovements.filter((movement) => movement.quantityChange < 0).reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
       const beginningStock = endingStock - received + dispensed;
       return {
@@ -950,6 +1138,7 @@ export async function getClinicSettingsData(): Promise<ClinicSettingsData> {
     users: clinic.users.map((user) => ({
       id: user.id,
       name: user.name,
+      displayName: user.displayName ?? "",
       email: user.email,
       role: user.role,
       isActive: user.isActive,

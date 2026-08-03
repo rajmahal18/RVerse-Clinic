@@ -62,9 +62,7 @@ export async function PatientProfile({ id }: { id: string }) {
   const currentUser = await getCurrentUser();
   const canManageVisits = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR_NURSE;
   const latestVisit = patient.latestVisit;
-  const activeVisit = latestVisit && latestVisit.statusCode !== VisitStatus.COMPLETED && latestVisit.statusCode !== VisitStatus.CANCELLED
-    ? latestVisit
-    : null;
+  const activeVisit = patient.visitHistory.find((visit) => visit.statusCode !== VisitStatus.COMPLETED && visit.statusCode !== VisitStatus.CANCELLED) ?? null;
   const historicalVisits = activeVisit
     ? patient.visitHistory.filter((visit) => visit.id !== activeVisit.id)
     : patient.visitHistory;

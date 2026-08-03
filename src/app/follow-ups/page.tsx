@@ -2,7 +2,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { PatientTable } from "@/components/patients/patient-table";
 import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
-import { getPatientTableRows } from "@/lib/patient-view";
+import { getFollowUpPatientTableRows } from "@/lib/patient-view";
 
 export default async function FollowUpsPage({
   searchParams,
@@ -12,7 +12,7 @@ export default async function FollowUpsPage({
   const resolvedSearchParams = await searchParams;
   const page = Number(resolvedSearchParams?.page ?? "1");
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
-  const result = await getPatientTableRows("follow", Number.isFinite(page) ? page : 1, 25, searchQuery);
+  const result = await getFollowUpPatientTableRows(Number.isFinite(page) ? page : 1, 25, searchQuery);
 
   return (
     <AppShell>
@@ -30,6 +30,10 @@ export default async function FollowUpsPage({
         pageSize={result.pageSize}
         basePath="/follow-ups"
         searchQuery={searchQuery}
+        visitDateLabel="Follow-up visit"
+        detailColumnLabel="Follow-up Details"
+        hideContactColumn
+        emptyState="No scheduled follow-ups found."
       />
     </AppShell>
   );

@@ -138,6 +138,25 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
   const selectedDate = selectedVisit?.timeIn ?? issueDate;
   const clinicAddress = clean(patient.clinic.address) || clinicFormDefaults.officeAddress;
   const clinicEmail = clean(patient.clinic.email) || clinicFormDefaults.officeEmail;
+  const staffDisplayNames = await prisma.user.findMany({
+    where: {
+      clinicId: patient.clinicId,
+      isActive: true,
+      displayName: {
+        not: null,
+      },
+    },
+    select: {
+      name: true,
+      displayName: true,
+    },
+  });
+  const displayNameByAccountName = new Map(
+    staffDisplayNames
+      .map((user) => [clean(user.name), clean(user.displayName)] as const)
+      .filter(([name, displayName]) => name && displayName)
+  );
+  const formatStaffName = (name: string | null | undefined) => displayNameByAccountName.get(clean(name)) || clean(name);
 
   return {
     patient: {
@@ -177,7 +196,7 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
           diagnosis: clean(selectedVisit.diagnosis),
           treatmentPlan: clean(selectedVisit.treatmentPlan),
           progressNotes: clean(selectedVisit.progressNotes),
-          nurseOnDuty: clean(selectedVisit.nurseOnDuty),
+          nurseOnDuty: formatStaffName(selectedVisit.nurseOnDuty),
           services: visitServices(selectedVisit),
           medicines: selectedVisit.medicines.map(medicineLine).filter(Boolean),
           referral: selectedVisit.referrals[0] ?? null,
@@ -204,7 +223,7 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
         pulseRate: clean(visit.pulseRate),
         services: visitServices(visit),
         timeOut: formatTime(visit.timeOut),
-        nurseOnDuty: clean(visit.nurseOnDuty),
+        nurseOnDuty: formatStaffName(visit.nurseOnDuty),
       })),
     vaccinations: patient.visits
       .flatMap((visit) => visit.vaccinations.map((record) => ({ ...record, visitDate: visit.timeIn })))
