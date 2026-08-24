@@ -1,4 +1,5 @@
 import type { ClinicFormData, ClinicFormSlug } from "@/lib/clinic-forms";
+import { formatLongDate } from "@/lib/date-time";
 
 const covidDoseLabels = ["1", "2", "3", "Booster 1 & 2"];
 
@@ -75,9 +76,9 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
           <tr><td className="label">Office/Division:</td><td colSpan={5}>{data.patient.officeDivision}</td></tr>
           <tr><td className="label">Designation:</td><td colSpan={5}>{data.patient.designation}</td></tr>
           <tr><th colSpan={6} className="employee-subtitle">Primary Contact</th></tr>
-          <tr><td className="label">Name:</td><td colSpan={5} /></tr>
+          <tr><td className="label">Name:</td><td colSpan={5}>{data.patient.primaryContact}</td></tr>
           <tr><td className="label">Relationship:</td><td colSpan={5} /></tr>
-          <tr><td className="label">Contact Number:</td><td colSpan={5} /></tr>
+          <tr><td className="label">Contact Number:</td><td colSpan={5}>{data.patient.contact}</td></tr>
         </tbody>
       </table>
 
@@ -114,7 +115,7 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
           </table>
           <div className="employee-box-title">Allergy History</div>
           <div className="employee-allergy-box">
-            <p>Medicine/Drugs:</p>
+            <p>Medicine/Drugs: {data.patient.allergy}</p>
             <p>Foods/Insects Etc.:</p>
           </div>
           <div className="employee-box-title">Maintenance Medicine/ Current Medication</div>
@@ -122,7 +123,7 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
         </div>
         <div className="employee-right">
           <div className="employee-box-title">Medical History</div>
-          <div className="employee-history-box">{data.latestVisit?.medicalHistory}</div>
+          <div className="employee-history-box">{data.patient.medicalHistory || data.latestVisit?.medicalHistory}</div>
           <div className="employee-box-title">Additional Medical Info</div>
           <div className="employee-additional-box">
             <p>Physicians Name:</p>
@@ -153,7 +154,7 @@ function AssessmentMonitoringSheet({ data }: { data: ClinicFormData }) {
         <span>Name: <b>{data.patient.fullName}</b></span>
         <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
         <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
-        <span>Allergies:</span>
+        <span>Allergies: <b>{data.patient.allergy}</b></span>
       </div>
       <h1>ASSESSMENT MONITORING SHEET</h1>
       <table className="assessment-table">
@@ -269,9 +270,127 @@ function ReferralForm({ data }: { data: ClinicFormData }) {
   );
 }
 
+function MedicalAllowanceForm({ data }: { data: ClinicFormData }) {
+  return (
+    <div className="clinic-form-page allowance-page">
+      <OfficialHeader />
+      <h1 className="allowance-title">CERTIFICATION FOR THE GRANT OF<br />MEDICAL ALLOWANCE</h1>
+      <div className="allowance-body">
+        <div className="allowance-employee-line"><span>This is to certify that</span><span className="allowance-underline">{data.patient.fullName}</span></div>
+        <div className="allowance-identity-row"><div><b>{data.patient.designation}</b><i>Position/Title</i></div><div><b>{data.patient.officeDivision}</b><i>Office/Division</i></div></div>
+        <p>based on the review and validation of this office, the submitted documents were found to be complete and authentic consisting of official receipts and supporting medical documents with a total amount equal or exceeding to Seven Thousand Pesos (P7,000.00).</p>
+        <p>This certification is issued pursuant to Memorandum Order No. 0381. Series of 2025, &quot;Supplemental Guidelines on the Grant of Medical Allowance to Eligible Employees of the Office of the Chief Minister - BARMM.&quot; to endorse the said employee as <b>CLEARED</b> for the Medical Allowance liquidation to the FMS-Accounting and AMS-HRMD.</p>
+        <p className="allowance-issued">Issued this <b>{data.issued.ordinalDay}</b> day of <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.</p>
+        <div className="allowance-signature-block"><div className="allowance-signature-row"><span>Reviewed and Validated by:</span><Signatory name={data.signatory.nurseName} position={data.signatory.nursePosition} /></div><div className="allowance-signature-row"><span>Certified by:</span><Signatory name={data.signatory.physicianName} position={data.signatory.physicianPosition} /></div></div>
+      </div>
+      <Footer revision="OCMTC_CFYOMA_2025_01" data={data} />
+    </div>
+  );
+}
+
+function DoctorsOrderForm({ data }: { data: ClinicFormData }) {
+  const visit = data.selectedVisit;
+  const progressLines = [
+    visit ? `${visit.shortDate} @ ${visit.timeIn}` : "",
+    visit?.chiefComplaint ? `Chief Complaint: ${visit.chiefComplaint}` : "",
+    [
+      visit?.bloodPressure ? `BP ${visit.bloodPressure}` : "",
+      visit?.rbs ? `RBS ${visit.rbs}` : "",
+      visit?.temperature ? `Temp ${visit.temperature}` : "",
+      visit?.pulseRate ? `PR ${visit.pulseRate}` : "",
+      visit?.respiratoryRate ? `RR ${visit.respiratoryRate}` : "",
+    ].filter(Boolean).join(" / "),
+    visit?.progressNotes ? `Progress Notes / Medical History: ${visit.progressNotes}` : "",
+    visit?.diagnosis ? `Diagnosis: ${visit.diagnosis}` : "",
+  ].filter(Boolean);
+  const orderLines = [
+    visit?.treatmentPlan,
+    ...(visit?.medicines ?? []).map((medicine) => `Medicine: ${medicine}`),
+  ].filter(Boolean);
+  const rows = Array.from({ length: 30 }, (_, index) => index);
+
+  return (
+    <div className="clinic-form-page doctors-order-page">
+      <div className="doctors-order-top">
+        <p>OFFICE OF THE CHIEF MINISTER- BARMM</p>
+        <p>THE CLINIC</p>
+      </div>
+      <div className="doctors-order-patient">
+        <span>Name: <b>{data.patient.fullName}</b></span>
+        <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
+        <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
+        <span>Allergies: <b>{data.patient.allergy}</b></span>
+      </div>
+      <h1>DOCTORS ORDER SHEET</h1>
+      <table className="doctors-order-table">
+        <thead>
+          <tr><th>Progress Notes/Care Plan</th><th>Doctors Order</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row}>
+              <td>{row === 0 ? progressLines.map((line) => <p key={line}>{line}</p>) : null}</td>
+              <td>{row === 0 ? orderLines.map((line) => <p key={line}>{line}</p>) : null}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const csmScale = ["Strongly Disagree", "Disagree", "Neither Agree nor Disagree", "Agree", "Strongly Agree", "N/A"];
+const csmQuestions = [
+  ["sqd0", "I am satisfied with the service that I availed."],
+  ["sqd1", "I spent a reasonable amount of time for my transaction."],
+  ["sqd2", "The office followed the transaction's requirements and steps based on the information provided."],
+  ["sqd3", "The steps (including payment) I needed to do for my transaction were easy and simple."],
+  ["sqd4", "I easily found information about my transaction from the office or its website."],
+  ["sqd5", "I paid a reasonable amount of fees for my transaction."],
+  ["sqd6", "I feel the office was fair to everyone, or walang palakasan, during my transaction."],
+  ["sqd7", "I was treated courteously by the staff, and the staff was helpful."],
+  ["sqd8", "I got what I needed from the government office, or denial was sufficiently explained to me."],
+] as const;
+
+function CsmCheckbox({ selected, label }: { selected: string | null | undefined; label: string }) {
+  return <span className="csm-check">{selected === label ? "X" : ""}</span>;
+}
+
+function ClientSatisfactionSurveyForm({ data }: { data: ClinicFormData }) {
+  const survey = data.selectedVisit?.satisfactionSurvey;
+  const visit = data.selectedVisit;
+  const ccOptions = {
+    cc1: ["1. I know what a CC is and I saw this office's CC.", "2. I know what a CC is but I did NOT see this office's CC.", "3. I learned of the CC only when I saw this office's CC.", "4. I do not know what a CC is and I did not see one in this office."],
+    cc2: ["1. Easy to see", "2. Somewhat easy to see", "3. Difficult to see", "4. Not visible at all", "5. Not Applicable"],
+    cc3: ["1. Helped very much", "2. Somewhat helped", "3. Did not help", "4. Not Applicable"],
+  };
+  return <>
+    <div className="clinic-form-page csm-page">
+      <OfficialHeader />
+      <div className="csm-approval">(On-Site Version)<br /><b>CLIENT SATISFACTION FORM</b></div>
+      <h1>HELP US SERVE YOU BETTER!</h1>
+      <p className="csm-intro">This CLIENT SATISFACTION MEASUREMENT (CSM) tracks the customer experience of government offices. Your feedback on your recently concluded transaction will help this office provide a better service. Personal information shared will be kept confidential and you always have the option to not answer this form.</p>
+      <div className="csm-respondent-grid">
+        <span>Client type: <b>{survey?.clientType || ""}</b></span><span>Date: <b>{survey?.surveyDate ? formatLongDate(survey.surveyDate) : visit?.shortDate || ""}</b></span><span>Sex: <b>{survey?.respondentSex || ""}</b></span><span>Age: <b>{survey?.respondentAge || ""}</b></span><span>Region of residence: <b>{survey?.regionOfResidence || ""}</b></span><span>Office visited/transacted with: <b>{survey?.officeVisited || "The Clinic"}</b></span><span>Service Availed: <b>{survey?.serviceAvailed || visit?.services || ""}</b></span>
+      </div>
+      <p className="csm-instructions"><b>INSTRUCTIONS:</b> Please place a Check mark (✓) in the designated box that corresponds to your answer on the Citizen&apos;s Charter (CC) questions. The Citizen&apos;s Charter is an official document that reflects the services of a government agency/office including its requirements, fees, and processing times among others.</p>
+      {(["cc1", "cc2", "cc3"] as const).map((key) => <section className="csm-question" key={key}><h2>{key.toUpperCase()} {key === "cc1" ? "Which of the following best describes your awareness of a CC?" : key === "cc2" ? "If aware of CC, would you say that the CC of this office was ...?" : "If aware of CC, how much did the CC help you in your transaction?"}</h2>{ccOptions[key].map((option) => <p key={option}><CsmCheckbox selected={survey?.[key]} label={option} /> {option}</p>)}</section>)}
+    </div>
+    <div className="clinic-form-page csm-page csm-page-two">
+      <p className="csm-instructions"><b>INSTRUCTIONS:</b> For SQD 0-8, please put a check mark (✓) on the column that best corresponds to your answer.</p>
+      <table className="csm-sqd-table"><thead><tr><th>Dimension</th>{csmScale.map((scale) => <th key={scale}>{scale}</th>)}</tr></thead><tbody>{csmQuestions.map(([key, question]) => <tr key={key}><td><b>{key.toUpperCase()}.</b> {question}</td>{csmScale.map((scale) => <td key={scale}><CsmCheckbox selected={String(survey?.[key as keyof typeof survey] ?? "")} label={scale} /></td>)}</tr>)}</tbody></table>
+      <p className="csm-suggestion-label">Suggestions on how we can further improve our services (optional):</p><div className="csm-lines">{survey?.suggestions}</div>
+      <p className="csm-email">Email address (optional): <b>{survey?.email}</b></p><p className="csm-thanks">THANK YOU!</p><Footer revision="OCM.OCOS.F.01.EN Rev.0" data={data} />
+    </div>
+  </>;
+}
+
 export function ClinicFormTemplate({ form, data }: { form: ClinicFormSlug; data: ClinicFormData }) {
   if (form === "employee-information") return <EmployeeInformationForm data={data} />;
   if (form === "assessment-monitoring") return <AssessmentMonitoringSheet data={data} />;
   if (form === "medical-certificate") return <MedicalCertificate data={data} />;
+  if (form === "medical-allowance") return <MedicalAllowanceForm data={data} />;
+  if (form === "doctors-order") return <DoctorsOrderForm data={data} />;
+  if (form === "client-satisfaction-survey") return <ClientSatisfactionSurveyForm data={data} />;
   return <ReferralForm data={data} />;
 }

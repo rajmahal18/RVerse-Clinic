@@ -1,4 +1,5 @@
-import { BarChart3, ClipboardList, FileHeart, Syringe } from "lucide-react";
+import { ArrowRight, BarChart3, ClipboardList, FileHeart, Syringe } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -14,6 +15,7 @@ const reportGroups = [
     description: "Review medicine requests, releases, stock movement, and inventory usage.",
     icon: FileHeart,
     tone: "bg-blue-50 text-blue-700",
+    href: "/reports/medicines",
   },
   {
     title: "Vaccination Reports",
@@ -48,6 +50,7 @@ export default function ReportsPage() {
                 </div>
                 <h4 className="font-black text-slate-900">{report.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-slate-500">{report.description}</p>
+                {report.href ? <Link href={report.href} className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">Open report <ArrowRight className="h-4 w-4" /></Link> : null}
               </div>
             );
           })}

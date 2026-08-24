@@ -31,7 +31,7 @@ export function NewVisitModal({
   return (
     <>
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <CalendarPlus className="h-4 w-4" /> New Visit
+        <CalendarPlus className="h-4 w-4" /> New Appointment
       </Button>
 
       {open ? (
@@ -46,7 +46,7 @@ export function NewVisitModal({
             <div className="flex items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
               <div>
                 <h2 id="new-visit-title" className="text-lg font-black text-slate-900">
-                  New Visit
+                  New Appointment
                 </h2>
                 <p className="text-sm text-slate-500">Add this patient to the clinic queue.</p>
               </div>

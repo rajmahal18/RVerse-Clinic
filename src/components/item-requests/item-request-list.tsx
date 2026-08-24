@@ -22,7 +22,11 @@ export type ItemRequestListRow = {
 
 function StatusPill({ status }: { status: string }) {
   const label = status === "RELEASED" ? "APPROVED" : status;
-  const tone = status === "REJECTED" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700";
+  const tone = status === "REJECTED"
+    ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+    : status === "REQUESTED"
+      ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+      : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${tone}`}>{label}</span>;
 }
 

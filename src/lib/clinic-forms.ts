@@ -7,13 +7,16 @@ import {
 } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
 
-export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medical-certificate" | "referral-form";
+export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medical-certificate" | "referral-form" | "medical-allowance" | "doctors-order" | "client-satisfaction-survey";
 
 export const clinicForms: { slug: ClinicFormSlug; title: string; scope: "patient" | "visit"; filenamePrefix: string }[] = [
   { slug: "employee-information", title: "Employee Information", scope: "patient", filenamePrefix: "employee-information" },
   { slug: "assessment-monitoring", title: "Assessment Monitoring Sheet", scope: "patient", filenamePrefix: "assessment-monitoring" },
   { slug: "medical-certificate", title: "Medical Certificate", scope: "visit", filenamePrefix: "medical-certificate" },
   { slug: "referral-form", title: "Referral Form", scope: "visit", filenamePrefix: "referral-form" },
+  { slug: "medical-allowance", title: "Medical Allowance Certification", scope: "visit", filenamePrefix: "medical-allowance" },
+  { slug: "doctors-order", title: "Doctors Order Sheet", scope: "visit", filenamePrefix: "doctors-order" },
+  { slug: "client-satisfaction-survey", title: "Client Satisfaction Measurement Survey", scope: "visit", filenamePrefix: "client-satisfaction-survey" },
 ];
 
 export type ClinicFormData = NonNullable<Awaited<ReturnType<typeof getClinicFormData>>>;
@@ -27,6 +30,7 @@ type PatientWithFormData = Prisma.PatientGetPayload<{
         medicines: true;
         vaccinations: true;
         referrals: true;
+        satisfactionSurvey: true;
       };
     };
   };
@@ -124,6 +128,7 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
           medicines: true,
           vaccinations: true,
           referrals: true,
+          satisfactionSurvey: true,
         },
       },
     },
@@ -174,6 +179,9 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
       designation: clean(patient.designation),
       height: patient.heightCm ? `${patient.heightCm.toFixed(1)} cm` : "",
       weight: patient.weightKg ? `${patient.weightKg.toFixed(1)} kg` : "",
+      allergy: clean(patient.allergy),
+      medicalHistory: clean(patient.medicalHistory),
+      primaryContact: clean(patient.primaryContact),
     },
     clinic: {
       name: clean(patient.clinic.name) || "The Clinic",
@@ -196,6 +204,8 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
           diagnosis: clean(selectedVisit.diagnosis),
           treatmentPlan: clean(selectedVisit.treatmentPlan),
           progressNotes: clean(selectedVisit.progressNotes),
+          allergy: clean(patient.allergy),
+          satisfactionSurvey: selectedVisit.satisfactionSurvey,
           nurseOnDuty: formatStaffName(selectedVisit.nurseOnDuty),
           services: visitServices(selectedVisit),
           medicines: selectedVisit.medicines.map(medicineLine).filter(Boolean),

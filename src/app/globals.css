@@ -762,6 +762,356 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
   margin-top: 3mm;
 }
 
+.allowance-page {
+  position: relative;
+  padding: 14mm 22mm 18mm;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.allowance-page .clinic-letterhead {
+  grid-template-columns: 31mm 1fr;
+  gap: 4mm;
+  align-items: center;
+}
+
+.allowance-page .clinic-letterhead img {
+  width: 28mm;
+  height: 28mm;
+}
+
+.allowance-page .clinic-office-name {
+  font-size: 11pt;
+}
+
+.allowance-page .clinic-region-name {
+  font-size: 10pt;
+}
+
+.allowance-page .clinic-letterhead-title {
+  font-size: 24pt;
+  letter-spacing: 7pt;
+}
+
+.allowance-title {
+  margin: 19mm 0 16mm;
+  text-align: center;
+  font-size: 19pt;
+  line-height: 1.25;
+  font-weight: 900;
+}
+
+.allowance-body {
+  padding: 0 3mm;
+  font-size: 10pt;
+  line-height: 1.2;
+}
+
+.allowance-employee-line {
+  display: grid;
+  grid-template-columns: 42mm 1fr;
+  align-items: end;
+  gap: 4mm;
+  margin-bottom: 17mm;
+}
+
+.allowance-underline {
+  min-height: 7mm;
+  border-bottom: 1px solid #000;
+  padding: 0 3mm 1mm;
+  text-align: center;
+  font-style: italic;
+}
+
+.allowance-identity-row {
+  display: grid;
+  grid-template-columns: 1fr 1.65fr;
+  gap: 9mm;
+  margin-bottom: 16mm;
+}
+
+.allowance-identity-row > div {
+  display: grid;
+  min-height: 12mm;
+  border-bottom: 1px solid #000;
+  text-align: center;
+}
+
+.allowance-identity-row b {
+  align-self: end;
+  font-size: 10.5pt;
+}
+
+.allowance-identity-row i {
+  font-size: 9pt;
+  font-weight: 400;
+}
+
+.allowance-body > p {
+  margin: 0 0 17mm;
+  text-align: justify;
+}
+
+.allowance-issued {
+  text-align: left !important;
+  margin-bottom: 13mm !important;
+}
+
+.allowance-signature-block {
+  display: grid;
+  gap: 11mm;
+}
+
+.allowance-signature-row {
+  display: grid;
+  grid-template-columns: 48mm 1fr;
+  align-items: start;
+  gap: 5mm;
+}
+
+.allowance-signature-row > .clinic-signatory {
+  width: 90mm;
+  margin: 0;
+  text-align: center;
+  font-size: 9.5pt;
+}
+
+.allowance-page .clinic-official-footer {
+  left: 22mm;
+  right: 22mm;
+  bottom: 8mm;
+}
+
+.doctors-order-page {
+  padding: 11mm 4mm 8mm;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.doctors-order-top {
+  text-align: center;
+  font-weight: 900;
+  font-size: 12.5pt;
+  line-height: 1.15;
+}
+
+.doctors-order-top p {
+  margin: 0;
+}
+
+.doctors-order-patient {
+  display: grid;
+  grid-template-columns: 1.25fr 0.72fr 1fr 1fr;
+  gap: 7mm;
+  margin-top: 7mm;
+  padding: 0 3.5mm;
+  font-size: 11pt;
+}
+
+.doctors-order-page h1 {
+  margin: 6mm 0 2mm;
+  text-align: center;
+  font-size: 22pt;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.doctors-order-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border-top: 1px solid #333;
+}
+
+.doctors-order-table th,
+.doctors-order-table td {
+  width: 50%;
+  border-bottom: 1px solid #777;
+  border-right: 1px solid #777;
+  padding: 1.3mm 4mm;
+  vertical-align: top;
+  font-size: 10pt;
+}
+
+.doctors-order-table th:first-child,
+.doctors-order-table td:first-child {
+  border-left: 0;
+}
+
+.doctors-order-table th:last-child,
+.doctors-order-table td:last-child {
+  border-right: 0;
+}
+
+.doctors-order-table th {
+  height: 8mm;
+  text-align: center;
+  font-size: 14pt;
+  vertical-align: middle;
+  padding: 1mm;
+}
+
+.doctors-order-table td {
+  height: 8.3mm;
+  overflow: hidden;
+}
+
+.doctors-order-table td p {
+  margin: 0 0 1.2mm;
+  break-inside: avoid;
+}
+
+.doctors-order-table tbody tr:first-child td {
+  height: 24mm;
+}
+
+.csm-page {
+  position: relative;
+  padding: 10mm 12mm 15mm;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.csm-page .clinic-letterhead {
+  grid-template-columns: 24mm 1fr;
+  gap: 3mm;
+  border-bottom: 2px solid #a66a28;
+  padding-bottom: 2mm;
+}
+
+.csm-page .clinic-letterhead-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19pt;
+  letter-spacing: 5pt;
+}
+
+.csm-approval {
+  position: absolute;
+  right: 12mm;
+  top: 10mm;
+  width: 45mm;
+  border: 1px solid #333;
+  padding: 1.5mm;
+  text-align: center;
+  font-size: 6pt;
+}
+
+.csm-page h1 {
+  margin: 11mm 0 5mm;
+  text-align: center;
+  font-size: 16pt;
+  font-style: italic;
+}
+
+.csm-intro,
+.csm-instructions {
+  font-size: 9pt;
+  line-height: 1.35;
+}
+
+.csm-respondent-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5mm 3mm;
+  margin: 4mm 0;
+  border: 1px solid #333;
+  padding: 3mm;
+  font-size: 8.5pt;
+}
+
+.csm-respondent-grid span:last-child,
+.csm-respondent-grid span:nth-last-child(2) {
+  grid-column: span 3;
+}
+
+.csm-question {
+  margin-top: 4mm;
+  font-size: 8.5pt;
+}
+
+.csm-question h2 {
+  margin-bottom: 1.5mm;
+  font-size: 9pt;
+}
+
+.csm-question p {
+  margin: 1mm 0 0 4mm;
+}
+
+.csm-check {
+  display: inline-grid;
+  width: 4mm;
+  height: 4mm;
+  place-items: center;
+  border: 1px solid #333;
+  font-size: 8pt;
+  font-weight: 900;
+  line-height: 1;
+  vertical-align: -0.8mm;
+}
+
+.csm-page-two {
+  page-break-before: always;
+}
+
+.csm-sqd-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 5mm;
+  font-size: 7pt;
+}
+
+.csm-sqd-table th,
+.csm-sqd-table td {
+  border: 1px solid #333;
+  padding: 1.4mm 1mm;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.csm-sqd-table th:first-child,
+.csm-sqd-table td:first-child {
+  width: 43%;
+  text-align: left;
+}
+
+.csm-sqd-table th {
+  height: 18mm;
+  font-size: 6.5pt;
+}
+
+.csm-sqd-table td {
+  height: 18mm;
+}
+
+.csm-suggestion-label {
+  margin-top: 8mm;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.csm-lines {
+  min-height: 18mm;
+  border-bottom: 1px solid #333;
+  padding: 2mm;
+  font-size: 9pt;
+}
+
+.csm-email {
+  margin-top: 5mm;
+  font-size: 9pt;
+}
+
+.csm-thanks {
+  margin-top: 12mm;
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 900;
+}
+
 @media print {
   html,
   body {

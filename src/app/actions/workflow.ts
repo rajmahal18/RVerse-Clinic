@@ -190,6 +190,14 @@ function isClosedVisitStatus(status: VisitStatus) {
   return status === VisitStatus.COMPLETED || status === VisitStatus.CANCELLED;
 }
 
+async function requireSatisfactionSurveyForCompletion(client: PrismaClientLike, visitId: string) {
+  const survey = await client.clientSatisfactionSurvey.findUnique({ where: { visitId } });
+  const requiredAnswers = ["cc1", "cc2", "cc3", "sqd0", "sqd1", "sqd2", "sqd3", "sqd4", "sqd5", "sqd6", "sqd7", "sqd8"] as const;
+  if (!survey || requiredAnswers.some((key) => !survey[key]?.trim())) {
+    throw new Error("Complete all required Client Satisfaction Measurement Survey questions before completing this service.");
+  }
+}
+
 async function getVisitForPatient(client: PrismaClientLike, patientId: string, visitId: string) {
   const visit = await client.visit.findUnique({
     where: { id: visitId },
@@ -319,8 +327,10 @@ export async function createPatientAction(formData: FormData) {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
     const clinic = await ensureClinic();
     const measurements = parseMeasurements(formData);
+    const patientNumber = `P-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const createdPatient = await prisma.patient.create({
       data: {
+        patientNumber,
         clinicId: clinic.id,
         lastName: requiredString(formData, "lastName"),
         firstName: requiredString(formData, "firstName"),
@@ -333,6 +343,12 @@ export async function createPatientAction(formData: FormData) {
         designation: optionalString(formData, "designation"),
         civilStatus: optionalString(formData, "civilStatus"),
         ...measurements,
+        primaryContact: optionalString(formData, "primaryContact"),
+        medicalHistory: optionalString(formData, "medicalHistory"),
+        vaccineHistory: optionalString(formData, "vaccineHistory"),
+        allergy: optionalString(formData, "allergy"),
+        maintenance: optionalString(formData, "maintenance"),
+        additionalMedicalInformation: optionalString(formData, "additionalMedicalInformation"),
       },
     });
 
@@ -356,7 +372,7 @@ export async function updatePatientAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
 
   await runAction(formData, `/patients/${patientId}/edit`, "Patient Records", "Update patient", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
+    await requireRole([UserRole.ADMIN]);
     const currentPatient = await prisma.patient.findUnique({
       where: { id: patientId },
     });
@@ -378,6 +394,12 @@ export async function updatePatientAction(formData: FormData) {
       agency: optionalString(formData, "agency"),
       designation: optionalString(formData, "designation"),
       civilStatus: optionalString(formData, "civilStatus"),
+      primaryContact: optionalString(formData, "primaryContact"),
+      medicalHistory: optionalString(formData, "medicalHistory"),
+      vaccineHistory: optionalString(formData, "vaccineHistory"),
+      allergy: optionalString(formData, "allergy"),
+      maintenance: optionalString(formData, "maintenance"),
+      additionalMedicalInformation: optionalString(formData, "additionalMedicalInformation"),
       heightCm: measurements.heightCm?.toString() ?? null,
       weightKg: measurements.weightKg?.toString() ?? null,
     };
@@ -392,6 +414,12 @@ export async function updatePatientAction(formData: FormData) {
       agency: currentPatient.agency,
       designation: currentPatient.designation,
       civilStatus: currentPatient.civilStatus,
+      primaryContact: currentPatient.primaryContact,
+      medicalHistory: currentPatient.medicalHistory,
+      vaccineHistory: currentPatient.vaccineHistory,
+      allergy: currentPatient.allergy,
+      maintenance: currentPatient.maintenance,
+      additionalMedicalInformation: currentPatient.additionalMedicalInformation,
       heightCm: currentPatient.heightCm?.toString() ?? null,
       weightKg: currentPatient.weightKg?.toString() ?? null,
     };
@@ -411,6 +439,12 @@ export async function updatePatientAction(formData: FormData) {
         civilStatus: nextValues.civilStatus,
         heightCm: measurements.heightCm,
         weightKg: measurements.weightKg,
+        primaryContact: nextValues.primaryContact,
+        medicalHistory: nextValues.medicalHistory,
+        vaccineHistory: nextValues.vaccineHistory,
+        allergy: nextValues.allergy,
+        maintenance: nextValues.maintenance,
+        additionalMedicalInformation: nextValues.additionalMedicalInformation,
       },
     });
     const changes = getChangedFields(previousValues, nextValues);
@@ -528,6 +562,7 @@ export async function updateVisitAction(formData: FormData) {
     const statusValue = requiredString(formData, "status");
     const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
     const nurseOnDuty = await getCurrentStaffName();
+    if (status === VisitStatus.COMPLETED) await requireSatisfactionSurveyForCompletion(prisma, visitId);
 
     const visit = await prisma.$transaction(async (tx) => {
       const updatedVisit = await tx.visit.update({
@@ -587,6 +622,33 @@ export async function updateVisitAction(formData: FormData) {
   redirect(`/patients/${patientId}`);
 }
 
+export async function autosaveVisitDraftAction(formData: FormData) {
+  try {
+    await assertValidCsrfToken(formData);
+    const patientId = requiredString(formData, "patientId");
+    const visitId = requiredString(formData, "visitId");
+    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: true });
+    await prisma.visit.update({
+      where: { id: visitId },
+      data: {
+        chiefComplaint: optionalString(formData, "chiefComplaint"),
+        bloodPressure: optionalString(formData, "bloodPressure"),
+        rbs: optionalString(formData, "rbs"),
+        temperature: optionalString(formData, "temperature"),
+        pulseRate: optionalString(formData, "pulseRate"),
+        respiratoryRate: optionalString(formData, "respiratoryRate"),
+        diagnosis: optionalString(formData, "diagnosis"),
+        treatmentPlan: optionalString(formData, "treatmentPlan"),
+        progressNotes: optionalString(formData, "progressNotes"),
+      },
+    });
+    return { ok: true as const };
+  } catch {
+    return { ok: false as const };
+  }
+}
+
 export async function completeVisitAction(formData: FormData) {
   formData.set("status", VisitStatus.COMPLETED);
   return updateVisitAction(formData);
@@ -604,6 +666,7 @@ export async function updateVisitStatusAction(formData: FormData) {
     if (isClosedVisitStatus(currentVisit.status)) {
       throw new Error("This visit is already closed.");
     }
+    if (status === VisitStatus.COMPLETED) await requireSatisfactionSurveyForCompletion(prisma, visitId);
     const nurseOnDuty = status === VisitStatus.IN_PROGRESS ? await getCurrentStaffName() : currentVisit.nurseOnDuty;
 
     const visit = await prisma.visit.update({
@@ -808,6 +871,7 @@ export async function requestMedicineAction(formData: FormData) {
         quantity,
         frequency: schedule.frequency,
         duration: schedule.duration,
+        remarks: optionalString(formData, "remarks"),
         status: "REQUESTED",
       },
       include: {
@@ -927,11 +991,44 @@ export async function scheduleFollowUpAction(formData: FormData) {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
-
     const followUp = await prisma.$transaction(async (tx) => {
       const createdFollowUp = await tx.followUp.create({
+        data: { visitId, scheduledFor, remarks: optionalString(formData, "remarks") },
+        include: { visit: { include: { patient: true } } },
+      });
+      await tx.visit.update({ where: { id: visitId }, data: { status: VisitStatus.FOR_FOLLOW_UP } });
+      return createdFollowUp;
+    });
+    await writeActivityLog({
+      clinicId: followUp.visit.patient.clinicId,
+      module: "Follow-ups",
+      action: "Schedule follow-up",
+      entityType: "FollowUp",
+      entityId: followUp.id,
+      description: `Scheduled follow-up for ${followUp.visit.patient.lastName}, ${followUp.visit.patient.firstName}.`,
+      metadata: { scheduledFor: scheduledFor.toISOString() },
+    });
+  }, { type: "Visit", id: visitId });
+  revalidatePath("/follow-ups");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function scheduleReferralAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(formData, `/patients/${patientId}`, "Referrals", "Schedule referral", async () => {
+    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
+
+    const referral = await prisma.$transaction(async (tx) => {
+      const createdReferral = await tx.referral.create({
         data: {
           visitId,
+          medicalHistory: optionalString(formData, "medicalHistory"),
+          reasonForReferral: requiredString(formData, "reasonForReferral"),
+          referredTo: requiredString(formData, "referredTo"),
           scheduledFor,
           remarks: optionalString(formData, "remarks"),
         },
@@ -944,28 +1041,52 @@ export async function scheduleFollowUpAction(formData: FormData) {
         },
       });
 
-      await tx.visit.update({
-        where: { id: visitId },
-        data: {
-          status: VisitStatus.FOR_FOLLOW_UP,
+      await tx.visitRequest.upsert({
+        where: { visitId_type: { visitId, type: RequestType.REFERRAL } },
+        update: { remarks: optionalString(formData, "remarks") },
+        create: {
+          visitId,
+          type: RequestType.REFERRAL,
+          requestedItem: requiredString(formData, "referredTo"),
+          remarks: optionalString(formData, "remarks"),
         },
       });
 
-      return createdFollowUp;
+      return createdReferral;
     });
 
     await writeActivityLog({
-      clinicId: followUp.visit.patient.clinicId,
-      module: "Follow-ups",
-      action: "Schedule follow-up",
-      entityType: "FollowUp",
-      entityId: followUp.id,
-      description: `Scheduled follow-up for ${followUp.visit.patient.lastName}, ${followUp.visit.patient.firstName}.`,
+      clinicId: referral.visit.patient.clinicId,
+      module: "Referrals",
+      action: "Schedule referral",
+      entityType: "Referral",
+      entityId: referral.id,
+      description: `Scheduled referral for ${referral.visit.patient.lastName}, ${referral.visit.patient.firstName}.`,
       metadata: { scheduledFor: scheduledFor.toISOString() },
     });
   }, { type: "Visit", id: visitId });
 
-  revalidatePath("/follow-ups");
+  revalidatePath("/patients");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function requestVaccineAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(formData, `/patients/${patientId}`, "Vaccination", "Request vaccine", async () => {
+    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const vaccine = requiredString(formData, "vaccine");
+    const remarks = optionalString(formData, "remarks");
+    await prisma.visitRequest.upsert({
+      where: { visitId_type: { visitId, type: RequestType.VACCINATION } },
+      update: { requestedItem: vaccine, remarks },
+      create: { visitId, type: RequestType.VACCINATION, requestedItem: vaccine, remarks },
+    });
+  }, { type: "Visit", id: visitId });
+
+  revalidatePath("/vaccination");
   revalidatePath(`/patients/${patientId}`);
   redirect(`/patients/${patientId}`);
 }
@@ -1081,6 +1202,46 @@ export async function updateInventoryItemAction(formData: FormData) {
     });
   }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
+}
+
+export async function submitSatisfactionSurveyAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(formData, `/patients/${patientId}`, "Client Satisfaction", "Submit satisfaction survey", async () => {
+    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
+    const visit = await getVisitForPatient(prisma, patientId, visitId);
+    if (isClosedVisitStatus(visit.status)) throw new Error("This visit is already closed.");
+    const existingSurvey = await prisma.clientSatisfactionSurvey.findUnique({ where: { visitId } });
+    const merged = (key: "clientType" | "regionOfResidence" | "serviceAvailed" | "respondentSex" | "cc1" | "cc2" | "cc3" | "sqd0" | "sqd1" | "sqd2" | "sqd3" | "sqd4" | "sqd5" | "sqd6" | "sqd7" | "sqd8" | "suggestions" | "email") => optionalString(formData, key) ?? existingSurvey?.[key] ?? null;
+    const surveyDateValue = optionalString(formData, "surveyDate");
+    const surveyDate = surveyDateValue ? parseDate(surveyDateValue) : existingSurvey?.surveyDate ?? null;
+    const officeVisited = optionalString(formData, "officeVisited") ?? existingSurvey?.officeVisited ?? null;
+    if (!surveyDate || !officeVisited) throw new Error("Survey date and office visited are required.");
+    const requiredAnswers = ["cc1", "cc2", "cc3", "sqd0", "sqd1", "sqd2", "sqd3", "sqd4", "sqd5", "sqd6", "sqd7", "sqd8"] as const;
+    if (requiredAnswers.some((key) => !merged(key)?.trim())) throw new Error("Complete all required survey questions.");
+    const ageRaw = optionalString(formData, "respondentAge");
+    const age = ageRaw ? Number(ageRaw) : null;
+    if (age !== null && (!Number.isInteger(age) || age < 0 || age > 130)) throw new Error("Respondent age must be a valid whole number.");
+    const survey = await prisma.clientSatisfactionSurvey.upsert({
+      where: { visitId },
+      update: {
+        clientType: merged("clientType"), surveyDate, officeVisited, regionOfResidence: merged("regionOfResidence"), serviceAvailed: merged("serviceAvailed"), respondentSex: merged("respondentSex"), respondentAge: age ?? existingSurvey?.respondentAge ?? null,
+        cc1: merged("cc1"), cc2: merged("cc2"), cc3: merged("cc3"),
+        sqd0: merged("sqd0"), sqd1: merged("sqd1"), sqd2: merged("sqd2"), sqd3: merged("sqd3"), sqd4: merged("sqd4"), sqd5: merged("sqd5"), sqd6: merged("sqd6"), sqd7: merged("sqd7"), sqd8: merged("sqd8"),
+        suggestions: merged("suggestions"), email: merged("email"),
+      },
+      create: {
+        visitId,
+        clientType: merged("clientType"), surveyDate, officeVisited, regionOfResidence: merged("regionOfResidence"), serviceAvailed: merged("serviceAvailed"), respondentSex: merged("respondentSex"), respondentAge: age,
+        cc1: merged("cc1"), cc2: merged("cc2"), cc3: merged("cc3"),
+        sqd0: merged("sqd0"), sqd1: merged("sqd1"), sqd2: merged("sqd2"), sqd3: merged("sqd3"), sqd4: merged("sqd4"), sqd5: merged("sqd5"), sqd6: merged("sqd6"), sqd7: merged("sqd7"), sqd8: merged("sqd8"),
+        suggestions: merged("suggestions"), email: merged("email"),
+      },
+    });
+    await writeActivityLog({ clinicId: visit.patient.clinicId, module: "Client Satisfaction", action: "Submit satisfaction survey", entityType: "ClientSatisfactionSurvey", entityId: survey.id, description: `Saved client satisfaction survey for ${visit.patient.lastName}, ${visit.patient.firstName}.` });
+  }, { type: "Visit", id: visitId });
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
 }
 
 export async function deleteInventoryItemAction(formData: FormData) {

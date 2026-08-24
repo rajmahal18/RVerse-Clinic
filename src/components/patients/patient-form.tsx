@@ -2,6 +2,7 @@ import { PatientGender } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { MeasurementFields } from "@/components/patients/measurement-fields";
 import { CsrfField } from "@/components/security/csrf-field";
+import { AGENCIES } from "@/data/agencies";
 
 type PatientFormValues = {
   patientId?: string;
@@ -17,6 +18,12 @@ type PatientFormValues = {
   civilStatus?: string;
   heightCm?: number | null;
   weightKg?: number | null;
+  primaryContact?: string;
+  medicalHistory?: string;
+  vaccineHistory?: string;
+  allergy?: string;
+  maintenance?: string;
+  additionalMedicalInformation?: string;
 };
 
 export function PatientForm({
@@ -65,8 +72,12 @@ export function PatientForm({
         <input name="address" defaultValue={values?.address} className="rounded-xl border px-3 py-2 font-normal" />
       </label>
       <label className="grid gap-2 text-sm font-semibold text-slate-700">
-        Agency
-        <input name="agency" defaultValue={values?.agency} className="rounded-xl border px-3 py-2 font-normal" />
+        Agency / Office
+        <select name="agency" defaultValue={values?.agency} className="rounded-xl border px-3 py-2 font-normal">
+          <option value="">Select agency / office</option>
+          {values?.agency && !(AGENCIES as readonly string[]).includes(values.agency) ? <option value={values.agency}>{values.agency}</option> : null}
+          {AGENCIES.map((agency) => <option key={agency} value={agency}>{agency}</option>)}
+        </select>
       </label>
       <label className="grid gap-2 text-sm font-semibold text-slate-700">
         Designation
@@ -83,6 +94,21 @@ export function PatientForm({
         </select>
       </label>
       <MeasurementFields initialHeightCm={values?.heightCm} initialWeightKg={values?.weightKg} />
+      <div className="grid gap-4 border-t pt-4 md:col-span-2 md:grid-cols-2">
+        {[
+          ["primaryContact", "Primary Contact", values?.primaryContact],
+          ["allergy", "Allergy", values?.allergy],
+          ["maintenance", "Maintenance", values?.maintenance],
+          ["vaccineHistory", "Vaccine History", values?.vaccineHistory],
+          ["medicalHistory", "Medical History", values?.medicalHistory],
+          ["additionalMedicalInformation", "Additional Medical Information", values?.additionalMedicalInformation],
+        ].map(([name, label, value]) => (
+          <label key={name} className="grid gap-2 text-sm font-semibold text-slate-700 md:col-span-1">
+            {label}
+            <textarea name={name} defaultValue={value} className="min-h-20 rounded-xl border px-3 py-2 font-normal" />
+          </label>
+        ))}
+      </div>
       <div className="md:col-span-2">
         <Button type="submit">{submitLabel}</Button>
       </div>

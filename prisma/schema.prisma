@@ -116,6 +116,7 @@ model ActivityLog {
 
 model Patient {
   id          String        @id @default(cuid())
+  patientNumber String      @unique
   clinicId    String
   lastName    String
   firstName   String
@@ -129,6 +130,12 @@ model Patient {
   civilStatus String?
   heightCm    Float?
   weightKg    Float?
+  primaryContact String?
+  medicalHistory String?
+  vaccineHistory String?
+  allergy String?
+  maintenance String?
+  additionalMedicalInformation String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -160,6 +167,7 @@ model Visit {
   patient      Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
   requests     VisitRequest[]
   medicines    MedicineRequest[]
+  satisfactionSurvey ClientSatisfactionSurvey?
   referrals    Referral[]
   vaccinations VaccinationRecord[]
   followUps    FollowUp[]
@@ -171,6 +179,8 @@ model VisitRequest {
   id        String      @id @default(cuid())
   visitId   String
   type      RequestType
+  requestedItem String?
+  remarks   String?
   createdAt DateTime    @default(now())
 
   visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
@@ -189,6 +199,7 @@ model MedicineRequest {
   status          String    @default("REQUESTED")
   releasedBy      String?
   receivedBy      String?
+  remarks         String?
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?
 
@@ -199,12 +210,43 @@ model MedicineRequest {
   @@index([inventoryItemId])
 }
 
+model ClientSatisfactionSurvey {
+  id              String   @id @default(cuid())
+  visitId         String   @unique
+  clientType      String?
+  surveyDate      DateTime?
+  officeVisited   String?
+  regionOfResidence String?
+  serviceAvailed  String?
+  respondentSex   String?
+  respondentAge   Int?
+  cc1             String?
+  cc2             String?
+  cc3             String?
+  sqd0            String?
+  sqd1            String?
+  sqd2            String?
+  sqd3            String?
+  sqd4            String?
+  sqd5            String?
+  sqd6            String?
+  sqd7            String?
+  sqd8            String?
+  suggestions     String?
+  email           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
 model Referral {
   id                String   @id @default(cuid())
   visitId           String
   medicalHistory    String?
   reasonForReferral String?
   referredTo        String?
+  scheduledFor      DateTime?
   remarks           String?
   createdAt         DateTime @default(now())
 

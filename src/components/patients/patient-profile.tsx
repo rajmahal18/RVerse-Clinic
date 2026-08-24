@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ChevronDown, ClipboardPlus, FileText, Pencil, PlayCircle, Plus, Save, Syringe, UserRound } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, FileText, Pencil, PlayCircle, Save, UserRound } from "lucide-react";
 import { RequestType, UserRole, VisitStatus } from "@prisma/client";
 import {
-  addVaccinationRecordAction,
-  addVaccineOptionAction,
+  autosaveVisitDraftAction,
   completeVisitAction,
   createVisitAction,
   dispenseMedicineAction,
   requestMedicineAction,
-  scheduleFollowUpAction,
+  requestVaccineAction,
+  scheduleReferralAction,
   startVisitAction,
   updateVisitAction,
   updateVisitStatusAction,
@@ -21,14 +21,14 @@ import { VisitStatusModal } from "@/components/patients/visit-status-modal";
 import { VisitHistoryViewer } from "@/components/patients/visit-history-viewer";
 import { ChiefComplaintField } from "@/components/patients/chief-complaint-field";
 import { ServiceRequestedFields } from "@/components/patients/service-requested-fields";
-import { VaccinationFields } from "@/components/patients/vaccination-fields";
-import { MedicineScheduleFields } from "@/components/patients/medicine-schedule-fields";
+import { SatisfactionSurveyModal } from "@/components/patients/satisfaction-survey-modal";
+import { AutosaveForm } from "@/components/patients/autosave-form";
+import { MedicineRequestModal, ReferralScheduleModal, VaccineRequestModal } from "@/components/patients/clinical-action-modals";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
-import { formatDateKey } from "@/lib/date-time";
 
 const requestOptions = [
   { value: RequestType.CONSULTATION, label: "Medical Consultation" },
@@ -50,6 +50,21 @@ const statusOptions = [
   { value: VisitStatus.CANCELLED, label: "Cancelled" },
 ];
 
+function medicineStatusLabel(status: string) {
+  return status === "RELEASED" ? "RELEASED" : status;
+}
+
+function medicineStatusTone(status: string) {
+  if (status === "APPROVED" || status === "RELEASED") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+  if (status === "REJECTED") return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
+  return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+}
+
+function hasCompletedSatisfactionSurvey(survey: { cc1: string; cc2: string; cc3: string; sqd0: string; sqd1: string; sqd2: string; sqd3: string; sqd4: string; sqd5: string; sqd6: string; sqd7: string; sqd8: string } | null) {
+  if (!survey) return false;
+  return ["cc1", "cc2", "cc3", "sqd0", "sqd1", "sqd2", "sqd3", "sqd4", "sqd5", "sqd6", "sqd7", "sqd8"].every((key) => survey[key as keyof typeof survey]?.trim());
+}
+
 export async function PatientProfile({ id }: { id: string }) {
   const patient = await getPatientWorkflowProfile(id);
 
@@ -61,11 +76,16 @@ export async function PatientProfile({ id }: { id: string }) {
   const vaccineOptions = await getVaccineOptions(patient.clinicId);
   const currentUser = await getCurrentUser();
   const canManageVisits = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR_NURSE;
+  const canEditPatient = currentUser?.role === UserRole.ADMIN;
   const latestVisit = patient.latestVisit;
   const activeVisit = patient.visitHistory.find((visit) => visit.statusCode !== VisitStatus.COMPLETED && visit.statusCode !== VisitStatus.CANCELLED) ?? null;
   const historicalVisits = activeVisit
     ? patient.visitHistory.filter((visit) => visit.id !== activeVisit.id)
     : patient.visitHistory;
+  const activeVisitSurveyComplete = activeVisit ? hasCompletedSatisfactionSurvey(activeVisit.satisfactionSurvey) : false;
+  const availableStatusOptions = !activeVisit || activeVisitSurveyComplete
+    ? statusOptions
+    : statusOptions.filter((option) => option.value !== VisitStatus.COMPLETED);
 
   return (
     <div className="space-y-6">
@@ -103,11 +123,9 @@ export async function PatientProfile({ id }: { id: string }) {
               <FileText className="h-4 w-4" /> Clinic Forms
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href={`/patients/${patient.id}/edit`}>
-              <Pencil className="h-4 w-4" /> Edit Patient
-            </Link>
-          </Button>
+          {canEditPatient ? <Button asChild variant="outline">
+            <Link href={`/patients/${patient.id}/edit`}><Pencil className="h-4 w-4" /> Edit Patient</Link>
+          </Button> : null}
           {canManageVisits ? (
             <NewVisitModal
               action={createVisitAction}
@@ -138,7 +156,7 @@ export async function PatientProfile({ id }: { id: string }) {
               visitId={activeVisit.id}
               currentStatus={activeVisit.status}
               currentStatusCode={activeVisit.statusCode}
-              statusOptions={statusOptions}
+              statusOptions={availableStatusOptions}
             />
           ) : activeVisit ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -158,6 +176,7 @@ export async function PatientProfile({ id }: { id: string }) {
         </div>
         <div className="grid gap-0 divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
           {[
+            { label: "Patient No.", value: patient.patientNumber },
             { label: "Address", value: patient.address },
             { label: "Contact", value: patient.contact },
             { label: "Agency", value: patient.agency },
@@ -166,6 +185,12 @@ export async function PatientProfile({ id }: { id: string }) {
             { label: "Height", value: patient.heightCm ? `${patient.heightCm.toFixed(1)} cm` : "Not provided" },
             { label: "Weight", value: patient.weightKg ? `${patient.weightKg.toFixed(1)} kg` : "Not provided" },
             { label: "BMI", value: patient.bmi ? patient.bmi.toFixed(1) : "Not available" },
+            { label: "Primary Contact", value: patient.primaryContact },
+            { label: "Medical History", value: patient.medicalHistory },
+            { label: "Vaccine History", value: patient.vaccineHistory },
+            { label: "Allergy", value: patient.allergy },
+            { label: "Maintenance", value: patient.maintenance },
+            { label: "Additional Medical Information", value: patient.additionalMedicalInformation },
           ].map((item) => (
             <div key={item.label} className="px-4 py-3">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
@@ -181,7 +206,7 @@ export async function PatientProfile({ id }: { id: string }) {
           tabs={[
             {
               id: "current-visit",
-              label: "Current Visit",
+              label: "CURRENT VISIT",
               content: (
           <Card>
             <CardHeader>
@@ -235,7 +260,8 @@ export async function PatientProfile({ id }: { id: string }) {
                   </section>
                 </div>
               ) : (
-              <form action={updateVisitAction} className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
+              <>
+              <AutosaveForm action={updateVisitAction} autosaveAction={autosaveVisitDraftAction} className="grid gap-5 xl:grid-cols-[1fr_1.1fr]">
                 <CsrfField />
                 <input type="hidden" name="patientId" value={patient.id} />
                 <input type="hidden" name="visitId" value={activeVisit.id} />
@@ -248,7 +274,7 @@ export async function PatientProfile({ id }: { id: string }) {
                     <label className="grid gap-2 text-sm font-semibold text-slate-700">
                       Status
                       <select name="status" defaultValue={activeVisit.statusCode} className="rounded-xl border px-3 py-2 font-normal">
-                        {statusOptions.map((option) => (
+                        {availableStatusOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
@@ -271,15 +297,15 @@ export async function PatientProfile({ id }: { id: string }) {
                   />
                   <ChiefComplaintField initialValue={activeVisit.chiefComplaint} />
                   <label className="grid gap-2 text-sm font-semibold text-slate-700">
+                    Progress Notes / Medical History
+                    <textarea name="progressNotes" defaultValue={activeVisit.progressNotes} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
+                  </label>
+                  <label className="grid gap-2 text-sm font-semibold text-slate-700">
                     Diagnosis
                     <textarea name="diagnosis" defaultValue={activeVisit.diagnosis} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
                   </label>
                   <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                    Progress notes / medical history
-                    <textarea name="progressNotes" defaultValue={activeVisit.progressNotes} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
-                  </label>
-                  <label className="grid gap-2 text-sm font-semibold text-slate-700">
-                    Treatment plan
+                    Treatment
                     <textarea name="treatmentPlan" defaultValue={activeVisit.treatmentPlan} className="h-24 rounded-xl border bg-yellow-50/70 px-3 py-2 font-normal" />
                   </label>
                 </section>
@@ -311,18 +337,46 @@ export async function PatientProfile({ id }: { id: string }) {
                     </div>
                   </div>
 
+                  {!activeVisitSurveyComplete ? (
+                    <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                      Complete the Client Satisfaction Measurement Survey before marking this appointment as completed.
+                    </div>
+                  ) : null}
+
                   <div className="flex flex-wrap gap-2">
+                    <SatisfactionSurveyModal patientId={patient.id} visitId={activeVisit.id} serviceAvailed={activeVisit.requests.map((request) => request.label).join(", ")} survey={activeVisit.satisfactionSurvey} />
                     <Button type="submit">
                       <Save className="h-4 w-4" /> Save Visit
                     </Button>
                     {activeVisit.statusCode !== VisitStatus.COMPLETED && activeVisit.statusCode !== VisitStatus.CANCELLED ? (
-                      <Button type="submit" formAction={completeVisitAction} variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                      <Button
+                        type="submit"
+                        formAction={completeVisitAction}
+                        variant="outline"
+                        disabled={!activeVisitSurveyComplete}
+                        title={!activeVisitSurveyComplete ? "Complete the Client Satisfaction Measurement Survey first." : undefined}
+                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                      >
                         <CheckCircle2 className="h-4 w-4" /> Mark as completed
                       </Button>
                     ) : null}
                   </div>
                 </section>
-              </form>
+              </AutosaveForm>
+              <div className="mt-5 border bg-slate-50 px-4 py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Treatment Actions</h3>
+                    <p className="text-sm text-slate-500">Create medicine, referral, or vaccine requests for this appointment.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <MedicineRequestModal action={requestMedicineAction} patientId={patient.id} visitId={activeVisit.id} inventoryOptions={inventoryOptions} />
+                    <ReferralScheduleModal action={scheduleReferralAction} patientId={patient.id} visitId={activeVisit.id} />
+                    <VaccineRequestModal action={requestVaccineAction} patientId={patient.id} visitId={activeVisit.id} vaccines={vaccineOptions} />
+                  </div>
+                </div>
+              </div>
+              </>
               )}
             </CardContent>
           </Card>
@@ -330,37 +384,22 @@ export async function PatientProfile({ id }: { id: string }) {
             },
             ...(activeVisit.statusCode === VisitStatus.QUEUED ? [] : [
             {
+              id: "history",
+              label: "HISTORY",
+              content: (
+                <VisitHistoryViewer visits={historicalVisits} />
+              ),
+            },
+            {
               id: "medicines",
-              label: "Medicines",
+              label: "MEDICINES",
               content: (
               <Card>
                 <CardHeader>
-                  <CardTitle>Medicine Requests</CardTitle>
+                  <CardTitle>Medicine Request History</CardTitle>
+                  <MedicineRequestModal action={requestMedicineAction} patientId={patient.id} visitId={activeVisit.id} inventoryOptions={inventoryOptions} />
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <form action={requestMedicineAction} className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_90px_minmax(170px,220px)_minmax(150px,200px)_auto]">
-                    <CsrfField />
-                    <input type="hidden" name="patientId" value={patient.id} />
-                    <input type="hidden" name="visitId" value={activeVisit.id} />
-                    <label className="grid gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Medicine
-                      <select name="inventoryItemId" className="h-10 min-w-0 rounded-xl border px-3 text-sm font-normal normal-case tracking-normal text-slate-800">
-                        {inventoryOptions.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}{item.dosage ? ` ${item.dosage}` : ""}{item.brandName ? ` · ${item.brandName}` : ""} · exp {item.expirationDate ? formatDateKey(item.expirationDate) : "N/A"} ({item.stock} {item.unit})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Quantity
-                      <input name="quantity" type="number" min="1" step="1" required className="h-10 rounded-xl border px-3 text-sm font-normal" placeholder="Qty" />
-                    </label>
-                    <MedicineScheduleFields />
-                    <Button type="submit" size="sm" className="mt-6 h-10 sm:col-span-2 xl:col-span-1">
-                      <ClipboardPlus className="h-4 w-4" /> Add
-                    </Button>
-                  </form>
 
                   <div className="space-y-3 lg:hidden">
                     {activeVisit.medicines.map((medicine) => (
@@ -369,14 +408,17 @@ export async function PatientProfile({ id }: { id: string }) {
                           <div className="min-w-0">
                             <p className="truncate font-black text-slate-900">{medicine.itemName}</p>
                             <p className="mt-0.5 text-sm text-slate-500">Qty {medicine.quantity} / {medicine.frequency || "-"} / {medicine.duration || "-"}</p>
+                            {medicine.remarks ? <p className="mt-1 text-xs text-slate-500">Remarks: {medicine.remarks}</p> : null}
                           </div>
-                          <Badge className={medicine.status === "RELEASED" ? "shrink-0 bg-emerald-50 text-emerald-700" : "shrink-0 bg-amber-50 text-amber-700"}>
-                            {medicine.status}
+                          <Badge className={`shrink-0 ${medicineStatusTone(medicine.status)}`}>
+                            {medicineStatusLabel(medicine.status)}
                           </Badge>
                         </div>
                         <div className="mt-3 border-t pt-3">
-                          {medicine.status === "RELEASED" ? (
-                            <span className="text-xs text-slate-500">Released by {medicine.releasedBy || "Clinic staff"}</span>
+                          {medicine.status === "RELEASED" || medicine.status === "APPROVED" ? (
+                            <span className="text-xs text-slate-500">{medicine.status === "APPROVED" ? "Approved" : "Released"} by {medicine.releasedBy || "Clinic staff"}</span>
+                          ) : medicine.status === "REJECTED" ? (
+                            <span className="text-xs text-rose-600">Rejected request</span>
                           ) : (
                             <form action={dispenseMedicineAction} className="grid gap-2">
                               <CsrfField />
@@ -400,7 +442,7 @@ export async function PatientProfile({ id }: { id: string }) {
                     <table className="min-w-[720px] w-full text-sm">
                       <thead className="bg-slate-100 text-slate-500">
                         <tr>
-                          {["Item", "Frequency", "Duration", "Qty", "Status", "Action"].map((header) => (
+                          {["Item", "Frequency", "Duration", "Qty", "Remarks", "Status", "Action"].map((header) => (
                             <th key={header} className="px-3 py-2 text-left">
                               {header}
                             </th>
@@ -414,16 +456,19 @@ export async function PatientProfile({ id }: { id: string }) {
                             <td className="px-3 py-3">{medicine.frequency || "-"}</td>
                             <td className="px-3 py-3">{medicine.duration || "-"}</td>
                             <td className="px-3 py-3">{medicine.quantity}</td>
+                            <td className="max-w-[14rem] px-3 py-3 text-xs text-slate-500">{medicine.remarks || "-"}</td>
                             <td className="px-3 py-3">
-                              <Badge className={medicine.status === "RELEASED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}>
-                                {medicine.status}
+                              <Badge className={medicineStatusTone(medicine.status)}>
+                                {medicineStatusLabel(medicine.status)}
                               </Badge>
                             </td>
                             <td className="px-3 py-3">
-                              {medicine.status === "RELEASED" ? (
+                              {medicine.status === "RELEASED" || medicine.status === "APPROVED" ? (
                                 <span className="text-xs text-slate-500">
-                                  Released by {medicine.releasedBy || "Clinic staff"}
+                                  {medicine.status === "APPROVED" ? "Approved" : "Released"} by {medicine.releasedBy || "Clinic staff"}
                                 </span>
+                              ) : medicine.status === "REJECTED" ? (
+                                <span className="text-xs text-rose-600">Rejected request</span>
                               ) : (
                                 <form action={dispenseMedicineAction} className="flex flex-wrap gap-2">
                                   <CsrfField />
@@ -438,108 +483,13 @@ export async function PatientProfile({ id }: { id: string }) {
                         ))}
                         {activeVisit.medicines.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-3 py-8 text-center text-slate-500">
+                            <td colSpan={7} className="px-3 py-8 text-center text-slate-500">
                               No medicine requests recorded for this visit.
                             </td>
                           </tr>
                         ) : null}
                       </tbody>
                     </table>
-                  </div>
-                </CardContent>
-              </Card>
-              ),
-            },
-            {
-              id: "history",
-              label: "History",
-              content: (
-                <VisitHistoryViewer visits={historicalVisits} />
-              ),
-            },
-            {
-              id: "follow-ups",
-              label: "Follow-ups",
-              content: (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Follow-up Schedule</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <form action={scheduleFollowUpAction} className="grid gap-3">
-                    <CsrfField />
-                    <input type="hidden" name="patientId" value={patient.id} />
-                    <input type="hidden" name="visitId" value={activeVisit.id} />
-                    <input name="scheduledFor" type="datetime-local" className="rounded-xl border px-3 py-2 text-sm" />
-                    <textarea name="remarks" className="h-24 rounded-xl border px-3 py-2 text-sm" placeholder="Follow-up notes" />
-                    <Button type="submit">Schedule Follow-up</Button>
-                  </form>
-                  <div className="space-y-3">
-                    {activeVisit.followUps.map((followUp) => (
-                      <div key={followUp.id} className="rounded-2xl border px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-800">{followUp.scheduledFor}</p>
-                            <p className="text-sm text-slate-500">{followUp.remarks || "No remarks"}</p>
-                          </div>
-                          <Badge className="bg-amber-50 text-amber-700">{followUp.status}</Badge>
-                        </div>
-                      </div>
-                    ))}
-                    {activeVisit.followUps.length === 0 ? (
-                      <p className="text-sm text-slate-500">No follow-up schedule created yet.</p>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-              ),
-            },
-            {
-              id: "vaccination",
-              label: "Vaccination",
-              content: (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vaccination Records</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <details className="rounded-xl border border-dashed bg-slate-50 px-3 py-2">
-                    <summary className="cursor-pointer text-sm font-bold text-primary">Add vaccine to catalog</summary>
-                    <form action={addVaccineOptionAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
-                      <CsrfField />
-                      <input type="hidden" name="patientId" value={patient.id} />
-                      <input type="hidden" name="clinicId" value={patient.clinicId} />
-                      <input name="vaccineName" required className="h-10 min-w-0 flex-1 rounded-xl border bg-white px-3 text-sm" placeholder="New vaccine name" />
-                      <Button type="submit" size="sm"><Plus className="h-4 w-4" /> Save for future</Button>
-                    </form>
-                  </details>
-                  <form action={addVaccinationRecordAction} className="grid gap-3">
-                    <CsrfField />
-                    <input type="hidden" name="patientId" value={patient.id} />
-                    <input type="hidden" name="visitId" value={activeVisit.id} />
-                    <VaccinationFields vaccines={vaccineOptions} />
-                    <input name="givenBy" className="rounded-xl border px-3 py-2 text-sm" placeholder="Given by" />
-                    <input name="nextDose" type="date" className="rounded-xl border px-3 py-2 text-sm" />
-                    <textarea name="remarks" className="h-24 rounded-xl border px-3 py-2 text-sm" placeholder="Vaccination remarks" />
-                    <Button type="submit">
-                      <Syringe className="h-4 w-4" /> Save Vaccination
-                    </Button>
-                  </form>
-                  <div className="space-y-3">
-                    {activeVisit.vaccinations.map((record) => (
-                      <div key={record.id} className="rounded-2xl border px-4 py-3">
-                        <p className="text-sm font-semibold text-slate-800">{record.vaccine}</p>
-                        <p className="text-sm text-slate-500">
-                          {record.givenBy || "Clinic staff"}
-                          {record.dose ? ` / ${record.dose}` : ""}
-                          {record.nextDose ? ` / Next dose: ${record.nextDose}` : ""}
-                        </p>
-                        {record.remarks ? <p className="mt-1 text-sm text-slate-500">{record.remarks}</p> : null}
-                      </div>
-                    ))}
-                    {activeVisit.vaccinations.length === 0 ? (
-                      <p className="text-sm text-slate-500">No vaccination records saved for this visit.</p>
-                    ) : null}
                   </div>
                 </CardContent>
               </Card>
@@ -585,7 +535,7 @@ export async function PatientProfile({ id }: { id: string }) {
               tabs={[
                 {
                   id: "history",
-                  label: "Visit History",
+                  label: "HISTORY",
                   content: <VisitHistoryViewer visits={historicalVisits} />,
                 },
               ]}
@@ -598,7 +548,7 @@ export async function PatientProfile({ id }: { id: string }) {
           tabs={[
             {
               id: "history",
-              label: "Visit History",
+              label: "HISTORY",
               content: <VisitHistoryViewer visits={historicalVisits} />,
             },
           ]}
@@ -606,7 +556,7 @@ export async function PatientProfile({ id }: { id: string }) {
       ) : (
         <Card>
           <CardContent className="p-8 text-center text-slate-500">
-            No visit has been started for this patient yet. Use <span className="font-semibold text-slate-700">New Visit</span> to begin charting.
+            No visit has been started for this patient yet. Use <span className="font-semibold text-slate-700">New Appointment</span> to begin charting.
           </CardContent>
         </Card>
       )}

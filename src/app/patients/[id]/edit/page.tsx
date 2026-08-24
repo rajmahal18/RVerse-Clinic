@@ -1,9 +1,11 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { UserRole } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { updatePatientAction } from "@/app/actions/workflow";
 import { PatientForm } from "@/components/patients/patient-form";
 import { ActionAlert } from "@/components/ui/action-alert";
+import { getCurrentUser } from "@/lib/auth";
 import { getPatientProfile } from "@/lib/patient-view";
 
 export default async function EditPatientPage({
@@ -15,6 +17,11 @@ export default async function EditPatientPage({
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
+  const currentUser = await getCurrentUser();
+  if (currentUser?.role !== UserRole.ADMIN) {
+    redirect(`/patients/${id}?error=${encodeURIComponent("Only admin accounts can edit patient information.")}`);
+  }
+
   const patient = await getPatientProfile(id);
 
   if (!patient) {
@@ -30,6 +37,12 @@ export default async function EditPatientPage({
         submitLabel="Save Patient"
         values={{
           patientId: patient.id,
+          primaryContact: patient.primaryContact === "Not provided" ? "" : patient.primaryContact,
+          medicalHistory: patient.medicalHistory === "Not provided" ? "" : patient.medicalHistory,
+          vaccineHistory: patient.vaccineHistory === "Not provided" ? "" : patient.vaccineHistory,
+          allergy: patient.allergy === "Not provided" ? "" : patient.allergy,
+          maintenance: patient.maintenance === "Not provided" ? "" : patient.maintenance,
+          additionalMedicalInformation: patient.additionalMedicalInformation === "Not provided" ? "" : patient.additionalMedicalInformation,
           lastName: patient.lastName,
           firstName: patient.firstName,
           middleName: patient.middleName,

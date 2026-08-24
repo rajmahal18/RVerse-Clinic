@@ -56,6 +56,7 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
       include: {
         requests: true;
         medicines: true;
+        satisfactionSurvey: true;
         followUps: true;
         vaccinations: true;
       };
@@ -65,6 +66,7 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
 
 export type PatientTableRow = {
   id: string;
+  patientNumber: string;
   latestVisitId: string;
   lastName: string;
   firstName: string;
@@ -80,6 +82,12 @@ export type PatientTableRow = {
   heightCm: number | null;
   weightKg: number | null;
   bmi: number | null;
+  primaryContact: string;
+  medicalHistory: string;
+  vaccineHistory: string;
+  allergy: string;
+  maintenance: string;
+  additionalMedicalInformation: string;
   request: string;
   status: string;
   statusCode: VisitStatus | "NO_VISIT";
@@ -155,6 +163,7 @@ export type PatientVisitWorkflow = {
     status: string;
     releasedBy: string;
     receivedBy: string;
+    remarks: string;
   }[];
   vaccinations: {
     id: string;
@@ -170,6 +179,30 @@ export type PatientVisitWorkflow = {
     remarks: string;
     status: string;
   }[];
+  satisfactionSurvey: {
+    id: string;
+    clientType: string;
+    surveyDate: string;
+    officeVisited: string;
+    regionOfResidence: string;
+    serviceAvailed: string;
+    respondentSex: string;
+    respondentAge: number | null;
+    cc1: string;
+    cc2: string;
+    cc3: string;
+    sqd0: string;
+    sqd1: string;
+    sqd2: string;
+    sqd3: string;
+    sqd4: string;
+    sqd5: string;
+    sqd6: string;
+    sqd7: string;
+    sqd8: string;
+    suggestions: string;
+    email: string;
+  } | null;
 };
 
 export type PatientWorkflowProfile = PatientProfileData & {
@@ -220,6 +253,16 @@ export type InventoryLedgerData = {
   expiryFilter: string;
   sort: string;
   expiryAlerts: { expired: number; withinOne: number; withinThree: number; withinSix: number };
+};
+
+export type MedicineReportPeriod = "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
+
+export type MedicineReportData = {
+  period: MedicineReportPeriod;
+  rangeLabel: string;
+  rows: { label: string; start: string; stockIn: number; stockOut: number; movementCount: number }[];
+  totals: { stockIn: number; stockOut: number; movementCount: number };
+  newStockHistory: { id: string; date: string; medicine: string; dosage: string; brandName: string; batch: string; expirationDate: string; quantity: number; unit: string }[];
 };
 
 export type ClinicSettingsData = {
@@ -390,6 +433,7 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
 
   return {
     id: patient.id,
+    patientNumber: patient.patientNumber,
     latestVisitId: latestVisit?.id ?? "",
     lastName: patient.lastName,
     firstName: patient.firstName,
@@ -407,6 +451,12 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     heightCm: patient.heightCm,
     weightKg: patient.weightKg,
     bmi,
+    primaryContact: patient.primaryContact ?? "Not provided",
+    medicalHistory: patient.medicalHistory ?? "Not provided",
+    vaccineHistory: patient.vaccineHistory ?? "Not provided",
+    allergy: patient.allergy ?? "Not provided",
+    maintenance: patient.maintenance ?? "Not provided",
+    additionalMedicalInformation: patient.additionalMedicalInformation ?? "Not provided",
     request,
     status: latestVisit ? visitStatusLabels[latestVisit.status] : "No visit yet",
     statusCode: latestVisit?.status ?? "NO_VISIT",
@@ -531,6 +581,7 @@ function toVisitWorkflow(
       status: medicine.status,
       releasedBy: medicine.releasedBy ?? "",
       receivedBy: medicine.receivedBy ?? "",
+      remarks: medicine.remarks ?? "",
     })),
     vaccinations: visit.vaccinations.map((record) => ({
       id: record.id,
@@ -546,6 +597,30 @@ function toVisitWorkflow(
       remarks: followUp.remarks ?? "",
       status: followUp.status.replaceAll("_", " ").toLowerCase(),
     })),
+    satisfactionSurvey: visit.satisfactionSurvey ? {
+      id: visit.satisfactionSurvey.id,
+      clientType: visit.satisfactionSurvey.clientType ?? "",
+      surveyDate: visit.satisfactionSurvey.surveyDate ? formatDateKey(visit.satisfactionSurvey.surveyDate) : "",
+      officeVisited: visit.satisfactionSurvey.officeVisited ?? "",
+      regionOfResidence: visit.satisfactionSurvey.regionOfResidence ?? "",
+      serviceAvailed: visit.satisfactionSurvey.serviceAvailed ?? "",
+      respondentSex: visit.satisfactionSurvey.respondentSex ?? "",
+      respondentAge: visit.satisfactionSurvey.respondentAge,
+      cc1: visit.satisfactionSurvey.cc1 ?? "",
+      cc2: visit.satisfactionSurvey.cc2 ?? "",
+      cc3: visit.satisfactionSurvey.cc3 ?? "",
+      sqd0: visit.satisfactionSurvey.sqd0 ?? "",
+      sqd1: visit.satisfactionSurvey.sqd1 ?? "",
+      sqd2: visit.satisfactionSurvey.sqd2 ?? "",
+      sqd3: visit.satisfactionSurvey.sqd3 ?? "",
+      sqd4: visit.satisfactionSurvey.sqd4 ?? "",
+      sqd5: visit.satisfactionSurvey.sqd5 ?? "",
+      sqd6: visit.satisfactionSurvey.sqd6 ?? "",
+      sqd7: visit.satisfactionSurvey.sqd7 ?? "",
+      sqd8: visit.satisfactionSurvey.sqd8 ?? "",
+      suggestions: visit.satisfactionSurvey.suggestions ?? "",
+      email: visit.satisfactionSurvey.email ?? "",
+    } : null,
   };
 }
 
@@ -982,6 +1057,7 @@ export async function getPatientWorkflowProfile(id: string): Promise<PatientWork
               createdAt: "desc",
             },
           },
+          satisfactionSurvey: true,
           followUps: {
             orderBy: {
               scheduledFor: "desc",
@@ -1077,6 +1153,83 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
   };
 }
 
+function getMedicineReportRange(period: MedicineReportPeriod, now = new Date()) {
+  const start = new Date(now);
+  if (period === "DAILY") start.setDate(start.getDate() - 29);
+  if (period === "WEEKLY") start.setDate(start.getDate() - 7 * 11);
+  if (period === "MONTHLY") start.setMonth(start.getMonth() - 11, 1);
+  if (period === "QUARTERLY") start.setMonth(start.getMonth() - 23, 1);
+  if (period === "ANNUAL") start.setFullYear(start.getFullYear() - 4, 0, 1);
+  start.setHours(0, 0, 0, 0);
+  return { start, end: now };
+}
+
+function getMedicinePeriodStart(date: Date, period: MedicineReportPeriod) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  if (period === "DAILY") return start;
+  if (period === "WEEKLY") {
+    const day = start.getDay();
+    start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+    return start;
+  }
+  if (period === "MONTHLY") return new Date(start.getFullYear(), start.getMonth(), 1);
+  if (period === "QUARTERLY") return new Date(start.getFullYear(), Math.floor(start.getMonth() / 3) * 3, 1);
+  return new Date(start.getFullYear(), 0, 1);
+}
+
+function medicinePeriodLabel(date: Date, period: MedicineReportPeriod) {
+  if (period === "DAILY") return formatDisplayDate(date);
+  if (period === "WEEKLY") return `Week of ${formatDisplayDate(date)}`;
+  if (period === "MONTHLY") return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  if (period === "QUARTERLY") return `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
+  return String(date.getFullYear());
+}
+
+export async function getMedicineReportData(period: MedicineReportPeriod = "MONTHLY"): Promise<MedicineReportData> {
+  const { start, end } = getMedicineReportRange(period);
+  const items = await prisma.inventoryItem.findMany({
+    where: { category: InventoryCategory.MEDICINE },
+    include: { movements: { where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: "desc" } } },
+  });
+  const buckets = new Map<string, MedicineReportData["rows"][number]>();
+  for (const item of items) {
+    for (const movement of item.movements) {
+      const bucketStart = getMedicinePeriodStart(movement.createdAt, period);
+      const key = bucketStart.toISOString();
+      const row = buckets.get(key) ?? { label: medicinePeriodLabel(bucketStart, period), start: key, stockIn: 0, stockOut: 0, movementCount: 0 };
+      row.movementCount += 1;
+      if (movement.quantityChange > 0) row.stockIn += movement.quantityChange;
+      if (movement.quantityChange < 0) row.stockOut += Math.abs(movement.quantityChange);
+      buckets.set(key, row);
+    }
+  }
+  const newStockHistory = await prisma.inventoryMovement.findMany({
+    where: { quantityChange: { gt: 0 }, reason: "Manual stock addition", createdAt: { gte: start, lte: end }, item: { category: InventoryCategory.MEDICINE } },
+    orderBy: { createdAt: "desc" },
+    include: { item: true },
+  });
+  const rows = [...buckets.values()].sort((a, b) => a.start.localeCompare(b.start));
+  const totals = rows.reduce((result, row) => ({ stockIn: result.stockIn + row.stockIn, stockOut: result.stockOut + row.stockOut, movementCount: result.movementCount + row.movementCount }), { stockIn: 0, stockOut: 0, movementCount: 0 });
+  return {
+    period,
+    rangeLabel: `${formatDisplayDate(start)} to ${formatDisplayDate(end)}`,
+    rows,
+    totals,
+    newStockHistory: newStockHistory.map((movement) => ({
+      id: movement.id,
+      date: formatDateTime(movement.createdAt),
+      medicine: movement.item.name,
+      dosage: movement.item.dosage ?? "-",
+      brandName: movement.item.brandName ?? "-",
+      batch: movement.item.batchKey,
+      expirationDate: movement.item.expirationDate ? formatDisplayDate(movement.item.expirationDate) : "-",
+      quantity: movement.quantityChange,
+      unit: movement.item.unit,
+    })),
+  };
+}
+
 export async function getInventoryOptions(clinicId: string) {
   return prisma.inventoryItem.findMany({
     where: { clinicId },
@@ -1091,6 +1244,16 @@ export async function getInventoryOptions(clinicId: string) {
       stock: true,
     },
   });
+}
+
+export async function getMedicineExpirySummary() {
+  const now = new Date();
+  const soon = addMonths(now, 1);
+  const [expired, expiringSoon] = await Promise.all([
+    prisma.inventoryItem.count({ where: { category: InventoryCategory.MEDICINE, stock: { gt: 0 }, expirationDate: { lt: now } } }),
+    prisma.inventoryItem.count({ where: { category: InventoryCategory.MEDICINE, stock: { gt: 0 }, expirationDate: { gte: now, lte: soon } } }),
+  ]);
+  return { expired, expiringSoon };
 }
 
 export async function getVaccineOptions(clinicId: string) {

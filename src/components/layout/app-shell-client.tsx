@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, Menu, X } from "lucide-react";
+import { AlertTriangle, Bell, LogOut, Menu, X } from "lucide-react";
 import { logoutAction } from "@/app/actions/workflow";
 import { navItems } from "@/data/clinic";
 import { canAccessPath, filterNavigationByRole, type AppRole } from "@/lib/rbac";
@@ -17,16 +17,20 @@ export function AppShellClient({
   children,
   role,
   userInitials,
+  medicineExpiry,
 }: {
   children: React.ReactNode;
   role: AppRole;
   userInitials: string;
+  medicineExpiry: { expired: number; expiringSoon: number };
 }) {
   const pathname = usePathname();
   const visibleNavItems = filterNavigationByRole(navItems, role);
   const canSearchPatients = canAccessPath(role, "/patients");
   const [requestCount, setRequestCount] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [expiryModalOpen, setExpiryModalOpen] = useState(false);
+  const hasMedicineExpiryAlert = medicineExpiry.expired > 0 || medicineExpiry.expiringSoon > 0;
 
   useEffect(() => {
     fetch("/api/item-requests/count")
@@ -43,6 +47,11 @@ export function AppShellClient({
       document.body.style.overflow = "";
     };
   }, [mobileNavOpen]);
+  useEffect(() => {
+    if (hasMedicineExpiryAlert) {
+      setExpiryModalOpen(true);
+    }
+  }, [hasMedicineExpiryAlert]);
 
   const renderNavigation = () => (
     <nav className="space-y-1 p-3 md:p-4">
@@ -153,8 +162,53 @@ export function AppShellClient({
             <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">{userInitials}</div>
           </div>
         </header>
+        {hasMedicineExpiryAlert ? <Link href="/inventory" className="mx-3 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border px-3 py-2 text-sm font-semibold md:mx-8 md:mt-4"><span className="font-black text-rose-700">Medicine expiry:</span>{medicineExpiry.expired > 0 ? <span className="text-rose-700">{medicineExpiry.expired} expired</span> : null}{medicineExpiry.expiringSoon > 0 ? <span className="text-amber-700">{medicineExpiry.expiringSoon} expiring within 30 days</span> : null}<span className="ml-auto text-primary">View inventory</span></Link> : null}
         <main className="p-3 md:p-8">{children}</main>
       </div>
+      {expiryModalOpen && hasMedicineExpiryAlert ? (
+        <div className="fixed inset-0 z-[70] grid place-items-end bg-slate-950/40 p-0 md:place-items-center md:p-4" onClick={() => setExpiryModalOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="medicine-expiry-title"
+            className="w-full overflow-hidden rounded-t-2xl border bg-white shadow-2xl md:max-w-md md:rounded-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b bg-rose-50 px-4 py-3">
+              <div className="flex min-w-0 gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-rose-700 ring-1 ring-rose-200">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h2 id="medicine-expiry-title" className="font-black text-slate-900">Medicine Expiration</h2>
+                  <p className="text-sm text-slate-600">Review medicine batches that are expired or expiring soon.</p>
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setExpiryModalOpen(false)} aria-label="Close medicine expiration alert">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="grid gap-3 p-4">
+              {medicineExpiry.expired > 0 ? (
+                <div className="border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">
+                  {medicineExpiry.expired} expired medicine batch{medicineExpiry.expired === 1 ? "" : "es"}
+                </div>
+              ) : null}
+              {medicineExpiry.expiringSoon > 0 ? (
+                <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
+                  {medicineExpiry.expiringSoon} medicine batch{medicineExpiry.expiringSoon === 1 ? "" : "es"} expiring within 30 days
+                </div>
+              ) : null}
+            </div>
+            <div className="flex justify-end gap-2 border-t bg-white p-4">
+              <Button type="button" variant="outline" onClick={() => setExpiryModalOpen(false)}>Close</Button>
+              <Button asChild>
+                <Link href="/inventory">View Inventory</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
