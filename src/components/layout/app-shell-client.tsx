@@ -47,12 +47,6 @@ export function AppShellClient({
       document.body.style.overflow = "";
     };
   }, [mobileNavOpen]);
-  useEffect(() => {
-    if (hasMedicineExpiryAlert) {
-      setExpiryModalOpen(true);
-    }
-  }, [hasMedicineExpiryAlert]);
-
   const renderNavigation = () => (
     <nav className="space-y-1 p-3 md:p-4">
       {visibleNavItems.map((item) => {
@@ -149,9 +143,16 @@ export function AppShellClient({
           ) : null}
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 md:inline-flex">Online</span>
-            <Button variant="ghost" size="icon" className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => hasMedicineExpiryAlert && setExpiryModalOpen(true)}
+              aria-label={hasMedicineExpiryAlert ? "Open medicine expiration alert" : "Notifications"}
+            >
               <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
+              {hasMedicineExpiryAlert ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" /> : null}
             </Button>
             <form action={logoutAction}>
               <CsrfField />
@@ -162,7 +163,21 @@ export function AppShellClient({
             <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">{userInitials}</div>
           </div>
         </header>
-        {hasMedicineExpiryAlert ? <Link href="/inventory" className="mx-3 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border px-3 py-2 text-sm font-semibold md:mx-8 md:mt-4"><span className="font-black text-rose-700">Medicine expiry:</span>{medicineExpiry.expired > 0 ? <span className="text-rose-700">{medicineExpiry.expired} expired</span> : null}{medicineExpiry.expiringSoon > 0 ? <span className="text-amber-700">{medicineExpiry.expiringSoon} expiring within 30 days</span> : null}<span className="ml-auto text-primary">View inventory</span></Link> : null}
+        {hasMedicineExpiryAlert ? (
+          <div className="mx-3 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border px-3 py-2 text-sm font-semibold md:mx-8 md:mt-4">
+            <span className="font-black text-rose-700">Medicine expiry:</span>
+            {medicineExpiry.expired > 0 ? <span className="text-rose-700">{medicineExpiry.expired} expired</span> : null}
+            {medicineExpiry.expiringSoon > 0 ? <span className="text-amber-700">{medicineExpiry.expiringSoon} expiring within 30 days</span> : null}
+            <div className="ml-auto flex items-center gap-3">
+              <button type="button" className="text-primary" onClick={() => setExpiryModalOpen(true)}>
+                Details
+              </button>
+              <Link href="/inventory" className="text-primary">
+                View inventory
+              </Link>
+            </div>
+          </div>
+        ) : null}
         <main className="p-3 md:p-8">{children}</main>
       </div>
       {expiryModalOpen && hasMedicineExpiryAlert ? (
