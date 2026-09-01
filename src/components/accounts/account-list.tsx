@@ -126,44 +126,41 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             className="max-h-[88vh] w-full overflow-hidden rounded-t-2xl border bg-white shadow-2xl md:max-w-xl md:rounded-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b bg-slate-50 px-4 py-3">
+            <div className="flex items-start justify-between gap-3 border-b px-4 py-4">
               <div className="min-w-0">
-                <h2 id="account-details-title" className="truncate text-lg font-black text-slate-900">{selectedUser.name}</h2>
-                <p className="truncate text-sm text-slate-500">{selectedUser.email}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 id="account-details-title" className="truncate text-lg font-black text-slate-900">{selectedUser.name}</h2>
+                  <StatusBadge active={selectedUser.isActive} />
+                </div>
+                <p className="mt-0.5 truncate text-sm text-slate-500">{selectedUser.email}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{roleLabel(selectedUser.role)}</p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={() => setSelectedUserId(null)} aria-label="Close account details">
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="grid gap-3 p-4">
-              <div className="rounded-xl border bg-slate-50 px-3 py-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Form display name</p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">{selectedUser.displayName || "Uses account name"}</p>
-              </div>
-              <form action={updateUserDisplayNameAction} className="grid gap-2 rounded-xl border bg-white px-3 py-3">
+            <div className="p-4">
+              <form action={updateUserDisplayNameAction} className="overflow-hidden rounded-xl border">
                 <CsrfField />
                 <input type="hidden" name="redirectTo" value="/accounts" />
                 <input type="hidden" name="userId" value={selectedUser.id} />
-                <label className="grid gap-1 text-sm font-bold">
-                  Display name for forms
-                  <input
-                    name="displayName"
-                    defaultValue={selectedUser.displayName}
-                    className="h-10 rounded-xl border px-3 font-normal"
-                    placeholder="e.g. DR. JUAN D. SANTOS, MD"
-                  />
-                </label>
-                <p className="text-xs leading-5 text-slate-500">Used on certificates, referrals, and printable forms when available.</p>
-                <Button type="submit" size="sm">Save display name</Button>
+                <div className="border-b bg-slate-50 px-3 py-2">
+                  <p className="text-sm font-black text-slate-900">Form display name</p>
+                  <p className="text-xs text-slate-500">Used on certificates, referrals, and printable forms.</p>
+                </div>
+                <div className="grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                    Display name
+                    <input
+                      name="displayName"
+                      defaultValue={selectedUser.displayName}
+                      className="h-10 rounded-xl border px-3 font-normal"
+                      placeholder="e.g. DR. JUAN D. SANTOS, MD"
+                    />
+                  </label>
+                  <Button type="submit">Save</Button>
+                </div>
               </form>
-              <div className="rounded-xl border bg-slate-50 px-3 py-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Role</p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">{roleLabel(selectedUser.role)}</p>
-              </div>
-              <div className="rounded-xl border bg-slate-50 px-3 py-2">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Status</p>
-                <div className="mt-1"><StatusBadge active={selectedUser.isActive} /></div>
-              </div>
             </div>
             <div className="border-t bg-white p-4">
               <ToggleAccountForm user={selectedUser} compact />

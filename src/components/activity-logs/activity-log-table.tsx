@@ -229,12 +229,13 @@ export function ActivityLogTable({ groups, totalCount }: { groups: ActivityLogGr
             className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-2xl border bg-white shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b bg-slate-50 px-4 py-3">
+            <div className="flex items-start justify-between gap-3 border-b px-4 py-4">
               <div>
-                <h2 id="activity-log-title" className="text-lg font-black text-slate-900">
-                  Log Details
-                </h2>
-                <p className="text-sm text-slate-500">{selectedLog.createdAt}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 id="activity-log-title" className="text-lg font-black text-slate-900">Log Details</h2>
+                  <Badge className={selectedLog.status === "FAILED" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}>{selectedLog.status}</Badge>
+                </div>
+                <p className="mt-0.5 text-sm text-slate-500">{selectedLog.createdAt}</p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={() => setSelectedLogId(null)} aria-label="Close log details">
                 <X className="h-5 w-5" />
@@ -242,25 +243,24 @@ export function ActivityLogTable({ groups, totalCount }: { groups: ActivityLogGr
             </div>
 
             <div className="max-h-[calc(88vh-72px)] overflow-y-auto p-4">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-slate-200 md:grid-cols-3">
                 {[
                   ["Module", selectedLog.module],
                   ["Action", selectedLog.action],
-                  ["Status", selectedLog.status],
                   ["Record", selectedLog.entityType],
                   ["Record ID", selectedLog.entityId],
                   ["User", selectedLog.user],
                 ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl border bg-slate-50 px-3 py-2">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+                  <div key={label} className="min-w-0 bg-white px-3 py-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
                     <p className="mt-1 break-words text-sm font-semibold text-slate-800">{value}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-4 rounded-xl border px-3 py-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Details</p>
-                <p className="mt-2 text-sm text-slate-700">{selectedLog.description}</p>
+              <div className="mt-4 border-l-2 border-primary pl-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Details</p>
+                <p className="mt-1 text-sm leading-6 text-slate-700">{selectedLog.description}</p>
               </div>
 
               <div className="mt-4">

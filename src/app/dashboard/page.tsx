@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, ClipboardList, FileText, ShieldPlus, Syringe, UsersRound, Activity, PackageCheck, Pill } from "lucide-react";
+import { ArrowRight, CalendarClock, ClipboardList, ShieldPlus, Syringe, UsersRound, Activity, PackageCheck, Pill } from "lucide-react";
 import { RequestType, VisitStatus } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -224,28 +224,7 @@ export default async function DashboardPage() {
         })}
       </div>
       {canViewPatients ? <DashboardAnalytics /> : null}
-      <Card className="mt-3 md:mt-6">
-        <CardHeader className="p-4 pb-2 md:p-5 md:pb-2">
-          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-            <FileText className="h-5 w-5 text-primary" /> Clinic Operations
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2 p-4 pt-0 text-sm text-slate-600 md:grid-cols-3 md:gap-3 md:p-5 md:pt-0">
-          {canViewPatients ? (
-            <>
-              <p>Monitor patient records, queue activity, vaccination, and reporting from one workspace.</p>
-              <p>Queue and records tables stay scrollable on smaller screens so details remain readable.</p>
-              <p>Use the dashboard as a quick entry point for day-to-day clinic work and status checking.</p>
-            </>
-          ) : (
-            <>
-              <p>Monitor item requests and inventory stock status from the dashboard.</p>
-              <p>Use the request queue for approval and release decisions.</p>
-              <p>Open inventory to review medicine, vaccine, supply, and equipment records.</p>
-            </>
-          )}
-        </CardContent>
-      </Card>
+
     </AppShell>
   );
 }
