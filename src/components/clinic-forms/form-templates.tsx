@@ -186,6 +186,104 @@ function AssessmentMonitoringSheet({ data }: { data: ClinicFormData }) {
   );
 }
 
+function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
+  const visit = data.selectedVisit;
+  const medicineRows = Array.from({ length: Math.max(5, visit?.medicineLog.length ?? 0) }, (_, index) => visit?.medicineLog[index]);
+
+  return (
+    <div className="clinic-form-page daily-summary-page">
+      <h1>DAILY PATIENT SUMMARY</h1>
+      <div className="daily-summary-patient-lines">
+        <p><span>Name:</span> <b>{data.patient.fullName}</b></p>
+        <div>
+          <p><span>Date of Birth:</span> <b>{data.patient.shortBirthDate}</b></p>
+          <p><span>Age:</span> <b>{data.patient.age}</b></p>
+          <p><span>Gender:</span> <b>{data.patient.gender}</b></p>
+        </div>
+      </div>
+
+      <section className="daily-summary-section daily-consent">
+        <h2>CONSENT</h2>
+        <p>
+          I hereby give my consent for the processing of my personal health information containing my contact details, vaccination status and medical history.
+        </p>
+        <p>
+          Furthermore, I understand that my information will be used for records-keeping by The Clinic under the Office of the Chief Minister (OCM); My record can be used by The Clinic for statistics and research in crafting the necessary health and wellness programs for potential implementation in the OCM; My information and identity will be kept confidential at all times, unless disclosure is separately permitted expressly in writing; The processing of my health information such as collection, recording, organization, storage, updating or modification, retrieval and consultation shall be in accordance with Republic Act (RA) No. 10173 or the &quot;Data Privacy Act of 2012&quot;; My permission will be obtained in case of use of my personal health information for purposes other than the foregoing.
+        </p>
+        <p>
+          Furthermore, I hereby release and hold harmless The Clinic and its Staff from any liability and damages resulting from the processing of my health information in accordance with the specific purposes mentioned therein and Republic Act (RA) No. 10173.
+        </p>
+        <div className="daily-sign-line">Signature of the Patient</div>
+      </section>
+
+      <section className="daily-summary-section">
+        <h2>ASSESSMENT MONITORING SHEET</h2>
+        <table className="daily-summary-table assessment-table compact">
+          <thead><tr>{["Date", "Time In", "Chief Complaint", "BP", "RBS", "Temp", "Services Received", "Time Out", "NOD"].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+          <tbody>
+            <tr>
+              <td>{visit?.shortDate}</td>
+              <td>{visit?.timeIn}</td>
+              <td className="left">{visit?.chiefComplaint}</td>
+              <td>{visit?.bloodPressure}</td>
+              <td>{visit?.rbs}</td>
+              <td>{visit?.temperature}</td>
+              <td className="left">{visit?.services}</td>
+              <td>{visit?.timeOut}</td>
+              <td>{visit?.nurseOnDuty}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="daily-summary-section">
+        <h2>DOCTORS ORDER SHEET</h2>
+        <table className="daily-summary-table doctors-order-compact">
+          <thead><tr><th>Progress Notes / Care Plan</th><th>Doctors Order</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{visit?.progressNotes}</td>
+              <td>{visit?.treatmentPlan}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="daily-summary-section">
+        <h2>MEDICINE LOG</h2>
+        <table className="daily-summary-table medicine-log-table">
+          <thead>
+            <tr>{["Date", "Time Requested", "Item (Indicate Dosage)", "Qty", "Released by", "Received by", "Time Received"].map((header) => <th key={header}>{header}</th>)}</tr>
+          </thead>
+          <tbody>
+            {medicineRows.map((row, index) => (
+              <tr key={index}>
+                <td>{row?.date}</td>
+                <td>{row?.timeRequested}</td>
+                <td className="left">{row?.item}</td>
+                <td>{row?.quantity}</td>
+                <td>{row?.releasedBy}</td>
+                <td>{row?.receivedBy}</td>
+                <td>{row?.timeReceived}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="daily-summary-section daily-remarks">
+        <h2>REMARKS</h2>
+        <div />
+      </section>
+
+      <div className="daily-summary-signatures">
+        <div><span>Signature of the Patient</span><p>Date and Time</p></div>
+        <div><span>Signature of the Nurse</span><p>Date and Time</p></div>
+      </div>
+    </div>
+  );
+}
+
 function MedicalCertificate({ data }: { data: ClinicFormData }) {
   const visit = data.selectedVisit;
 
@@ -388,6 +486,7 @@ function ClientSatisfactionSurveyForm({ data }: { data: ClinicFormData }) {
 export function ClinicFormTemplate({ form, data }: { form: ClinicFormSlug; data: ClinicFormData }) {
   if (form === "employee-information") return <EmployeeInformationForm data={data} />;
   if (form === "assessment-monitoring") return <AssessmentMonitoringSheet data={data} />;
+  if (form === "daily-patient-summary") return <DailyPatientSummaryForm data={data} />;
   if (form === "medical-certificate") return <MedicalCertificate data={data} />;
   if (form === "medical-allowance") return <MedicalAllowanceForm data={data} />;
   if (form === "doctors-order") return <DoctorsOrderForm data={data} />;

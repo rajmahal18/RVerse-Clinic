@@ -32,11 +32,11 @@ export default async function ItemRequestsPage({
   const requestWhere: Prisma.MedicineRequestWhereInput = myRequestsView
     ? { AND: [clinicRequestWhere, { requestedByUserId: currentUser?.id ?? "__unauthenticated__" }] }
     : historyView
-      ? { AND: [clinicRequestWhere, { status: { in: ["APPROVED", "REJECTED", "RELEASED"] } }] }
-      : { AND: [clinicRequestWhere, { status: "REQUESTED" }] };
+      ? { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED"] } }] }
+      : { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] };
   const [pendingCount, historyCount, myRequestsCount, requests, inventoryOptions] = await Promise.all([
-    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: "REQUESTED" }] } }),
-    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["APPROVED", "REJECTED", "RELEASED"] } }] } }),
+    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] } }),
+    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED"] } }] } }),
     prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { requestedByUserId: currentUser?.id ?? "__unauthenticated__" }] } }),
     prisma.medicineRequest.findMany({
       where: requestWhere,

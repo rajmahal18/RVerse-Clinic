@@ -18,7 +18,7 @@ export async function GET() {
     ],
   };
   const count = await prisma.medicineRequest.count({
-    where: { AND: [clinicRequestWhere, { status: "REQUESTED" }] },
+    where: { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] },
   });
   return NextResponse.json({ count });
 }

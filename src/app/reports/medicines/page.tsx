@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ArrowLeft, FileHeart } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { getMedicineReportData, type MedicineReportPeriod } from "@/lib/patient-view";
+import { getCurrentUser } from "@/lib/auth";
+import { getMedicineReportData, getSupplyFrequencyReportData, type MedicineReportPeriod } from "@/lib/patient-view";
 
 const periods: { value: MedicineReportPeriod; label: string }[] = [
   { value: "DAILY", label: "Daily" },
@@ -12,12 +13,24 @@ const periods: { value: MedicineReportPeriod; label: string }[] = [
   { value: "ANNUAL", label: "Annual" },
 ];
 
-export default async function MedicineReportsPage({ searchParams }: { searchParams?: Promise<{ period?: string }> }) {
+const categories = [
+  { value: "all", label: "All tracked items" },
+  { value: "MEDICINE", label: "Medicine" },
+  { value: "SUPPLY", label: "Medical Supplies" },
+  { value: "OFFICE_SUPPLY", label: "Office Supplies" },
+];
+
+export default async function MedicineReportsPage({ searchParams }: { searchParams?: Promise<{ period?: string; category?: string }> }) {
   const params = await searchParams;
   const selectedPeriod = periods.some((option) => option.value === params?.period)
     ? params?.period as MedicineReportPeriod
     : "MONTHLY";
-  const report = await getMedicineReportData(selectedPeriod);
+  const selectedCategory = categories.some((option) => option.value === params?.category) ? params?.category ?? "all" : "all";
+  const currentUser = await getCurrentUser();
+  const [report, frequencyReport] = await Promise.all([
+    getMedicineReportData(selectedPeriod, currentUser?.clinicId),
+    currentUser ? getSupplyFrequencyReportData(currentUser.clinicId, selectedPeriod, selectedCategory) : Promise.resolve(null),
+  ]);
 
   return (
     <AppShell>
@@ -39,6 +52,36 @@ export default async function MedicineReportsPage({ searchParams }: { searchPara
             <div className="px-4 py-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Movement entries</p><p className="mt-1 text-2xl font-black text-slate-900">{report.totals.movementCount.toLocaleString()}</p></div>
           </div>
         </section>
+        {frequencyReport ? (
+          <section className="overflow-hidden border bg-white shadow-sm">
+            <div className="flex flex-col gap-4 border-b bg-slate-50 px-4 py-4 xl:flex-row xl:items-center xl:justify-between">
+              <div><h2 className="font-black text-slate-900">Item request and release frequency</h2><p className="text-sm text-slate-500">{frequencyReport.rangeLabel}</p></div>
+              <div className="grid gap-2 md:grid-cols-2">
+                <nav className="flex max-w-full gap-1 overflow-x-auto border-b" aria-label="Frequency report period">
+                  {periods.map((option) => <Link key={option.value} href={`/reports/medicines?period=${option.value}&category=${selectedCategory}`} className={`whitespace-nowrap px-3 py-2 text-sm font-bold ${selectedPeriod === option.value ? "border-b-2 border-primary text-primary" : "text-slate-500 hover:text-slate-900"}`}>{option.label}</Link>)}
+                </nav>
+                <nav className="flex max-w-full gap-1 overflow-x-auto border-b" aria-label="Frequency report category">
+                  {categories.map((option) => <Link key={option.value} href={`/reports/medicines?period=${selectedPeriod}&category=${option.value}`} className={`whitespace-nowrap px-3 py-2 text-sm font-bold ${selectedCategory === option.value ? "border-b-2 border-primary text-primary" : "text-slate-500 hover:text-slate-900"}`}>{option.label}</Link>)}
+                </nav>
+              </div>
+            </div>
+            <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="px-4 py-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Request frequency</p><p className="mt-1 text-2xl font-black text-slate-900">{frequencyReport.totals.requestCount.toLocaleString()}</p></div>
+              <div className="px-4 py-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Quantity released / used</p><p className="mt-1 text-2xl font-black text-blue-700">{frequencyReport.totals.quantityReleased.toLocaleString()}</p></div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Category</th><th className="px-4 py-3">Current Stock</th><th className="px-4 py-3">Requests</th><th className="px-4 py-3">Released / Used</th><th className="px-4 py-3">Avg Released / Request</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {frequencyReport.rows.map((row) => <tr key={row.itemId}><td className="px-4 py-3 font-semibold text-slate-900">{row.item}</td><td className="px-4 py-3 text-slate-600">{row.category}</td><td className="px-4 py-3">{row.currentStock.toLocaleString()} {row.unit}</td><td className="px-4 py-3 font-bold">{row.requestCount.toLocaleString()}</td><td className="px-4 py-3 font-bold text-blue-700">{row.quantityReleased.toLocaleString()} {row.unit}</td><td className="px-4 py-3">{row.averageReleasedPerRequest.toFixed(1)} {row.unit}</td></tr>)}
+                  {frequencyReport.rows.length === 0 ? <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-500">No request or release activity for this period.</td></tr> : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
         <ReportTable report={report} />
       </div>
     </AppShell>

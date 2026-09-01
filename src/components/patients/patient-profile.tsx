@@ -6,7 +6,7 @@ import {
   autosaveVisitDraftAction,
   completeVisitAction,
   createVisitAction,
-  dispenseMedicineAction,
+  receiveMedicineAction,
   requestMedicineAction,
   requestVaccineAction,
   scheduleReferralAction,
@@ -24,6 +24,7 @@ import { ServiceRequestedFields } from "@/components/patients/service-requested-
 import { SatisfactionSurveyModal } from "@/components/patients/satisfaction-survey-modal";
 import { AutosaveForm } from "@/components/patients/autosave-form";
 import { MedicineRequestModal, ReferralScheduleModal, VaccineRequestModal } from "@/components/patients/clinical-action-modals";
+import { LabResultsPanel } from "@/components/patients/lab-results-panel";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,11 +52,13 @@ const statusOptions = [
 ];
 
 function medicineStatusLabel(status: string) {
-  return status === "RELEASED" ? "RELEASED" : status;
+  if (status === "REQUESTED") return "WAITING FOR APPROVAL";
+  return status;
 }
 
 function medicineStatusTone(status: string) {
-  if (status === "APPROVED" || status === "RELEASED") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+  if (status === "RECEIVED") return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+  if (status === "APPROVED" || status === "RELEASED") return "bg-blue-50 text-blue-700 ring-1 ring-blue-200";
   if (status === "REJECTED") return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
   return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
 }
@@ -83,9 +86,25 @@ export async function PatientProfile({ id }: { id: string }) {
     ? patient.visitHistory.filter((visit) => visit.id !== activeVisit.id)
     : patient.visitHistory;
   const activeVisitSurveyComplete = activeVisit ? hasCompletedSatisfactionSurvey(activeVisit.satisfactionSurvey) : false;
-  const availableStatusOptions = !activeVisit || activeVisitSurveyComplete
-    ? statusOptions
-    : statusOptions.filter((option) => option.value !== VisitStatus.COMPLETED);
+  const activeVisitMedicineReady = activeVisit
+    ? !activeVisit.medicines.some((medicine) => ["REQUESTED", "APPROVED", "RELEASED"].includes(medicine.status))
+    : true;
+  const activeVisitCompletionReady = activeVisitSurveyComplete && activeVisitMedicineReady;
+  const medicineDecisionPending = activeVisit?.medicines.some((medicine) => medicine.status === "REQUESTED") ?? false;
+  const medicineDecisionPendingMessage = "Medicine request is still awaiting pharmacist approval or rejection.";
+  const medicineBlockMessage = medicineDecisionPending
+    ? medicineDecisionPendingMessage
+    : activeVisit?.medicines.some((medicine) => medicine.status === "APPROVED")
+      ? "Approved medicine must be released before this visit can be completed."
+      : activeVisit?.medicines.some((medicine) => medicine.status === "RELEASED")
+        ? "Released medicine must be marked received before this visit can be completed."
+        : "";
+  const availableStatusOptions = statusOptions.filter((option) => {
+    if (!activeVisit) return true;
+    if (option.value === VisitStatus.COMPLETED) return activeVisitCompletionReady;
+    if (option.value === VisitStatus.FOR_FOLLOW_UP) return !activeVisit.medicines.some((medicine) => medicine.status === "REQUESTED");
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -341,9 +360,14 @@ export async function PatientProfile({ id }: { id: string }) {
                       Complete the Client Satisfaction Measurement Survey before marking this appointment as completed.
                     </div>
                   ) : null}
+                  {medicineBlockMessage ? (
+                    <div className="border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                      {medicineBlockMessage}
+                    </div>
+                  ) : null}
 
                   <div className="flex flex-wrap gap-2">
-                    <SatisfactionSurveyModal patientId={patient.id} visitId={activeVisit.id} serviceAvailed={activeVisit.requests.map((request) => request.label).join(", ")} survey={activeVisit.satisfactionSurvey} />
+                    <SatisfactionSurveyModal patientId={patient.id} visitId={activeVisit.id} serviceAvailed={activeVisit.servicesReceived} survey={activeVisit.satisfactionSurvey} disabled={medicineDecisionPending} disabledReason={medicineDecisionPendingMessage} />
                     <Button type="submit">
                       <Save className="h-4 w-4" /> Save Visit
                     </Button>
@@ -352,8 +376,8 @@ export async function PatientProfile({ id }: { id: string }) {
                         type="submit"
                         formAction={completeVisitAction}
                         variant="outline"
-                        disabled={!activeVisitSurveyComplete}
-                        title={!activeVisitSurveyComplete ? "Complete the Client Satisfaction Measurement Survey first." : undefined}
+                        disabled={!activeVisitCompletionReady}
+                        title={!activeVisitCompletionReady ? (medicineBlockMessage || "Complete the Client Satisfaction Measurement Survey first.") : undefined}
                         className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                       >
                         <CheckCircle2 className="h-4 w-4" /> Mark as completed
@@ -390,6 +414,11 @@ export async function PatientProfile({ id }: { id: string }) {
               ),
             },
             {
+              id: "labs",
+              label: "LABORATORY",
+              content: <LabResultsPanel patientId={patient.id} visit={activeVisit} />,
+            },
+            {
               id: "medicines",
               label: "MEDICINES",
               content: (
@@ -414,18 +443,22 @@ export async function PatientProfile({ id }: { id: string }) {
                           </Badge>
                         </div>
                         <div className="mt-3 border-t pt-3">
-                          {medicine.status === "RELEASED" || medicine.status === "APPROVED" ? (
-                            <span className="text-xs text-slate-500">{medicine.status === "APPROVED" ? "Approved" : "Released"} by {medicine.releasedBy || "Clinic staff"}</span>
-                          ) : medicine.status === "REJECTED" ? (
-                            <span className="text-xs text-rose-600">Rejected request</span>
-                          ) : (
-                            <form action={dispenseMedicineAction} className="grid gap-2">
+                          {medicine.status === "RELEASED" ? (
+                            <form action={receiveMedicineAction} className="grid gap-2">
                               <CsrfField />
                               <input type="hidden" name="patientId" value={patient.id} />
                               <input type="hidden" name="medicineRequestId" value={medicine.id} />
-                              <input name="releasedBy" className="h-10 rounded-xl border px-3 text-sm" placeholder="Released by" />
-                              <Button size="sm" type="submit">Dispense</Button>
+                              <input name="receivedBy" className="h-10 rounded-xl border px-3 text-sm" placeholder="Received by" />
+                              <Button size="sm" type="submit">Mark received</Button>
                             </form>
+                          ) : medicine.status === "APPROVED" ? (
+                            <span className="text-xs text-blue-600">Approved. Awaiting release by supply staff.</span>
+                          ) : medicine.status === "RECEIVED" ? (
+                            <span className="text-xs text-emerald-700">Received by {medicine.receivedBy || "Patient"}{medicine.receivedAt ? ` / ${medicine.receivedAt}` : ""}</span>
+                          ) : medicine.status === "REJECTED" ? (
+                            <span className="text-xs text-rose-600">Rejected request</span>
+                          ) : (
+                            <span className="text-xs text-amber-700">Waiting for pharmacist approval or rejection.</span>
                           )}
                         </div>
                       </div>
@@ -462,20 +495,22 @@ export async function PatientProfile({ id }: { id: string }) {
                               </Badge>
                             </td>
                             <td className="px-3 py-3">
-                              {medicine.status === "RELEASED" || medicine.status === "APPROVED" ? (
-                                <span className="text-xs text-slate-500">
-                                  {medicine.status === "APPROVED" ? "Approved" : "Released"} by {medicine.releasedBy || "Clinic staff"}
-                                </span>
-                              ) : medicine.status === "REJECTED" ? (
-                                <span className="text-xs text-rose-600">Rejected request</span>
-                              ) : (
-                                <form action={dispenseMedicineAction} className="flex flex-wrap gap-2">
+                              {medicine.status === "RELEASED" ? (
+                                <form action={receiveMedicineAction} className="flex flex-wrap gap-2">
                                   <CsrfField />
                                   <input type="hidden" name="patientId" value={patient.id} />
                                   <input type="hidden" name="medicineRequestId" value={medicine.id} />
-                                  <input name="releasedBy" className="w-28 rounded-xl border px-2 py-1 text-xs" placeholder="Released by" />
-                                  <Button size="sm" type="submit">Dispense</Button>
+                                  <input name="receivedBy" className="w-32 rounded-xl border px-2 py-1 text-xs" placeholder="Received by" />
+                                  <Button size="sm" type="submit">Mark received</Button>
                                 </form>
+                              ) : medicine.status === "APPROVED" ? (
+                                <span className="text-xs text-blue-600">Awaiting release by supply staff.</span>
+                              ) : medicine.status === "RECEIVED" ? (
+                                <span className="text-xs text-emerald-700">Received by {medicine.receivedBy || "Patient"}{medicine.receivedAt ? ` / ${medicine.receivedAt}` : ""}</span>
+                              ) : medicine.status === "REJECTED" ? (
+                                <span className="text-xs text-rose-600">Rejected request</span>
+                              ) : (
+                                <span className="text-xs text-amber-700">Waiting for approval.</span>
                               )}
                             </td>
                           </tr>

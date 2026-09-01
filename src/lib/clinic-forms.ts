@@ -6,12 +6,14 @@ import {
   APP_TIME_ZONE,
 } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
+import { getAvailedServiceLabels } from "@/lib/patient-view";
 
-export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medical-certificate" | "referral-form" | "medical-allowance" | "doctors-order" | "client-satisfaction-survey";
+export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "daily-patient-summary" | "medical-certificate" | "referral-form" | "medical-allowance" | "doctors-order" | "client-satisfaction-survey";
 
 export const clinicForms: { slug: ClinicFormSlug; title: string; scope: "patient" | "visit"; filenamePrefix: string }[] = [
   { slug: "employee-information", title: "Employee Information", scope: "patient", filenamePrefix: "employee-information" },
   { slug: "assessment-monitoring", title: "Assessment Monitoring Sheet", scope: "patient", filenamePrefix: "assessment-monitoring" },
+  { slug: "daily-patient-summary", title: "Daily Patient Summary", scope: "visit", filenamePrefix: "daily-patient-summary" },
   { slug: "medical-certificate", title: "Medical Certificate", scope: "visit", filenamePrefix: "medical-certificate" },
   { slug: "referral-form", title: "Referral Form", scope: "visit", filenamePrefix: "referral-form" },
   { slug: "medical-allowance", title: "Medical Allowance Certification", scope: "visit", filenamePrefix: "medical-allowance" },
@@ -27,10 +29,15 @@ type PatientWithFormData = Prisma.PatientGetPayload<{
     visits: {
       include: {
         requests: true;
-        medicines: true;
+        medicines: {
+          include: {
+            inventoryItem: true;
+          };
+        };
         vaccinations: true;
         referrals: true;
         satisfactionSurvey: true;
+        followUps: true;
       };
     };
   };
@@ -109,7 +116,14 @@ function ordinalDay(value: Date) {
 }
 
 function visitServices(visit: PatientWithFormData["visits"][number]) {
-  return visit.requests.map((request) => requestTypeLabels[request.type]).join(", ");
+  return getAvailedServiceLabels({
+    status: visit.status,
+    requests: visit.requests,
+    medicines: visit.medicines,
+    vaccinations: visit.vaccinations,
+    followUps: visit.followUps,
+    referrals: visit.referrals,
+  }).join(", ");
 }
 
 function medicineLine(medicine: PatientWithFormData["visits"][number]["medicines"][number]) {
@@ -125,10 +139,15 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
         orderBy: { timeIn: "desc" },
         include: {
           requests: true,
-          medicines: true,
+          medicines: {
+            include: {
+              inventoryItem: true,
+            },
+          },
           vaccinations: true,
           referrals: true,
           satisfactionSurvey: true,
+          followUps: true,
         },
       },
     },
@@ -208,6 +227,17 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
           satisfactionSurvey: selectedVisit.satisfactionSurvey,
           nurseOnDuty: formatStaffName(selectedVisit.nurseOnDuty),
           services: visitServices(selectedVisit),
+          medicineLog: selectedVisit.medicines
+            .filter((medicine) => medicine.status !== "REJECTED")
+            .map((medicine) => ({
+              date: formatShortDate(medicine.createdAt),
+              timeRequested: formatTime(medicine.createdAt),
+              item: [medicine.itemName, medicine.inventoryItem?.dosage].map(clean).filter(Boolean).join(" "),
+              quantity: String(medicine.quantity),
+              releasedBy: clean(medicine.releasedBy),
+              receivedBy: clean(medicine.receivedBy),
+              timeReceived: formatTime(medicine.receivedAt),
+            })),
           medicines: selectedVisit.medicines.map(medicineLine).filter(Boolean),
           referral: selectedVisit.referrals[0] ?? null,
         }

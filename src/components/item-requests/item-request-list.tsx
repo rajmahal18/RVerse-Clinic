@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, X, XIcon } from "lucide-react";
-import { resolveItemRequestAction } from "@/app/actions/workflow";
+import { Check, PackageCheck, X, XIcon } from "lucide-react";
+import { releaseItemRequestAction, resolveItemRequestAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
@@ -23,7 +23,7 @@ export type ItemRequestListRow = {
 };
 
 function StatusPill({ status }: { status: string }) {
-  const label = status === "RELEASED" ? "APPROVED" : status;
+  const label = status === "REQUESTED" ? "WAITING FOR APPROVAL" : status;
   const tone = status === "REJECTED"
     ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
     : status === "REQUESTED"
@@ -43,6 +43,17 @@ function DecisionActions({ requestId, compact = false }: { requestId: string; co
       <Button name="decision" value="APPROVE" type="submit">
         <Check className="h-4 w-4" /> Approve
       </Button>
+    </form>
+  );
+}
+
+function ReleaseAction({ requestId, compact = false }: { requestId: string; compact?: boolean }) {
+  return (
+    <form action={releaseItemRequestAction} className={compact ? "grid gap-2" : "flex flex-wrap gap-2"}>
+      <CsrfField />
+      <input type="hidden" name="requestId" value={requestId} />
+      <input name="releasedBy" className="min-h-10 rounded-xl border px-3 text-sm" placeholder="Released by" />
+      <Button type="submit"><PackageCheck className="h-4 w-4" /> Release</Button>
     </form>
   );
 }
@@ -85,7 +96,8 @@ export function ItemRequestList({
             </button>
             {!historyView && canResolveRequests ? (
               <div className="hidden md:block">
-                <DecisionActions requestId={request.id} />
+                {request.status === "REQUESTED" ? <DecisionActions requestId={request.id} /> : null}
+                {request.status === "APPROVED" ? <ReleaseAction requestId={request.id} /> : null}
               </div>
             ) : null}
           </article>
@@ -136,7 +148,8 @@ export function ItemRequestList({
             </div>
             {!historyView && canResolveRequests ? (
               <div className="border-t bg-white p-4">
-                <DecisionActions requestId={selectedRequest.id} compact />
+                {selectedRequest.status === "REQUESTED" ? <DecisionActions requestId={selectedRequest.id} compact /> : null}
+                {selectedRequest.status === "APPROVED" ? <ReleaseAction requestId={selectedRequest.id} compact /> : null}
               </div>
             ) : null}
           </div>

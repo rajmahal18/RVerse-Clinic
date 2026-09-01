@@ -321,6 +321,227 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
   padding: 7mm;
 }
 
+.daily-summary-page {
+  padding: 8mm;
+  font-size: 8.2pt;
+}
+
+.daily-summary-page h1 {
+  margin: 0 0 3mm;
+  text-align: center;
+  font-size: 14pt;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.daily-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.daily-summary-table th,
+.daily-summary-table td {
+  border: 1px solid #333;
+  padding: 1.3mm;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.daily-summary-patient-lines {
+  display: grid;
+  gap: 2mm;
+  font-size: 9pt;
+}
+
+.daily-summary-patient-lines p {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  align-items: flex-end;
+  gap: 1.5mm;
+}
+
+.daily-summary-patient-lines span {
+  font-weight: 700;
+}
+
+.daily-summary-patient-lines b {
+  flex: 1;
+  min-height: 5mm;
+  border-bottom: 1px solid #333;
+  font-weight: 600;
+}
+
+.daily-summary-patient-lines > div {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr;
+  gap: 4mm;
+}
+
+@media (max-width: 640px) {
+  .daily-summary-patient-lines > div {
+    grid-template-columns: 1fr;
+    gap: 2mm;
+  }
+}
+
+.daily-summary-section {
+  margin-top: 3mm;
+  break-inside: avoid;
+}
+
+.daily-summary-section h2 {
+  margin: 0;
+  border: 1px solid #333;
+  border-bottom: 0;
+  background: #dbeafe;
+  padding: 1.2mm;
+  text-align: center;
+  font-size: 8.8pt;
+  font-weight: 900;
+}
+
+.daily-consent p {
+  margin: 0;
+  border: 1px solid #333;
+  padding: 2mm;
+  text-align: justify;
+  line-height: 1.25;
+}
+
+.daily-sign-line {
+  margin-left: auto;
+  width: 58mm;
+  border-bottom: 1px solid #333;
+  padding-top: 7mm;
+  text-align: center;
+  font-size: 7.6pt;
+}
+
+.daily-summary-table th {
+  background: #f8fafc;
+  text-align: center;
+  font-weight: 800;
+}
+
+.daily-summary-table td {
+  height: 8mm;
+  text-align: center;
+}
+
+.daily-summary-table .left {
+  text-align: left;
+}
+
+.daily-summary-table.compact th:nth-child(3),
+.daily-summary-table.compact td:nth-child(3),
+.daily-summary-table.compact th:nth-child(7),
+.daily-summary-table.compact td:nth-child(7) {
+  width: 33mm;
+}
+
+.doctors-order-compact td {
+  height: 22mm;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.medicine-log-table th:nth-child(3),
+.medicine-log-table td:nth-child(3) {
+  width: 46mm;
+}
+
+.daily-remarks div {
+  min-height: 18mm;
+  border: 1px solid #333;
+  padding: 1.5mm;
+  white-space: pre-wrap;
+}
+
+.daily-summary-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24mm;
+  margin-top: 11mm;
+}
+
+.daily-summary-signatures div {
+  border-top: 1px solid #333;
+  text-align: center;
+}
+
+.daily-summary-signatures span {
+  display: block;
+  padding-top: 1mm;
+  font-weight: 700;
+}
+
+.daily-summary-signatures p {
+  margin: 5mm 0 0;
+  border-top: 1px solid #333;
+  padding-top: 1mm;
+}
+
+.lab-print-page {
+  padding: 9mm;
+}
+
+.lab-print-page h1 {
+  margin: 0 0 4mm;
+  text-align: center;
+  font-size: 13pt;
+  font-weight: 900;
+}
+
+.lab-print-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5mm 5mm;
+  margin-bottom: 4mm;
+  font-size: 8.5pt;
+}
+
+.lab-print-section {
+  margin-top: 4mm;
+  break-inside: avoid;
+}
+
+.lab-print-section h2 {
+  margin: 0;
+  border: 1px solid #333;
+  border-bottom: 0;
+  background: #d9ead3;
+  padding: 1.2mm;
+  text-align: center;
+  font-size: 8.4pt;
+  font-weight: 900;
+}
+
+.lab-print-section table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.lab-print-section th,
+.lab-print-section td {
+  border: 1px solid #333;
+  padding: 1.1mm;
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+.lab-print-section th {
+  background: #eef6ea;
+  font-size: 7.6pt;
+}
+
+.lab-print-section td {
+  min-height: 5mm;
+  font-size: 7.8pt;
+}
+
 .employee-section-title {
   background: #d9d9d9;
   font-weight: 800;

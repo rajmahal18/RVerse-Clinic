@@ -52,7 +52,7 @@ type SurveyValues = {
   email: string;
 };
 
-export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, survey }: { patientId: string; visitId: string; serviceAvailed: string; survey: SurveyValues | null }) {
+export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, survey, disabled = false, disabledReason }: { patientId: string; visitId: string; serviceAvailed: string; survey: SurveyValues | null; disabled?: boolean; disabledReason?: string }) {
   const [open, setOpen] = useState(false);
   const submitted = Boolean(survey);
   const modal = open ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-3" onClick={() => setOpen(false)}>
@@ -69,7 +69,7 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, su
   </div> : null;
 
   return <>
-    <Button type="button" variant={submitted ? "outline" : "default"} onClick={() => setOpen(true)}><MessageSquareText className="h-4 w-4" /> {submitted ? "Review CSM Survey" : "Complete CSM Survey"}</Button>
+    <Button type="button" variant={submitted ? "outline" : "default"} onClick={() => setOpen(true)} disabled={disabled} title={disabled ? disabledReason : undefined}><MessageSquareText className="h-4 w-4" /> {submitted ? "Review CSM Survey" : "Complete CSM Survey"}</Button>
     {modal ? createPortal(modal, document.body) : null}
   </>;
 }

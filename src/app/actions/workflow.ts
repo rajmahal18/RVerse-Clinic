@@ -2,6 +2,7 @@
 
 import {
   InventoryCategory,
+  LabResultType,
   Prisma,
   RequestType,
   UserRole,
@@ -15,6 +16,7 @@ import { appendActionFeedback, getActionErrorMessage } from "@/lib/action-feedba
 import { writeActivityLog } from "@/lib/activity-log";
 import { assertValidCsrfToken } from "@/lib/csrf";
 import { formatDateKey, parseAppDateInput } from "@/lib/date-time";
+import { getLabFieldKeys, getLabResultType, labTypeLabels } from "@/lib/lab-results";
 import { hashPassword, isStrongPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { TRUST_PROXY_HEADERS } from "@/lib/security-config";
@@ -185,6 +187,7 @@ async function requireRole(allowedRoles: UserRole[]) {
 }
 
 type PrismaClientLike = typeof prisma | Prisma.TransactionClient;
+const pendingMedicineDecisionMessage = "Medicine request is still awaiting pharmacist approval or rejection.";
 
 function isClosedVisitStatus(status: VisitStatus) {
   return status === VisitStatus.COMPLETED || status === VisitStatus.CANCELLED;
@@ -195,6 +198,24 @@ async function requireSatisfactionSurveyForCompletion(client: PrismaClientLike, 
   const requiredAnswers = ["cc1", "cc2", "cc3", "sqd0", "sqd1", "sqd2", "sqd3", "sqd4", "sqd5", "sqd6", "sqd7", "sqd8"] as const;
   if (!survey || requiredAnswers.some((key) => !survey[key]?.trim())) {
     throw new Error("Complete all required Client Satisfaction Measurement Survey questions before completing this service.");
+  }
+}
+
+async function requireNoPendingMedicineDecision(client: PrismaClientLike, visitId: string) {
+  const pendingCount = await client.medicineRequest.count({
+    where: { visitId, status: "REQUESTED" },
+  });
+  if (pendingCount > 0) {
+    throw new Error(pendingMedicineDecisionMessage);
+  }
+}
+
+async function requireVisitReadyForCompletion(client: PrismaClientLike, visitId: string) {
+  await requireSatisfactionSurveyForCompletion(client, visitId);
+  await requireNoPendingMedicineDecision(client, visitId);
+  const medicines = await client.medicineRequest.findMany({ where: { visitId }, select: { status: true } });
+  if (medicines.some((medicine) => medicine.status === "APPROVED" || medicine.status === "RELEASED")) {
+    throw new Error("Approved medicine requests must be released and received before completing the visit.");
   }
 }
 
@@ -587,7 +608,8 @@ export async function updateVisitAction(formData: FormData) {
     const statusValue = requiredString(formData, "status");
     const status = isVisitStatus(statusValue) ? statusValue : VisitStatus.QUEUED;
     const nurseOnDuty = await getCurrentStaffName();
-    if (status === VisitStatus.COMPLETED) await requireSatisfactionSurveyForCompletion(prisma, visitId);
+    if (status === VisitStatus.FOR_FOLLOW_UP) await requireNoPendingMedicineDecision(prisma, visitId);
+    if (status === VisitStatus.COMPLETED) await requireVisitReadyForCompletion(prisma, visitId);
 
     const visit = await prisma.$transaction(async (tx) => {
       const updatedVisit = await tx.visit.update({
@@ -691,7 +713,8 @@ export async function updateVisitStatusAction(formData: FormData) {
     if (isClosedVisitStatus(currentVisit.status)) {
       throw new Error("This visit is already closed.");
     }
-    if (status === VisitStatus.COMPLETED) await requireSatisfactionSurveyForCompletion(prisma, visitId);
+    if (status === VisitStatus.FOR_FOLLOW_UP) await requireNoPendingMedicineDecision(prisma, visitId);
+    if (status === VisitStatus.COMPLETED) await requireVisitReadyForCompletion(prisma, visitId);
     const nurseOnDuty = status === VisitStatus.IN_PROGRESS ? await getCurrentStaffName() : currentVisit.nurseOnDuty;
 
     const visit = await prisma.visit.update({
@@ -981,20 +1004,19 @@ export async function dispenseMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const medicineRequestId = requiredString(formData, "medicineRequestId");
   await runAction(formData, `/patients/${patientId}`, "Medicines", "Dispense medicine", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     const releasedBy = optionalString(formData, "releasedBy") ?? "Clinic staff";
-    const receivedBy = optionalString(formData, "receivedBy") ?? "Patient";
 
     const medicineRequest = await prisma.$transaction(async (tx) => {
       const request = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
-      if (request.status === "RELEASED") {
-        throw new Error("This medicine request has already been released.");
-      }
-      if (request.status !== "REQUESTED") {
-        throw new Error("This medicine request is no longer pending.");
+      if (request.status !== "APPROVED") {
+        throw new Error("Approve this medicine request before release.");
       }
       if (!request.visit) {
         throw new Error("This medicine request is not linked to a patient visit.");
+      }
+      if (request.visit.patient.clinicId !== user.clinicId) {
+        throw new Error("Approve this medicine request before release.");
       }
       if (isClosedVisitStatus(request.visit.status)) {
         throw new Error("This visit is already closed.");
@@ -1014,15 +1036,44 @@ export async function dispenseMedicineAction(formData: FormData) {
       if (item.stock < request.quantity) {
         throw new Error("Insufficient stock for this request.");
       }
-
-      await tx.inventoryItem.update({
-        where: { id: item.id },
-        data: {
-          stock: {
-            decrement: request.quantity,
-          },
-        },
+      const existingRelease = await tx.inventoryMovement.findFirst({
+        where: { medicineRequestId: request.id, quantityChange: { lt: 0 } },
+        select: { id: true },
       });
+      if (existingRelease) {
+        return tx.medicineRequest.update({
+          where: { id: request.id },
+          data: {
+            status: "RELEASED",
+            releasedBy,
+            releasedAt: request.releasedAt ?? new Date(),
+          },
+          include: {
+            visit: {
+              include: {
+                patient: true,
+              },
+            },
+          },
+        });
+      }
+
+      const releasedAt = new Date();
+      const claimed = await tx.medicineRequest.updateMany({
+        where: { id: request.id, status: "APPROVED" },
+        data: { status: "RELEASED", releasedBy, releasedAt },
+      });
+      if (claimed.count !== 1) {
+        throw new Error("This medicine request is no longer approved for release.");
+      }
+
+      const stockUpdate = await tx.inventoryItem.updateMany({
+        where: { id: item.id, stock: { gte: request.quantity } },
+        data: { stock: { decrement: request.quantity } },
+      });
+      if (stockUpdate.count !== 1) {
+        throw new Error("Insufficient stock for this request.");
+      }
 
       await tx.inventoryMovement.create({
         data: {
@@ -1033,13 +1084,8 @@ export async function dispenseMedicineAction(formData: FormData) {
         },
       });
 
-      return tx.medicineRequest.update({
+      return tx.medicineRequest.findUniqueOrThrow({
         where: { id: request.id },
-        data: {
-          status: "RELEASED",
-          releasedBy,
-          receivedBy,
-        },
         include: {
           visit: {
             include: {
@@ -1052,12 +1098,13 @@ export async function dispenseMedicineAction(formData: FormData) {
 
     await writeActivityLog({
       clinicId: medicineRequest.visit?.patient.clinicId,
+      userId: user.id,
       module: "Medicines",
-      action: "Dispense medicine",
+      action: "Release medicine",
       entityType: "MedicineRequest",
       entityId: medicineRequest.id,
-      description: `Dispensed ${medicineRequest.quantity} ${medicineRequest.itemName}.`,
-      metadata: { releasedBy, receivedBy },
+      description: `Released ${medicineRequest.quantity} ${medicineRequest.itemName}.`,
+      metadata: { releasedBy },
     });
   }, { type: "MedicineRequest", id: medicineRequestId });
 
@@ -1072,6 +1119,7 @@ export async function scheduleFollowUpAction(formData: FormData) {
   await runAction(formData, `/patients/${patientId}`, "Follow-ups", "Schedule follow-up", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    await requireNoPendingMedicineDecision(prisma, visitId);
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
     const followUp = await prisma.$transaction(async (tx) => {
       const createdFollowUp = await tx.followUp.create({
@@ -1092,6 +1140,111 @@ export async function scheduleFollowUpAction(formData: FormData) {
     });
   }, { type: "Visit", id: visitId });
   revalidatePath("/follow-ups");
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function receiveMedicineAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const medicineRequestId = requiredString(formData, "medicineRequestId");
+  await runAction(formData, `/patients/${patientId}`, "Medicines", "Receive medicine", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const receivedBy = optionalString(formData, "receivedBy") ?? "Patient";
+    const medicineRequest = await prisma.$transaction(async (tx) => {
+      const request = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
+      if (request.status === "RECEIVED") return request;
+      if (request.status !== "RELEASED") {
+        throw new Error("Medicine must be released before it can be received.");
+      }
+      return tx.medicineRequest.update({
+        where: { id: request.id },
+        data: {
+          status: "RECEIVED",
+          receivedBy,
+          receivedAt: new Date(),
+        },
+        include: { visit: { include: { patient: true } } },
+      });
+    });
+
+    await writeActivityLog({
+      clinicId: medicineRequest.visit?.patient.clinicId,
+      userId: user.id,
+      module: "Medicines",
+      action: "Receive medicine",
+      entityType: "MedicineRequest",
+      entityId: medicineRequest.id,
+      description: `Recorded receipt for ${medicineRequest.itemName}.`,
+      metadata: { receivedBy },
+    });
+  }, { type: "MedicineRequest", id: medicineRequestId });
+
+  revalidatePath(`/patients/${patientId}`);
+  redirect(`/patients/${patientId}`);
+}
+
+export async function saveLabResultAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  const labResultId = optionalString(formData, "labResultId");
+  const type = getLabResultType(optionalString(formData, "type"));
+  if (!type) throw new Error("Select a valid laboratory result type.");
+
+  await runAction(formData, `/patients/${patientId}`, "Laboratory Results", labResultId ? "Update lab result" : "Create lab result", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const visit = await getVisitForPatient(prisma, patientId, visitId);
+    if (isClosedVisitStatus(visit.status)) throw new Error("This visit is already closed.");
+    if (visit.patient.clinicId !== user.clinicId) throw new Error("The selected visit was not found for this patient.");
+    const dateReceivedValue = optionalString(formData, "dateReceived");
+    const dateReleasedValue = optionalString(formData, "dateReleased");
+    const allowedKeys = new Set(getLabFieldKeys(type));
+    const values = [...formData.entries()]
+      .filter(([key, value]) => key.startsWith("labValue:") && String(value).trim())
+      .map(([key, value]) => ({ fieldKey: key.replace("labValue:", ""), result: String(value).trim() }))
+      .filter((value) => allowedKeys.has(value.fieldKey));
+
+    const labResult = await prisma.$transaction(async (tx) => {
+      const result = labResultId
+        ? await tx.labResult.update({
+            where: { id: labResultId },
+            data: {
+              dateReceived: dateReceivedValue ? parseDate(dateReceivedValue) : null,
+              dateReleased: dateReleasedValue ? parseDate(dateReleasedValue) : null,
+              laboratoryHospital: optionalString(formData, "laboratoryHospital"),
+            },
+          })
+        : await tx.labResult.create({
+            data: {
+              visitId,
+              type,
+              dateReceived: dateReceivedValue ? parseDate(dateReceivedValue) : null,
+              dateReleased: dateReleasedValue ? parseDate(dateReleasedValue) : null,
+              laboratoryHospital: optionalString(formData, "laboratoryHospital"),
+            },
+          });
+      if (result.visitId !== visitId || result.type !== type) throw new Error("The selected laboratory result was not found.");
+      await tx.labResultValue.deleteMany({ where: { labResultId: result.id, fieldKey: { notIn: values.map((value) => value.fieldKey) } } });
+      for (const value of values) {
+        await tx.labResultValue.upsert({
+          where: { labResultId_fieldKey: { labResultId: result.id, fieldKey: value.fieldKey } },
+          update: { result: value.result },
+          create: { labResultId: result.id, fieldKey: value.fieldKey, result: value.result },
+        });
+      }
+      return result;
+    });
+
+    await writeActivityLog({
+      clinicId: visit.patient.clinicId,
+      userId: user.id,
+      module: "Laboratory Results",
+      action: labResultId ? "Update lab result" : "Create lab result",
+      entityType: "LabResult",
+      entityId: labResult.id,
+      description: `${labResultId ? "Updated" : "Created"} ${labTypeLabels[type]} result.`,
+    });
+  }, { type: "LabResult", id: labResultId });
+
   revalidatePath(`/patients/${patientId}`);
   redirect(`/patients/${patientId}`);
 }
@@ -1297,6 +1450,7 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
     const visit = await getVisitForPatient(prisma, patientId, visitId);
     if (isClosedVisitStatus(visit.status)) throw new Error("This visit is already closed.");
+    await requireNoPendingMedicineDecision(prisma, visitId);
     const existingSurvey = await prisma.clientSatisfactionSurvey.findUnique({ where: { visitId } });
     const merged = (key: "clientType" | "regionOfResidence" | "serviceAvailed" | "respondentSex" | "cc1" | "cc2" | "cc3" | "sqd0" | "sqd1" | "sqd2" | "sqd3" | "sqd4" | "sqd5" | "sqd6" | "sqd7" | "sqd8" | "suggestions" | "email") => optionalString(formData, key) ?? existingSurvey?.[key] ?? null;
     const surveyDateValue = optionalString(formData, "surveyDate");
@@ -1352,15 +1506,74 @@ export async function resolveItemRequestAction(formData: FormData) {
         const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
         return { request: updatedRequest, clinicId: requestClinicId };
       }
-      const item = request.inventoryItem;
-      if (!item) throw new Error("The requested inventory batch is no longer available.");
-      if (item.stock < request.quantity) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
-      await tx.inventoryItem.update({ where: { id: item.id }, data: { stock: { decrement: request.quantity } } });
-      await tx.inventoryMovement.create({ data: { inventoryItemId: item.id, medicineRequestId: request.id, quantityChange: -request.quantity, reason: `Approved item request ${request.id}` } });
-      const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", releasedBy: "Item request queue", resolvedAt: new Date() } });
+      const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", resolvedAt: new Date() } });
       return { request: updatedRequest, clinicId: requestClinicId };
     });
     await writeActivityLog({ clinicId: result.clinicId, userId: user.id, module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.request.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.request.quantity} ${result.request.itemName}.` });
+  }, { type: "MedicineRequest", id: requestId });
+  revalidatePath("/item-requests"); revalidatePath("/inventory"); redirect("/item-requests");
+}
+
+export async function releaseItemRequestAction(formData: FormData) {
+  const requestId = requiredString(formData, "requestId");
+  await runAction(formData, "/item-requests", "Medicines", "Release item request", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const releasedBy = optionalString(formData, "releasedBy") ?? user.name;
+    const result = await prisma.$transaction(async (tx) => {
+      const request = await tx.medicineRequest.findUnique({
+        where: { id: requestId },
+        include: { inventoryItem: true, visit: { include: { patient: true } } },
+      });
+      if (!request || request.status !== "APPROVED") throw new Error("This request is not approved for release.");
+      const requestClinicId = request.inventoryItem?.clinicId ?? request.visit?.patient.clinicId;
+      if (requestClinicId !== user.clinicId) throw new Error("This request is not approved for release.");
+      const item = request.inventoryItem;
+      if (!item) throw new Error("The requested inventory batch is no longer available.");
+      const existingRelease = await tx.inventoryMovement.findFirst({
+        where: { medicineRequestId: request.id, quantityChange: { lt: 0 } },
+        select: { id: true },
+      });
+      if (existingRelease) {
+        const updatedRequest = await tx.medicineRequest.update({
+          where: { id: request.id },
+          data: { status: "RELEASED", releasedBy, releasedAt: request.releasedAt ?? new Date() },
+        });
+        return { request: updatedRequest, clinicId: requestClinicId };
+      }
+      if (item.stock < request.quantity) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
+      const releasedAt = new Date();
+      const claimed = await tx.medicineRequest.updateMany({
+        where: { id: request.id, status: "APPROVED" },
+        data: { status: "RELEASED", releasedBy, releasedAt },
+      });
+      if (claimed.count !== 1) throw new Error("This request is no longer approved for release.");
+      const stockUpdate = await tx.inventoryItem.updateMany({
+        where: { id: item.id, stock: { gte: request.quantity } },
+        data: { stock: { decrement: request.quantity } },
+      });
+      if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
+      await tx.inventoryMovement.create({
+        data: {
+          inventoryItemId: item.id,
+          medicineRequestId: request.id,
+          quantityChange: -request.quantity,
+          reason: request.visitId ? `Medicine release for visit ${request.visitId}` : `Item request release ${request.id}`,
+        },
+      });
+      const updatedRequest = await tx.medicineRequest.findUniqueOrThrow({ where: { id: request.id } });
+      return { request: updatedRequest, clinicId: requestClinicId };
+    });
+
+    await writeActivityLog({
+      clinicId: result.clinicId,
+      userId: user.id,
+      module: "Medicines",
+      action: "Release item request",
+      entityType: "MedicineRequest",
+      entityId: result.request.id,
+      description: `Released request for ${result.request.quantity} ${result.request.itemName}.`,
+      metadata: { releasedBy },
+    });
   }, { type: "MedicineRequest", id: requestId });
   revalidatePath("/item-requests"); revalidatePath("/inventory"); redirect("/item-requests");
 }

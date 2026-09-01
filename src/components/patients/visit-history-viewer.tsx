@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, CalendarClock, CheckCircle2, ClipboardList, Pill, Stethoscope, Syringe, type LucideIcon } from "lucide-react";
+import { Activity, CalendarClock, CheckCircle2, ClipboardList, FlaskConical, Pill, Stethoscope, Syringe, type LucideIcon } from "lucide-react";
+import { labForms } from "@/lib/lab-results";
 import type { PatientVisitWorkflow } from "@/lib/patient-view";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -154,6 +155,47 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
               ))}
               {selectedVisit.followUps.length === 0 ? <p className="px-3 py-4 text-sm text-slate-500">No follow-up records.</p> : null}
             </div>
+          </div>
+        </div>
+
+        <div className="border bg-white">
+          <SectionHeader icon={FlaskConical} title="Laboratory Results" />
+          <div className="divide-y">
+            {selectedVisit.labResults.map((result) => {
+              const definition = labForms[result.type];
+              return (
+                <details key={result.id} className="px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-bold text-slate-800">
+                    {result.typeLabel} / Received {result.dateReceived || "-"} / Released {result.dateReleased || "-"}
+                    <span className="block text-xs font-normal text-slate-500">{result.laboratoryHospital || "No laboratory recorded"}</span>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {definition.sections.map((section) => (
+                      <div key={section.title} className="overflow-hidden border">
+                        <p className="border-b bg-slate-50 px-2 py-1 text-xs font-black uppercase text-slate-600">{section.title}</p>
+                        <div className="divide-y">
+                          {section.tests.map((test) => {
+                            const primary = result.values[`${test.key}.result`];
+                            const si = result.values[`${test.key}.siResult`];
+                            const conventional = result.values[`${test.key}.conventionalResult`];
+                            const display = section.mode === "dual"
+                              ? [`SI: ${si || "-"}`, `Conventional: ${conventional || "-"}`].join(" / ")
+                              : primary || "-";
+                            return (
+                              <div key={test.key} className="grid gap-1 px-2 py-1 md:grid-cols-[14rem_1fr]">
+                                <span className="font-semibold text-slate-700">{test.name}</span>
+                                <span className="text-slate-600">{display}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              );
+            })}
+            {selectedVisit.labResults.length === 0 ? <p className="px-3 py-4 text-sm text-slate-500">No laboratory results recorded.</p> : null}
           </div>
         </div>
 

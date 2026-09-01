@@ -1,5 +1,6 @@
 import {
   InventoryCategory,
+  LabResultType,
   PatientGender,
   Prisma,
   RequestType,
@@ -17,6 +18,7 @@ import {
   getDateParts,
   getMonthRange,
 } from "@/lib/date-time";
+import { labTypeLabels } from "@/lib/lab-results";
 
 const requestTypeLabels: Record<RequestType, string> = {
   CONSULTATION: "Medical Consultation",
@@ -67,6 +69,12 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
         satisfactionSurvey: true;
         followUps: true;
         vaccinations: true;
+        referrals: true;
+        labResults: {
+          include: {
+            values: true;
+          };
+        };
       };
     };
   };
@@ -171,8 +179,21 @@ export type PatientVisitWorkflow = {
     status: string;
     releasedBy: string;
     receivedBy: string;
+    releasedAt: string;
+    receivedAt: string;
     remarks: string;
   }[];
+  labResults: {
+    id: string;
+    type: LabResultType;
+    typeLabel: string;
+    dateReceived: string;
+    dateReleased: string;
+    laboratoryHospital: string;
+    createdAt: string;
+    values: Record<string, string>;
+  }[];
+  servicesReceived: string;
   vaccinations: {
     id: string;
     vaccine: string;
@@ -272,6 +293,23 @@ export type MedicineReportData = {
   rows: { label: string; start: string; stockIn: number; stockOut: number; movementCount: number }[];
   totals: { stockIn: number; stockOut: number; movementCount: number };
   newStockHistory: { id: string; date: string; medicine: string; dosage: string; brandName: string; batch: string; expirationDate: string; quantity: number; unit: string }[];
+};
+
+export type SupplyFrequencyReportData = {
+  period: MedicineReportPeriod;
+  rangeLabel: string;
+  category: string;
+  rows: {
+    itemId: string;
+    item: string;
+    category: string;
+    currentStock: number;
+    unit: string;
+    requestCount: number;
+    quantityReleased: number;
+    averageReleasedPerRequest: number;
+  }[];
+  totals: { requestCount: number; quantityReleased: number };
 };
 
 export type ClinicSettingsData = {
@@ -557,9 +595,49 @@ function toFollowUpPatientTableRow(patient: FollowUpPatientRecord): PatientTable
   };
 }
 
+type AvailedVisitSource = {
+  status: VisitStatus;
+  requests: { type: RequestType }[];
+  medicines: { status: string }[];
+  vaccinations: unknown[];
+  followUps: { status: string }[];
+  referrals: unknown[];
+};
+
+export function getAvailedServiceLabels(visit: AvailedVisitSource) {
+  const requested = new Set(visit.requests.map((request) => request.type));
+  const labels: string[] = [];
+
+  if (requested.has(RequestType.CONSULTATION) && visit.status === VisitStatus.COMPLETED) {
+    labels.push(requestTypeLabels.CONSULTATION);
+  }
+  if (visit.medicines.some((medicine) => medicine.status === "RECEIVED")) {
+    labels.push(requestTypeLabels.MEDICINES);
+  }
+  if (visit.vaccinations.length > 0) {
+    labels.push(requestTypeLabels.VACCINATION);
+  }
+  if (visit.referrals.length > 0) {
+    labels.push(requestTypeLabels.REFERRAL);
+  }
+  for (const type of [
+    RequestType.CS_211_MEDICAL_CERTIFICATE,
+    RequestType.REGULAR_MEDICAL_CERTIFICATE,
+    RequestType.MEDICAL_ALLOWANCE,
+    RequestType.EMERGENCY,
+    RequestType.FIRST_AID_KIT,
+  ]) {
+    if (requested.has(type) && visit.status === VisitStatus.COMPLETED) labels.push(requestTypeLabels[type]);
+  }
+
+  return labels;
+}
+
 function toVisitWorkflow(
   visit: PatientWorkflowRecord["visits"][number]
 ): PatientVisitWorkflow {
+  const servicesReceived = getAvailedServiceLabels(visit).join(", ");
+
   return {
     id: visit.id,
     timeIn: formatDateTime(visit.timeIn),
@@ -590,8 +668,21 @@ function toVisitWorkflow(
       status: medicine.status,
       releasedBy: medicine.releasedBy ?? "",
       receivedBy: medicine.receivedBy ?? "",
+      releasedAt: medicine.releasedAt ? formatDateTime(medicine.releasedAt) : "",
+      receivedAt: medicine.receivedAt ? formatDateTime(medicine.receivedAt) : "",
       remarks: medicine.remarks ?? "",
     })),
+    labResults: visit.labResults.map((result) => ({
+      id: result.id,
+      type: result.type,
+      typeLabel: labTypeLabels[result.type],
+      dateReceived: result.dateReceived ? formatDateKey(result.dateReceived) : "",
+      dateReleased: result.dateReleased ? formatDateKey(result.dateReleased) : "",
+      laboratoryHospital: result.laboratoryHospital ?? "",
+      createdAt: formatDateTime(result.createdAt),
+      values: Object.fromEntries(result.values.map((value) => [value.fieldKey, value.result])),
+    })),
+    servicesReceived,
     vaccinations: visit.vaccinations.map((record) => ({
       id: record.id,
       vaccine: record.vaccine,
@@ -968,6 +1059,14 @@ export async function getVaccinationPatientTableRows(
               createdAt: "desc",
             },
           },
+          labResults: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              values: true,
+            },
+          },
         },
       },
     },
@@ -1072,9 +1171,18 @@ export async function getPatientWorkflowProfile(id: string): Promise<PatientWork
               scheduledFor: "desc",
             },
           },
+          referrals: true,
           vaccinations: {
             orderBy: {
               createdAt: "desc",
+            },
+          },
+          labResults: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              values: true,
             },
           },
         },
@@ -1198,10 +1306,11 @@ function medicinePeriodLabel(date: Date, period: MedicineReportPeriod) {
   return String(date.getFullYear());
 }
 
-export async function getMedicineReportData(period: MedicineReportPeriod = "MONTHLY"): Promise<MedicineReportData> {
+export async function getMedicineReportData(period: MedicineReportPeriod = "MONTHLY", clinicId?: string): Promise<MedicineReportData> {
   const { start, end } = getMedicineReportRange(period);
+  const clinicWhere = clinicId ? { clinicId } : {};
   const items = await prisma.inventoryItem.findMany({
-    where: { category: InventoryCategory.MEDICINE },
+    where: { ...clinicWhere, category: InventoryCategory.MEDICINE },
     include: { movements: { where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: "desc" } } },
   });
   const buckets = new Map<string, MedicineReportData["rows"][number]>();
@@ -1217,7 +1326,7 @@ export async function getMedicineReportData(period: MedicineReportPeriod = "MONT
     }
   }
   const newStockHistory = await prisma.inventoryMovement.findMany({
-    where: { quantityChange: { gt: 0 }, reason: "Manual stock addition", createdAt: { gte: start, lte: end }, item: { category: InventoryCategory.MEDICINE } },
+    where: { quantityChange: { gt: 0 }, reason: "Manual stock addition", createdAt: { gte: start, lte: end }, item: { ...clinicWhere, category: InventoryCategory.MEDICINE } },
     orderBy: { createdAt: "desc" },
     include: { item: true },
   });
@@ -1239,6 +1348,74 @@ export async function getMedicineReportData(period: MedicineReportPeriod = "MONT
       quantity: movement.quantityChange,
       unit: movement.item.unit,
     })),
+  };
+}
+
+export async function getSupplyFrequencyReportData(clinicId: string, period: MedicineReportPeriod = "MONTHLY", category = "all"): Promise<SupplyFrequencyReportData> {
+  const { start, end } = getMedicineReportRange(period);
+  const allowedCategories: InventoryCategory[] = [InventoryCategory.MEDICINE, InventoryCategory.SUPPLY, InventoryCategory.OFFICE_SUPPLY];
+  const categoryFilter = allowedCategories.includes(category as InventoryCategory)
+    ? category as InventoryCategory
+    : null;
+  const itemWhere: Prisma.InventoryItemWhereInput = {
+    clinicId,
+    category: categoryFilter ?? { in: allowedCategories },
+  };
+  const [items, requests, movements] = await Promise.all([
+    prisma.inventoryItem.findMany({
+      where: itemWhere,
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, category: true, stock: true, unit: true, dosage: true, brandName: true },
+    }),
+    prisma.medicineRequest.groupBy({
+      by: ["inventoryItemId"],
+      where: {
+        inventoryItemId: { not: null },
+        createdAt: { gte: start, lte: end },
+        inventoryItem: itemWhere,
+      },
+      _count: { _all: true },
+    }),
+    prisma.inventoryMovement.groupBy({
+      by: ["inventoryItemId"],
+      where: {
+        quantityChange: { lt: 0 },
+        createdAt: { gte: start, lte: end },
+        medicineRequestId: { not: null },
+        item: itemWhere,
+      },
+      _sum: { quantityChange: true },
+    }),
+  ]);
+  const requestCounts = new Map(requests.map((row) => [row.inventoryItemId, row._count._all]));
+  const releasedQuantities = new Map(movements.map((row) => [row.inventoryItemId, Math.abs(row._sum.quantityChange ?? 0)]));
+  const rows = items
+    .map((item) => {
+      const requestCount = requestCounts.get(item.id) ?? 0;
+      const quantityReleased = releasedQuantities.get(item.id) ?? 0;
+      return {
+        itemId: item.id,
+        item: [item.name, item.dosage, item.brandName].filter(Boolean).join(" / "),
+        category: inventoryCategoryLabels[item.category],
+        currentStock: item.stock,
+        unit: item.unit,
+        requestCount,
+        quantityReleased,
+        averageReleasedPerRequest: requestCount ? quantityReleased / requestCount : 0,
+      };
+    })
+    .filter((row) => row.requestCount > 0 || row.quantityReleased > 0)
+    .sort((a, b) => b.requestCount - a.requestCount || b.quantityReleased - a.quantityReleased || a.item.localeCompare(b.item));
+
+  return {
+    period,
+    rangeLabel: `${formatDisplayDate(start)} to ${formatDisplayDate(end)}`,
+    category: categoryFilter ?? "all",
+    rows,
+    totals: rows.reduce((total, row) => ({
+      requestCount: total.requestCount + row.requestCount,
+      quantityReleased: total.quantityReleased + row.quantityReleased,
+    }), { requestCount: 0, quantityReleased: 0 }),
   };
 }
 

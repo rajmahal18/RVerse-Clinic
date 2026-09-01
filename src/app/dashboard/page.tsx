@@ -88,7 +88,7 @@ export default async function DashboardPage() {
         },
       },
     }),
-    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: "REQUESTED" }] } }),
+    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] } }),
     prisma.inventoryItem.findMany({
       where: { clinicId: currentUser?.clinicId ?? "__unauthenticated__" },
       select: { stock: true, reorderLevel: true },

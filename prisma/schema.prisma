@@ -48,6 +48,12 @@ enum InventoryCategory {
   EQUIPMENT
 }
 
+enum LabResultType {
+  CLINICAL_CHEMISTRY
+  URINALYSIS
+  HEMATOLOGY
+}
+
 model Clinic {
   id        String   @id @default(cuid())
   name      String
@@ -173,6 +179,7 @@ model Visit {
   referrals    Referral[]
   vaccinations VaccinationRecord[]
   followUps    FollowUp[]
+  labResults   LabResult[]
 
   @@index([patientId, timeIn])
 }
@@ -202,6 +209,8 @@ model MedicineRequest {
   status          String    @default("REQUESTED")
   releasedBy      String?
   receivedBy      String?
+  releasedAt      DateTime?
+  receivedAt      DateTime?
   remarks         String?
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?
@@ -213,6 +222,37 @@ model MedicineRequest {
 
   @@index([inventoryItemId])
   @@index([requestedByUserId])
+}
+
+model LabResult {
+  id                 String        @id @default(cuid())
+  visitId            String
+  followUpId         String?
+  type               LabResultType
+  dateReceived       DateTime?
+  dateReleased       DateTime?
+  laboratoryHospital String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  visit    Visit            @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  followUp FollowUp?        @relation(fields: [followUpId], references: [id], onDelete: SetNull)
+  values   LabResultValue[]
+
+  @@index([visitId, type, createdAt])
+  @@index([followUpId])
+}
+
+model LabResultValue {
+  id          String @id @default(cuid())
+  labResultId String
+  fieldKey    String
+  result      String
+
+  labResult LabResult @relation(fields: [labResultId], references: [id], onDelete: Cascade)
+
+  @@unique([labResultId, fieldKey])
+  @@index([fieldKey])
 }
 
 model ClientSatisfactionSurvey {
@@ -299,6 +339,7 @@ model FollowUp {
   updatedAt    DateTime       @updatedAt
 
   visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  labResults LabResult[]
 
   @@index([scheduledFor, status])
   @@index([visitId])
