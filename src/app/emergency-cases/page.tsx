@@ -6,7 +6,7 @@ export default function EmergencyPage() {
   return (
     <AppShell>
       <PageHeader title="Emergency Cases" />
-      <section className="border bg-white px-4 py-10 text-center shadow-sm">
+      <section className="rounded-2xl border bg-white px-4 py-10 text-center shadow-soft">
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-rose-50 text-rose-700">
           <ShieldPlus className="h-6 w-6" />
         </div>

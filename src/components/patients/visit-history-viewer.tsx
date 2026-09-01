@@ -31,7 +31,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
 
   if (!visits.length || !selectedVisit) {
     return (
-      <p className="border bg-white px-4 py-8 text-center text-sm text-slate-500">
+      <p className="rounded-xl border border-dashed bg-white px-4 py-8 text-center text-sm text-slate-500">
         No assessment history recorded yet.
       </p>
     );
@@ -39,7 +39,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(18rem,0.42fr)_minmax(0,1fr)]">
-      <section className="min-w-0 overflow-hidden border bg-white">
+      <section className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-soft">
         <div className="border-b bg-slate-50 px-3 py-2">
           <h3 className="text-sm font-black text-slate-900">Visit History</h3>
           <p className="text-xs text-slate-500">Select a row to review the visit record.</p>
@@ -78,7 +78,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
       </section>
 
       <section className="min-w-0 space-y-4">
-        <div className="border bg-white">
+        <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={ClipboardList} title="Visit Summary" />
           <div className="grid md:grid-cols-3">
             <DetailItem label="Time in" value={selectedVisit.timeIn} />
@@ -91,7 +91,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
           </div>
         </div>
 
-        <div className="border bg-white">
+        <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={Stethoscope} title="Assessment" />
           <div className="grid md:grid-cols-2">
             <DetailItem label="Chief complaint" value={selectedVisit.chiefComplaint} />
@@ -103,7 +103,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
           </div>
         </div>
 
-        <div className="border bg-white">
+        <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={Activity} title="Vital Signs" />
           <div className="grid grid-cols-2 md:grid-cols-5">
             <DetailItem label="BP" value={selectedVisit.bloodPressure} />
@@ -115,7 +115,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
-          <div className="min-w-0 border bg-white">
+          <div className="min-w-0 overflow-hidden rounded-xl border bg-white">
             <SectionHeader icon={Pill} title="Medicines" />
             <div className="divide-y">
               {selectedVisit.medicines.map((medicine) => (
@@ -129,7 +129,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
             </div>
           </div>
 
-          <div className="min-w-0 border bg-white">
+          <div className="min-w-0 overflow-hidden rounded-xl border bg-white">
             <SectionHeader icon={Syringe} title="Vaccination" />
             <div className="divide-y">
               {selectedVisit.vaccinations.map((record) => (
@@ -143,7 +143,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
             </div>
           </div>
 
-          <div className="min-w-0 border bg-white">
+          <div className="min-w-0 overflow-hidden rounded-xl border bg-white">
             <SectionHeader icon={CalendarClock} title="Follow-ups" />
             <div className="divide-y">
               {selectedVisit.followUps.map((followUp) => (
@@ -158,7 +158,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
           </div>
         </div>
 
-        <div className="border bg-white">
+        <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={FlaskConical} title="Laboratory Results" />
           <div className="divide-y">
             {selectedVisit.labResults.map((result) => {
@@ -171,7 +171,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
                   </summary>
                   <div className="mt-3 space-y-3">
                     {definition.sections.map((section) => (
-                      <div key={section.title} className="overflow-hidden border">
+                      <div key={section.title} className="overflow-hidden rounded-lg border">
                         <p className="border-b bg-slate-50 px-2 py-1 text-xs font-black uppercase text-slate-600">{section.title}</p>
                         <div className="divide-y">
                           {section.tests.map((test) => {
@@ -200,7 +200,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
         </div>
 
         {selectedVisit.status === "Completed" ? (
-          <div className="flex items-center gap-2 border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-700">
             <CheckCircle2 className="h-4 w-4" />
             This visit is completed and shown as history.
           </div>

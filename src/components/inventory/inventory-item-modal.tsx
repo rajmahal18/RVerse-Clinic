@@ -1,24 +1,31 @@
 "use client";
 
 import type { InventoryTableRow } from "@/lib/patient-view";
-import { PackagePlus, PencilLine, Trash2, X } from "lucide-react";
+import { AlertTriangle, PackagePlus, PencilLine, Trash2, X } from "lucide-react";
 import { addInventoryQuantityAction, deleteInventoryItemAction, updateInventoryItemAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
+function stockTone(status: string) {
+  if (status === "Out of stock") return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
+  if (status === "Low stock") return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+  return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
+}
+
 export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow; onClose: () => void }) {
   const medicineLike = item.category === "Medicine" || item.category === "Vaccine";
+  const supportsExpiry = medicineLike || item.category === "Medical Supplies";
   const editableFields = [
-    ["name", medicineLike ? "Generic name" : "Item name", item.item],
+    ["name", medicineLike ? (item.category === "Vaccine" ? "Vaccine name" : "Generic name") : "Item name", item.item],
     ...(medicineLike
       ? [
-          ["dosage", "Dosage", item.dosage === "-" ? "" : item.dosage],
-          ["brandName", "Brand", item.brandName === "-" ? "" : item.brandName],
+          ["dosage", "Dosage", item.dosage === "—" || item.dosage === "-" ? "" : item.dosage],
+          ["brandName", "Brand", item.brandName === "—" || item.brandName === "-" ? "" : item.brandName],
           ["classification", "Classification", item.classification],
         ]
       : []),
-    ["unit", "Unit", item.unit],
-    ["pcsPerBox", "Pieces per box", item.pcsPerBox === "-" ? "" : item.pcsPerBox],
+    ["unit", "Stock unit", item.unit],
+    ["pcsPerBox", "Pack size / pieces per box", item.pcsPerBox === "—" || item.pcsPerBox === "-" ? "" : item.pcsPerBox],
     ["reorderLevel", "Low-stock threshold", String(item.reorder)],
   ];
 
@@ -33,9 +40,12 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-lg font-black text-slate-900">{item.item}</h2>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">{item.category}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>{item.status}</span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
-              {medicineLike ? [item.dosage, item.brandName, `Expires ${item.expirationDate}`].filter((part) => part && part !== "-").join(" / ") : `${item.unit} inventory item`}
+              {medicineLike
+                ? [item.dosage, item.brandName, supportsExpiry ? `Expires ${item.expirationDate}` : ""].filter((part) => part && part !== "—" && part !== "-").join(" / ")
+                : [item.unit, item.pcsPerBox !== "—" ? `${item.pcsPerBox} pcs/box` : "", supportsExpiry && item.expirationDate !== "—" ? `Expires ${item.expirationDate}` : ""].filter(Boolean).join(" / ")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -50,6 +60,13 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
         </div>
 
         <div className="min-h-0 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+          {item.status !== "Healthy" ? (
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{item.status === "Out of stock" ? "This item is currently out of stock." : `Stock is at or below the reorder threshold of ${item.reorder} ${item.unit}.`}</span>
+            </div>
+          ) : null}
+
           <section className="overflow-hidden rounded-xl border">
             <div className="flex items-center gap-2 border-b bg-emerald-50/60 px-3 py-2.5">
               <PackagePlus className="h-4 w-4 text-emerald-700" />
@@ -90,13 +107,13 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
                   <input name={name} defaultValue={value} className="h-10 rounded-xl border px-3 font-normal" />
                 </label>
               ))}
-              {medicineLike ? (
+              {supportsExpiry ? (
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                  Expiration date
+                  Expiration date{!medicineLike ? <span className="font-normal text-slate-400"> (optional)</span> : null}
                   <input name="expirationDate" type="date" defaultValue={item.expirationDateValue} className="h-10 rounded-xl border px-3 font-normal" />
                 </label>
               ) : null}
-              <div className="flex justify-end pt-1 sm:col-span-2">
+              <div className="flex justify-end border-t pt-3 sm:col-span-2">
                 <Button type="submit">Save changes</Button>
               </div>
             </form>
@@ -112,10 +129,10 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             <CsrfField />
             <input type="hidden" name="itemId" value={item.id} />
             <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800">Delete inventory batch</p>
+              <p className="text-sm font-bold text-slate-800">Delete inventory item</p>
               <p className="text-xs text-slate-500">This also removes its movement rows.</p>
             </div>
-            <Button type="submit" variant="outline" className="shrink-0 text-rose-700">
+            <Button type="submit" variant="outline" className="shrink-0 border-rose-200 text-rose-700 hover:bg-rose-50">
               <Trash2 className="h-4 w-4" /> Delete
             </Button>
           </form>

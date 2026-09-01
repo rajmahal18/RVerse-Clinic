@@ -95,7 +95,7 @@ function SelectField({
 
 export function PatientFilterBar({ filters, options, searchQuery }: PatientFilterBarProps) {
   return (
-    <form action="/patients" onChange={(event) => event.currentTarget.requestSubmit()} className="mb-4 border bg-white px-3 py-3 shadow-sm">
+    <form action="/patients" onChange={(event) => event.currentTarget.requestSubmit()} className="mb-4 rounded-xl border bg-white px-3 py-3 shadow-sm">
       {searchQuery ? <input type="hidden" name="q" value={searchQuery} /> : null}
       <div className="grid grid-cols-2 items-end gap-x-2 gap-y-2 sm:flex sm:flex-wrap">
         <SelectField label="Status" name="status" value={filters.status} className="col-start-1">

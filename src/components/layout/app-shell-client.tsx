@@ -164,8 +164,8 @@ export function AppShellClient({
           </div>
         </header>
         {hasMedicineExpiryAlert ? (
-          <div className="mx-3 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border px-3 py-2 text-sm font-semibold md:mx-8 md:mt-4">
-            <span className="font-black text-rose-700">Medicine expiry:</span>
+          <div className="mx-3 mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-sm font-semibold md:mx-8 md:mt-4">
+            <span className="font-black text-slate-800">Medicine expiry:</span>
             {medicineExpiry.expired > 0 ? <span className="text-rose-700">{medicineExpiry.expired} expired</span> : null}
             {medicineExpiry.expiringSoon > 0 ? <span className="text-amber-700">{medicineExpiry.expiringSoon} expiring within 30 days</span> : null}
             <div className="ml-auto flex items-center gap-3">

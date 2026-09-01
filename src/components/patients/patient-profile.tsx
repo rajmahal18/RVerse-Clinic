@@ -340,7 +340,7 @@ export async function PatientProfile({ id }: { id: string }) {
                 </section>
 
                 <section className="space-y-4">
-                  <div className="rounded-3xl border bg-slate-50 px-4 py-4">
+                  <div className="rounded-xl border bg-slate-50/70 px-4 py-3">
                     <p className="text-sm font-semibold text-slate-700">Visit requests</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {activeVisit.requests.length ? (
@@ -356,12 +356,12 @@ export async function PatientProfile({ id }: { id: string }) {
                   </div>
 
                   {!activeVisitSurveyComplete ? (
-                    <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-800">
                       Complete the Client Satisfaction Measurement Survey before marking this appointment as completed.
                     </div>
                   ) : null}
                   {medicineBlockMessage ? (
-                    <div className="border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800">
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-800">
                       {medicineBlockMessage}
                     </div>
                   ) : null}
@@ -386,7 +386,7 @@ export async function PatientProfile({ id }: { id: string }) {
                   </div>
                 </section>
               </AutosaveForm>
-              <div className="mt-5 border bg-slate-50 px-4 py-4">
+              <div className="mt-5 rounded-xl border bg-slate-50/70 px-4 py-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-sm font-black text-slate-900">Treatment Actions</h3>

@@ -91,8 +91,8 @@ export default async function ItemRequestsPage({
         </Link>
       </nav>
 
-      <section className="overflow-hidden rounded-2xl border bg-white">
-        <div className="flex items-center gap-3 border-b bg-slate-50 px-4 py-3">
+      <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">
+        <div className="flex items-center gap-3 border-b bg-slate-50/70 px-4 py-3">
           <PackageCheck className="h-5 w-5 text-primary" />
           <div>
             <h2 className="font-black">{myRequestsView ? "My requests" : historyView ? "Request history" : "Pending requests"}</h2>

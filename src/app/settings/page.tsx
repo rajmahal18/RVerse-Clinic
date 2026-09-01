@@ -12,6 +12,10 @@ function roleLabel(role: string) {
   return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
 }
 
+function statusTone(active: boolean) {
+  return active ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-slate-100 text-slate-600 ring-slate-200";
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -24,65 +28,110 @@ export default async function SettingsPage({
     <AppShell>
       <PageHeader title="Settings" />
       <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
-      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
         <Card>
-          <CardHeader>
+          <CardHeader className="border-b bg-slate-50/70">
             <CardTitle>Clinic Profile</CardTitle>
+            <p className="text-sm text-slate-500">Information used across clinic forms and official records.</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-5">
             <form action={updateClinicSettingsAction} className="grid gap-4">
               <CsrfField />
-              <input name="name" defaultValue={settings.clinic.name} className="rounded-xl border px-3 py-2 text-sm" placeholder="Clinic name" />
-              <input name="address" defaultValue={settings.clinic.address} className="rounded-xl border px-3 py-2 text-sm" placeholder="Address" />
-              <input name="contact" defaultValue={settings.clinic.contact} className="rounded-xl border px-3 py-2 text-sm" placeholder="Contact number" />
-              <input name="email" defaultValue={settings.clinic.email} className="rounded-xl border px-3 py-2 text-sm" placeholder="Email" />
-              <Button type="submit">Save Clinic Settings</Button>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Clinic name
+                <input name="name" defaultValue={settings.clinic.name} className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Address
+                <input name="address" defaultValue={settings.clinic.address} className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                  Contact number
+                  <input name="contact" defaultValue={settings.clinic.contact} className="h-10 rounded-xl border px-3 font-normal" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                  Email
+                  <input name="email" type="email" defaultValue={settings.clinic.email} className="h-10 rounded-xl border px-3 font-normal" />
+                </label>
+              </div>
+              <div className="flex justify-end border-t pt-4">
+                <Button type="submit">Save Clinic Settings</Button>
+              </div>
             </form>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>User Roles</CardTitle>
+          <CardHeader className="border-b bg-slate-50/70">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle>User Accounts</CardTitle>
+                <p className="mt-1 text-sm text-slate-500">Create staff accounts and manage access status.</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">{settings.users.length} users</span>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-5">
             <form action={createUserAction} className="grid gap-3 md:grid-cols-2">
               <CsrfField />
               <input type="hidden" name="redirectTo" value="/settings" />
-              <input name="name" className="rounded-xl border px-3 py-2 text-sm" placeholder="Full name" />
-              <input name="displayName" className="rounded-xl border px-3 py-2 text-sm" placeholder="Display name for forms" />
-              <input name="email" type="email" className="rounded-xl border px-3 py-2 text-sm" placeholder="Email" />
-              <input name="password" type="password" className="rounded-xl border px-3 py-2 text-sm" placeholder="Temporary password" />
-              <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="rounded-xl border px-3 py-2 text-sm">
-                {Object.values(UserRole).map((role) => (
-                  <option key={role} value={role}>
-                    {roleLabel(role)}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit">Add User</Button>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Full name
+                <input name="name" className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Display name for forms
+                <input name="displayName" className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Email
+                <input name="email" type="email" className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Temporary password
+                <input name="password" type="password" className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
+                Role
+                <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="h-10 rounded-xl border bg-white px-3 font-normal">
+                  {Object.values(UserRole).map((role) => (
+                    <option key={role} value={role}>{roleLabel(role)}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-end">
+                <Button type="submit" className="w-full md:w-auto">Add User</Button>
+              </div>
             </form>
 
-            <div className="space-y-3 rounded-2xl bg-slate-100 p-2">
-              {settings.users.map((user) => (
-                <div key={user.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="font-semibold text-slate-800">{user.name}</p>
-                    <p className="text-sm text-slate-500">{user.email}</p>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{roleLabel(user.role)}</p>
+            <div className="my-5 border-t" />
+
+            <div className="overflow-hidden rounded-xl border bg-white">
+              {settings.users.map((user, index) => (
+                <div key={user.id} className={`flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between ${index ? "border-t" : ""}`}>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate font-bold text-slate-900">{user.name}</p>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ${statusTone(user.isActive)}`}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-sm text-slate-500">{user.email}</p>
+                    <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{roleLabel(user.role)}</p>
                   </div>
-                  <form action={toggleUserStatusAction}>
+                  <form action={toggleUserStatusAction} className="shrink-0">
                     <CsrfField />
                     <input type="hidden" name="userId" value={user.id} />
                     <input type="hidden" name="isActive" value={String(!user.isActive)} />
-                    <Button type="submit" variant={user.isActive ? "outline" : "default"}>
+                    <Button type="submit" size="sm" variant={user.isActive ? "outline" : "default"} className={user.isActive ? "text-slate-600" : ""}>
                       {user.isActive ? "Deactivate" : "Activate"}
                     </Button>
                   </form>
                 </div>
               ))}
               {settings.users.length === 0 ? (
-                <p className="text-sm text-slate-500">No user accounts configured yet.</p>
+                <p className="px-4 py-10 text-center text-sm text-slate-500">No user accounts configured yet.</p>
               ) : null}
             </div>
           </CardContent>

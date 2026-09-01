@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileText } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -20,13 +20,28 @@ export default async function PatientFormsPage({
 
   return (
     <AppShell>
-      <PageHeader title="Clinic Forms" />
+      <PageHeader
+        title="Clinic Forms"
+        actions={
+          <Link href={`/patients/${id}`} className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+            <ArrowLeft className="h-4 w-4" /> Patient Profile
+          </Link>
+        }
+      />
       <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">
-        <div className="border-b bg-slate-50 px-4 py-3">
-          <h2 className="font-black text-slate-900">{data.patient.fullName}</h2>
-          <p className="text-sm text-slate-500">Select a form to preview, print, or save as PDF.</p>
+        <div className="flex flex-col gap-2 border-b bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-5">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">Patient</p>
+            <h2 className="mt-0.5 font-black text-slate-900">{data.patient.fullName}</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Preview, print, or save available clinic forms as PDF.</p>
+          </div>
+          {data.selectedVisit ? (
+            <Badge className="w-fit bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">Visit selected</Badge>
+          ) : (
+            <Badge className="w-fit bg-slate-100 text-slate-600">No visit selected</Badge>
+          )}
         </div>
-        <div className="divide-y-8 divide-slate-100 bg-slate-100 lg:divide-y lg:divide-slate-200 lg:bg-white">
+        <div className="divide-y divide-slate-100">
           {clinicForms.map((form) => {
             const disabled = form.scope === "visit" && !data.selectedVisit;
 
@@ -35,16 +50,20 @@ export default async function PatientFormsPage({
                 key={form.slug}
                 href={disabled ? "#" : `/patients/${id}/forms/${form.slug}`}
                 aria-disabled={disabled}
-                className={`flex items-center gap-3 border-y border-slate-200 bg-white px-4 py-4 shadow-sm transition lg:border-y-0 lg:shadow-none ${disabled ? "pointer-events-none opacity-50" : "hover:bg-slate-50"}`}
+                className={`group flex items-center gap-3 px-4 py-3.5 transition md:px-5 ${disabled ? "pointer-events-none opacity-45" : "hover:bg-slate-50"}`}
               >
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-primary">
-                  <FileText className="h-5 w-5" />
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-primary">
+                  <FileText className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-black text-slate-900">{form.title}</p>
-                  <p className="text-sm text-slate-500">{form.scope === "patient" ? "Patient-level form" : "Consultation-level form"}</p>
+                  <p className="font-bold text-slate-900">{form.title}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{form.scope === "patient" ? "Patient record" : "Current visit record"}</p>
                 </div>
-                {disabled ? <Badge className="bg-slate-100 text-slate-600">No visit</Badge> : <ArrowRight className="h-4 w-4 text-slate-400" />}
+                {disabled ? (
+                  <Badge className="bg-slate-100 text-slate-600">Requires visit</Badge>
+                ) : (
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary" />
+                )}
               </Link>
             );
           })}

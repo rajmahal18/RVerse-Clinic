@@ -2,17 +2,32 @@
 
 import type { InventoryLedgerData } from "@/lib/patient-view";
 import { useState } from "react";
+import { AlertTriangle, Boxes, PackageCheck } from "lucide-react";
 import { MonthSelectForm } from "@/components/search/month-select-form";
-import { AlertTriangle } from "lucide-react";
 import { InventoryControls } from "@/components/inventory/inventory-controls";
 import { InventoryItemModal } from "@/components/inventory/inventory-item-modal";
+
+const categoryLabels: Record<string, string> = {
+  MEDICINE: "Medicine",
+  VACCINE: "Vaccine",
+  SUPPLY: "Medical Supplies",
+  OFFICE_SUPPLY: "Office Supplies",
+  EQUIPMENT: "Equipment",
+};
 
 function expiryTone(status: string) {
   if (status === "Expired") return "bg-rose-100 text-rose-800";
   if (status === "Within 1 month") return "bg-orange-100 text-orange-800";
   if (status === "Within 3 months") return "bg-amber-100 text-amber-800";
   if (status === "Within 6 months") return "bg-yellow-100 text-yellow-800";
+  if (status === "No expiry") return "bg-slate-100 text-slate-600";
   return "bg-emerald-50 text-emerald-700";
+}
+
+function stockTone(status: string) {
+  if (status === "Out of stock") return "bg-rose-50 text-rose-700 ring-1 ring-rose-200";
+  if (status === "Low stock") return "bg-amber-50 text-amber-700 ring-1 ring-amber-200";
+  return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
 }
 
 export function InventoryTable({
@@ -24,144 +39,226 @@ export function InventoryTable({
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedItem = ledger.rows.find((item) => item.id === selectedId);
+  const medicineLike = ledger.category === "MEDICINE" || ledger.category === "VACCINE";
+  const supportsExpiry = medicineLike || ledger.category === "SUPPLY";
+  const categoryLabel = categoryLabels[ledger.category] ?? "Inventory";
+  const movementVerb = medicineLike ? "dispensed" : "released / used";
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[28px] border bg-[linear-gradient(135deg,#eefbf6,#ffffff_45%,#f8fafc)] p-4 shadow-soft">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-primary">Inventory Ledger</p>
-            <h3 className="text-xl font-black tracking-tight text-slate-950">Monthly stock movement sheet</h3>
-            <p className="mt-1 text-sm text-slate-600">
-              Review beginning balance, received quantities, dispensed quantities, and ending stock for{" "}
-              <span className="font-semibold text-slate-800">{ledger.selectedMonthLabel}</span>.
-            </p>
-            <p className="mt-1 text-xs text-slate-500">
-              Encoded existing stock is included in beginning stocks. Only newly received stock appears under In.
-            </p>
+      <div className="overflow-hidden rounded-2xl border bg-white shadow-soft">
+        <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-primary">
+              <Boxes className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-primary">{categoryLabel}</p>
+              <h3 className="mt-0.5 text-xl font-black tracking-tight text-slate-950">Monthly stock movement</h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                Beginning stock, newly received quantities, {movementVerb} quantities, and remaining stock for{" "}
+                <span className="font-semibold text-slate-800">{ledger.selectedMonthLabel}</span>.
+              </p>
+            </div>
           </div>
           <MonthSelectForm
             action="/inventory"
             selectedMonth={ledger.selectedMonth}
             options={ledger.monthOptions}
             searchQuery={searchQuery}
-            preserveParams={{ expiry: ledger.expiryFilter, sort: ledger.sort }}
+            preserveParams={{ expiry: ledger.expiryFilter, sort: ledger.sort, category: ledger.category }}
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-slate-50/70 px-4 py-2 text-xs text-slate-500 md:px-5">
+          <span>Existing encoded stock is included in beginning stock.</span>
+          <span className="hidden text-slate-300 sm:inline">•</span>
+          <span>Only newly received stock appears under In.</span>
         </div>
       </div>
 
-      {(ledger.expiryAlerts.expired + ledger.expiryAlerts.withinOne + ledger.expiryAlerts.withinThree + ledger.expiryAlerts.withinSix) > 0 ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      {supportsExpiry && (ledger.expiryAlerts.expired + ledger.expiryAlerts.withinOne + ledger.expiryAlerts.withinThree + ledger.expiryAlerts.withinSix) > 0 ? (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
+          <div className="min-w-0">
             <p className="font-black">Expiration attention needed</p>
             <p className="mt-0.5 text-amber-800">
-              {ledger.expiryAlerts.expired} expired / {ledger.expiryAlerts.withinOne} within 1 month /{" "}
-              {ledger.expiryAlerts.withinThree} within 3 months / {ledger.expiryAlerts.withinSix} within 6 months
+              {ledger.expiryAlerts.expired} expired · {ledger.expiryAlerts.withinOne} within 1 month ·{" "}
+              {ledger.expiryAlerts.withinThree} within 3 months · {ledger.expiryAlerts.withinSix} within 6 months
             </p>
           </div>
         </div>
       ) : null}
 
-      <InventoryControls search={searchQuery} month={ledger.selectedMonth} expiry={ledger.expiryFilter} sort={ledger.sort} category={ledger.category} />
+      <InventoryControls
+        search={searchQuery}
+        month={ledger.selectedMonth}
+        expiry={ledger.expiryFilter}
+        sort={ledger.sort}
+        category={ledger.category}
+        showExpiry={supportsExpiry}
+        medicineLike={medicineLike}
+      />
 
-      <div className="divide-y-8 divide-slate-100 overflow-hidden rounded-2xl border bg-slate-100 lg:hidden">
+      <div className="divide-y overflow-hidden rounded-2xl border bg-white lg:hidden">
         {ledger.rows.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setSelectedId(item.id)}
-            className="block w-full border-y border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition active:bg-slate-50"
+            className="block w-full px-4 py-4 text-left transition hover:bg-slate-50 active:bg-slate-100"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-black text-slate-900">{item.item}</p>
-                <p className="truncate text-sm text-slate-500">{item.dosage} / {item.brandName}</p>
+                <p className="mt-0.5 truncate text-sm text-slate-500">
+                  {medicineLike
+                    ? [item.dosage, item.brandName].filter((part) => part && part !== "—" && part !== "-").join(" / ") || "No dosage / brand"
+                    : `${item.unit}${item.pcsPerBox !== "—" ? ` · ${item.pcsPerBox} pcs/box` : ""}`}
+                </p>
               </div>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>
-                {item.expiryStatus}
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>
+                {item.status}
               </span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <p>
-                <span className="block text-xs font-bold uppercase text-slate-400">Expires</span>
-                <b>{item.expirationDate}</b>
-              </p>
-              <p>
-                <span className="block text-xs font-bold uppercase text-slate-400">Remaining</span>
-                <b>{item.remainingPieces} {item.unit}</b>
-              </p>
-              <p className="min-w-0">
-                <span className="block text-xs font-bold uppercase text-slate-400">Class</span>
-                <span className="block truncate text-slate-700">{item.classification}</span>
-              </p>
-              <p>
-                <span className="block text-xs font-bold uppercase text-slate-400">Stock</span>
-                <span className="font-semibold text-slate-700">{item.status}</span>
-              </p>
+
+            <div className="mt-3 grid grid-cols-3 gap-3 border-t border-slate-100 pt-3 text-sm">
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Beginning</span>
+                <b className="mt-0.5 block text-slate-800">{item.beginningPieces} {item.unit}</b>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Out</span>
+                <b className="mt-0.5 block text-slate-800">{item.monthOutPieces} {item.unit}</b>
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Remaining</span>
+                <b className="mt-0.5 block text-slate-900">{item.remainingPieces} {item.unit}</b>
+              </div>
             </div>
+
+            {supportsExpiry ? (
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500">Expiration</span>
+                <span className={`rounded-full px-2 py-1 font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
+              </div>
+            ) : null}
           </button>
         ))}
         {ledger.rows.length === 0 ? (
-          <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No inventory items found for this view yet.</p>
+          <div className="grid place-items-center px-4 py-12 text-center">
+            <PackageCheck className="mb-2 h-8 w-8 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-600">No {categoryLabel.toLowerCase()} found for this view.</p>
+            <p className="mt-1 text-xs text-slate-400">Add an item or adjust the filters above.</p>
+          </div>
         ) : null}
       </div>
 
-      <div className="hidden overflow-hidden rounded-[28px] border bg-white shadow-soft lg:block">
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="min-w-[1480px] w-full border-separate border-spacing-0 text-left text-sm">
-            <thead>
-              <tr className="text-center text-xs font-bold uppercase tracking-[0.14em] text-slate-700">
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Generic Name</th>
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Dosage</th>
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Brand Name</th>
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Classification</th>
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Pcs/Box</th>
-                <th rowSpan={2} className="border-b border-r bg-[#a9c7e6] px-4 py-4 text-slate-900">Expiration Date</th>
-                <th colSpan={2} className="border-b border-r bg-[#7eb24f] px-4 py-4 text-slate-950">Beginning Stocks</th>
-                <th colSpan={5} className="border-b bg-blue-500 px-4 py-4 text-white">{ledger.selectedMonthLabel}</th>
-              </tr>
-              <tr className="text-center text-xs font-bold text-slate-900">
-                <th className="border-b border-r bg-[#93c36b] px-4 py-3">Box (T)</th>
-                <th className="border-b border-r bg-[#93c36b] px-4 py-3">Pcs (T)</th>
-                <th className="border-b border-r bg-[#a7c6ff] px-4 py-3">In</th>
-                <th className="border-b border-r bg-[#4c84de] px-4 py-3 text-white">Out (pcs)</th>
-                <th className="border-b border-r bg-[#4c84de] px-4 py-3 text-white">Out (box)</th>
-                <th className="border-b border-r bg-[#93c36b] px-4 py-3">RS (Pcs)</th>
-                <th className="border-b bg-[#93c36b] px-4 py-3">RS (Box)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.rows.map((item, index) => (
-                <tr key={item.id} onClick={() => setSelectedId(item.id)} className={`${index % 2 === 0 ? "bg-[#f8ecd9]" : "bg-[#eef5e5]"} cursor-pointer hover:brightness-95`}>
-                  <td className="border-b border-r px-4 py-3 font-bold text-slate-900">{item.item}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.dosage}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.brandName}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.classification}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.pcsPerBox}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
-                  </td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningBoxes}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.beginningPieces}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.monthIn}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.monthOutPieces}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.monthOutBoxes}</td>
-                  <td className="border-b border-r px-4 py-3 text-center text-slate-700">{item.remainingPieces}</td>
-                  <td className="border-b px-4 py-3 text-center text-slate-700">{item.remainingBoxes}</td>
+      {medicineLike ? (
+        <div className="hidden overflow-hidden rounded-2xl border bg-white shadow-soft lg:block">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-left text-sm">
+              <thead>
+                <tr className="text-center text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3 text-left text-slate-800">Generic Name</th>
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3">Dosage</th>
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3">Brand</th>
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3">Classification</th>
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3">Pcs / Box</th>
+                  <th rowSpan={2} className="border-b border-r bg-slate-100 px-4 py-3">Expiration</th>
+                  <th colSpan={2} className="border-b border-r bg-emerald-100 px-4 py-3 text-emerald-900">Beginning Stock</th>
+                  <th colSpan={5} className="border-b bg-slate-900 px-4 py-3 text-white">{ledger.selectedMonthLabel}</th>
                 </tr>
-              ))}
-              {ledger.rows.length === 0 ? (
-                <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-sm text-slate-500">
-                    No inventory items found for this view yet.
-                  </td>
+                <tr className="text-center text-[11px] font-bold text-slate-700">
+                  <th className="border-b border-r bg-emerald-50 px-4 py-2.5">Box</th>
+                  <th className="border-b border-r bg-emerald-50 px-4 py-2.5">Pcs</th>
+                  <th className="border-b border-r bg-slate-100 px-4 py-2.5">In</th>
+                  <th className="border-b border-r bg-slate-100 px-4 py-2.5">Out (pcs)</th>
+                  <th className="border-b border-r bg-slate-100 px-4 py-2.5">Out (box)</th>
+                  <th className="border-b border-r bg-teal-50 px-4 py-2.5 text-teal-800">Remaining (pcs)</th>
+                  <th className="border-b bg-teal-50 px-4 py-2.5 text-teal-800">Remaining (box)</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ledger.rows.map((item) => (
+                  <tr key={item.id} onClick={() => setSelectedId(item.id)} className="cursor-pointer bg-white transition hover:bg-slate-50">
+                    <td className="border-r px-4 py-3 font-bold text-slate-900">{item.item}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-600">{item.dosage}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-600">{item.brandName}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-600">{item.classification}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-600">{item.pcsPerBox}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-600">
+                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
+                    </td>
+                    <td className="border-r px-4 py-3 text-center text-slate-700">{item.beginningBoxes}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-700">{item.beginningPieces}</td>
+                    <td className="border-r px-4 py-3 text-center font-semibold text-emerald-700">{item.monthIn}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-700">{item.monthOutPieces}</td>
+                    <td className="border-r px-4 py-3 text-center text-slate-700">{item.monthOutBoxes}</td>
+                    <td className="border-r px-4 py-3 text-center font-black text-slate-900">{item.remainingPieces}</td>
+                    <td className="px-4 py-3 text-center font-black text-slate-900">{item.remainingBoxes}</td>
+                  </tr>
+                ))}
+                {ledger.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={13} className="px-4 py-12 text-center text-sm text-slate-500">
+                      No {categoryLabel.toLowerCase()} found for this view.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="hidden overflow-hidden rounded-2xl border bg-white shadow-soft lg:block">
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className={`w-full text-left text-sm ${supportsExpiry ? "min-w-[900px]" : "min-w-[760px]"}`}>
+              <thead className="bg-slate-100 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
+                <tr>
+                  <th className="px-4 py-3 text-left">Item Name</th>
+                  <th className="px-4 py-3">Unit</th>
+                  <th className="px-4 py-3">Pack Size</th>
+                  {supportsExpiry ? <th className="px-4 py-3">Expiration</th> : null}
+                  <th className="px-4 py-3 text-right">Beginning</th>
+                  <th className="px-4 py-3 text-right text-emerald-700">In</th>
+                  <th className="px-4 py-3 text-right">Out</th>
+                  <th className="px-4 py-3 text-right text-primary">Remaining</th>
+                  <th className="px-4 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ledger.rows.map((item) => (
+                  <tr key={item.id} onClick={() => setSelectedId(item.id)} className="cursor-pointer transition hover:bg-slate-50">
+                    <td className="px-4 py-3 font-bold text-slate-900">{item.item}</td>
+                    <td className="px-4 py-3 text-slate-600">{item.unit}</td>
+                    <td className="px-4 py-3 text-slate-600">{item.pcsPerBox === "—" ? "—" : `${item.pcsPerBox} pcs/box`}</td>
+                    {supportsExpiry ? (
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
+                      </td>
+                    ) : null}
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{item.beginningPieces}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{item.monthIn}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{item.monthOutPieces}</td>
+                    <td className="px-4 py-3 text-right font-black tabular-nums text-slate-900">{item.remainingPieces}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>{item.status}</span>
+                    </td>
+                  </tr>
+                ))}
+                {ledger.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={supportsExpiry ? 9 : 8} className="px-4 py-12 text-center text-sm text-slate-500">
+                      No {categoryLabel.toLowerCase()} found for this view.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {selectedItem ? <InventoryItemModal item={selectedItem} onClose={() => setSelectedId(null)} /> : null}
     </div>
   );
