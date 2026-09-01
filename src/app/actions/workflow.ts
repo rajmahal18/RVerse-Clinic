@@ -244,7 +244,7 @@ async function getMedicineRequestForPatient(client: PrismaClientLike, patientId:
     },
   });
 
-  if (!request || request.visit.patientId !== patientId) {
+  if (!request || !request.visit || request.visit.patientId !== patientId) {
     throw new Error("Medicine request not found for this patient.");
   }
 
@@ -272,6 +272,17 @@ function isUserRole(value: string): value is UserRole {
 
 function isInventoryCategory(value: string): value is InventoryCategory {
   return value in InventoryCategory;
+}
+
+function inventoryCategoryLabel(category: InventoryCategory) {
+  const labels: Record<InventoryCategory, string> = {
+    MEDICINE: "Medicine",
+    VACCINE: "Vaccine",
+    SUPPLY: "Medical supply",
+    OFFICE_SUPPLY: "Office supply",
+    EQUIPMENT: "Equipment",
+  };
+  return labels[category];
 }
 
 function formatLogDate(value: Date) {
@@ -555,7 +566,21 @@ export async function updateVisitAction(formData: FormData) {
   const visitId = requiredString(formData, "visitId");
   await runAction(formData, `/patients/${patientId}`, "Patient Records", "Update visit", async () => {
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: true });
-    const requestTypes = selectedRequestTypes(formData);
+    const submittedRequestTypes = selectedRequestTypes(formData);
+    const autoLinkedRequestTypes = await prisma.visitRequest.findMany({
+      where: {
+        visitId,
+        OR: [
+          { type: RequestType.MEDICINES, visit: { medicines: { some: {} } } },
+          { type: RequestType.REFERRAL, visit: { referrals: { some: {} } } },
+          { type: RequestType.REFERRAL, requestedItem: { not: null } },
+          { type: RequestType.VACCINATION, visit: { vaccinations: { some: {} } } },
+          { type: RequestType.VACCINATION, requestedItem: { not: null } },
+        ],
+      },
+      select: { type: true },
+    });
+    const requestTypes = [...new Set([...submittedRequestTypes, ...autoLinkedRequestTypes.map((request) => request.type)])];
     if (!requestTypes.length) {
       throw new Error("Select at least one service requested.");
     }
@@ -850,11 +875,14 @@ export async function requestMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
   await runAction(formData, `/patients/${patientId}`, "Medicines", "Request medicine", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
-    await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const visit = await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
     const inventoryItemId = requiredString(formData, "inventoryItemId");
     const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
     if (!inventoryItem) throw new Error("Selected medicine batch was not found.");
+    if (inventoryItem.clinicId !== visit.patient.clinicId || inventoryItem.category !== InventoryCategory.MEDICINE) {
+      throw new Error("Selected medicine batch was not found.");
+    }
     const itemName = inventoryItem.name;
     const quantity = Number(formData.get("quantity") ?? 0);
     const schedule = parseMedicineSchedule(formData);
@@ -863,39 +891,90 @@ export async function requestMedicineAction(formData: FormData) {
       throw new Error("Quantity must be a positive whole number.");
     }
 
-    const medicineRequest = await prisma.medicineRequest.create({
-      data: {
-        visitId,
-        inventoryItemId,
-        itemName,
-        quantity,
-        frequency: schedule.frequency,
-        duration: schedule.duration,
-        remarks: optionalString(formData, "remarks"),
-        status: "REQUESTED",
-      },
-      include: {
-        visit: {
-          include: {
-            patient: true,
+    const medicineRequest = await prisma.$transaction(async (tx) => {
+      const createdRequest = await tx.medicineRequest.create({
+        data: {
+          visitId,
+          inventoryItemId,
+          requestedByUserId: user.id,
+          itemName,
+          quantity,
+          frequency: schedule.frequency,
+          duration: schedule.duration,
+          remarks: optionalString(formData, "remarks"),
+          status: "REQUESTED",
+        },
+        include: {
+          visit: {
+            include: {
+              patient: true,
+            },
           },
         },
-      },
+      });
+
+      await tx.visitRequest.upsert({
+        where: { visitId_type: { visitId, type: RequestType.MEDICINES } },
+        update: {},
+        create: { visitId, type: RequestType.MEDICINES },
+      });
+
+      return createdRequest;
     });
 
     await writeActivityLog({
-      clinicId: medicineRequest.visit.patient.clinicId,
+      clinicId: medicineRequest.visit?.patient.clinicId,
       module: "Medicines",
       action: "Request medicine",
       entityType: "MedicineRequest",
       entityId: medicineRequest.id,
-      description: `Requested ${quantity} ${itemName} for ${medicineRequest.visit.patient.lastName}, ${medicineRequest.visit.patient.firstName}.`,
+      description: `Requested ${quantity} ${itemName} for ${medicineRequest.visit?.patient.lastName}, ${medicineRequest.visit?.patient.firstName}.`,
     });
   }, { type: "Visit", id: visitId });
 
   revalidatePath("/inventory");
   revalidatePath(`/patients/${patientId}`);
   redirect(`/patients/${patientId}`);
+}
+
+export async function createItemRequestAction(formData: FormData) {
+  await runAction(formData, "/item-requests?view=my", "Medicines", "Request inventory item", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.SUPPLY_OFFICER]);
+    const inventoryItemId = requiredString(formData, "inventoryItemId");
+    const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+    if (!inventoryItem) throw new Error("Selected inventory item was not found.");
+    if (inventoryItem.clinicId !== user.clinicId) {
+      throw new Error("Selected inventory item was not found.");
+    }
+    const quantity = Number(formData.get("quantity") ?? 0);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Quantity must be a positive whole number.");
+    }
+
+    const request = await prisma.medicineRequest.create({
+      data: {
+        inventoryItemId,
+        requestedByUserId: user.id,
+        itemName: inventoryItem.name,
+        quantity,
+        remarks: optionalString(formData, "remarks"),
+        status: "REQUESTED",
+      },
+    });
+
+    await writeActivityLog({
+      clinicId: inventoryItem.clinicId,
+      userId: user.id,
+      module: "Medicines",
+      action: "Request inventory item",
+      entityType: "MedicineRequest",
+      entityId: request.id,
+      description: `Requested ${quantity} ${inventoryCategoryLabel(inventoryItem.category).toLowerCase()} item ${inventoryItem.name}.`,
+    });
+  });
+
+  revalidatePath("/item-requests");
+  redirect("/item-requests?view=my");
 }
 
 export async function dispenseMedicineAction(formData: FormData) {
@@ -913,6 +992,9 @@ export async function dispenseMedicineAction(formData: FormData) {
       }
       if (request.status !== "REQUESTED") {
         throw new Error("This medicine request is no longer pending.");
+      }
+      if (!request.visit) {
+        throw new Error("This medicine request is not linked to a patient visit.");
       }
       if (isClosedVisitStatus(request.visit.status)) {
         throw new Error("This visit is already closed.");
@@ -969,7 +1051,7 @@ export async function dispenseMedicineAction(formData: FormData) {
     });
 
     await writeActivityLog({
-      clinicId: medicineRequest.visit.patient.clinicId,
+      clinicId: medicineRequest.visit?.patient.clinicId,
       module: "Medicines",
       action: "Dispense medicine",
       entityType: "MedicineRequest",
@@ -1175,13 +1257,17 @@ export async function updateInventoryItemAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
   await runAction(formData, "/inventory", "Inventory", "Update item", async () => {
     await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
-    const name = requiredString(formData, "name");
-    const dosage = optionalString(formData, "dosage");
-    const brandName = optionalString(formData, "brandName");
-    const classification = optionalString(formData, "classification");
-    const expirationValue = optionalString(formData, "expirationDate");
     const current = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
     if (!current) throw new Error("Inventory batch not found.");
+    const name = requiredString(formData, "name");
+    const dosage = formData.has("dosage") ? optionalString(formData, "dosage") : current.dosage;
+    const brandName = formData.has("brandName") ? optionalString(formData, "brandName") : current.brandName;
+    const classification = formData.has("classification") ? optionalString(formData, "classification") : current.classification;
+    const expirationValue = formData.has("expirationDate")
+      ? optionalString(formData, "expirationDate")
+      : current.expirationDate
+        ? formatDateKey(current.expirationDate)
+        : null;
     const batchKey = [name, dosage, brandName, classification, expirationValue]
       .map((value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " "))
       .join("|");
@@ -1254,19 +1340,27 @@ export async function resolveItemRequestAction(formData: FormData) {
   const requestId = requiredString(formData, "requestId");
   const decision = requiredString(formData, "decision");
   await runAction(formData, "/item-requests", "Medicines", `${decision} item request`, async () => {
-    await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
       if (!request || request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
-      if (decision === "REJECT") return tx.medicineRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
+      const requestClinicId = request.inventoryItem?.clinicId ?? request.visit?.patient.clinicId;
+      if (requestClinicId !== user.clinicId) {
+        throw new Error("This request is no longer pending.");
+      }
+      if (decision === "REJECT") {
+        const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
+        return { request: updatedRequest, clinicId: requestClinicId };
+      }
       const item = request.inventoryItem;
       if (!item) throw new Error("The requested inventory batch is no longer available.");
       if (item.stock < request.quantity) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
       await tx.inventoryItem.update({ where: { id: item.id }, data: { stock: { decrement: request.quantity } } });
       await tx.inventoryMovement.create({ data: { inventoryItemId: item.id, medicineRequestId: request.id, quantityChange: -request.quantity, reason: `Approved item request ${request.id}` } });
-      return tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", releasedBy: "Item request queue", resolvedAt: new Date() } });
+      const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", releasedBy: "Item request queue", resolvedAt: new Date() } });
+      return { request: updatedRequest, clinicId: requestClinicId };
     });
-    await writeActivityLog({ module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.quantity} ${result.itemName}.` });
+    await writeActivityLog({ clinicId: result.clinicId, userId: user.id, module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.request.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.request.quantity} ${result.request.itemName}.` });
   }, { type: "MedicineRequest", id: requestId });
   revalidatePath("/item-requests"); revalidatePath("/inventory"); redirect("/item-requests");
 }

@@ -11,6 +11,9 @@ export function AddInventoryItemModal({ action }: { action: ServerFormAction }) 
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("MEDICINE");
   const expiringItem = category === "MEDICINE" || category === "VACCINE";
+  const medicineLike = category === "MEDICINE" || category === "VACCINE";
+  const identityTitle = medicineLike ? "Medicine identity" : "Item identity";
+  const nameLabel = medicineLike ? "Generic name" : "Item name";
 
   return (
     <>
@@ -42,19 +45,24 @@ export function AddInventoryItemModal({ action }: { action: ServerFormAction }) 
             <form action={action} className="grid min-h-0 gap-4 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:grid-cols-2">
               <CsrfField />
               <div className="sm:col-span-2">
-                <h3 className="text-sm font-black text-slate-900">Medicine identity</h3>
-                <p className="text-xs text-slate-500">Each expiration date is maintained as a separate batch.</p>
+                <h3 className="text-sm font-black text-slate-900">{identityTitle}</h3>
+                <p className="text-xs text-slate-500">{medicineLike ? "Each expiration date is maintained as a separate batch." : "Stock, unit, and low-stock threshold are tracked for each item."}</p>
               </div>
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">Generic name<input name="name" className="h-10 rounded-xl border px-3 font-normal" required /></label>
+              <label className="grid gap-2 text-sm font-semibold text-slate-700">{nameLabel}<input name="name" className="h-10 rounded-xl border px-3 font-normal" required /></label>
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Category<select name="category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-xl border px-3 font-normal">
                 <option value="MEDICINE">Medicine</option>
                 <option value="VACCINE">Vaccine</option>
-                <option value="SUPPLY">Supply</option>
+                <option value="SUPPLY">Medical Supplies</option>
+                <option value="OFFICE_SUPPLY">Office Supplies</option>
                 <option value="EQUIPMENT">Equipment</option>
               </select></label>
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">Dosage<input name="dosage" className="h-10 rounded-xl border px-3 font-normal" placeholder="e.g. 600 mg" /></label>
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">Brand name<input name="brandName" className="h-10 rounded-xl border px-3 font-normal" /></label>
-              <label className="grid gap-2 text-sm font-semibold text-slate-700">Classification<input name="classification" className="h-10 rounded-xl border px-3 font-normal" placeholder="e.g. Mucolytic" /></label>
+              {medicineLike ? (
+                <>
+                  <label className="grid gap-2 text-sm font-semibold text-slate-700">Dosage<input name="dosage" className="h-10 rounded-xl border px-3 font-normal" placeholder="e.g. 600 mg" /></label>
+                  <label className="grid gap-2 text-sm font-semibold text-slate-700">Brand name<input name="brandName" className="h-10 rounded-xl border px-3 font-normal" /></label>
+                  <label className="grid gap-2 text-sm font-semibold text-slate-700">Classification<input name="classification" className="h-10 rounded-xl border px-3 font-normal" placeholder="e.g. Mucolytic" /></label>
+                </>
+              ) : null}
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Expiration date<input name="expirationDate" type="date" required={expiringItem} className="h-10 rounded-xl border px-3 font-normal" /></label>
               <div className="border-t pt-3 sm:col-span-2"><h3 className="text-sm font-black text-slate-900">Packaging and stock</h3></div>
               <label className="grid gap-2 text-sm font-semibold text-slate-700">Pieces per box<input name="pcsPerBox" type="number" min="1" step="1" className="h-10 rounded-xl border px-3 font-normal" /></label>

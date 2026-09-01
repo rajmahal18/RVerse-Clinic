@@ -63,7 +63,7 @@ export function InventoryTable({
         </div>
       ) : null}
 
-      <InventoryControls search={searchQuery} month={ledger.selectedMonth} expiry={ledger.expiryFilter} sort={ledger.sort} />
+      <InventoryControls search={searchQuery} month={ledger.selectedMonth} expiry={ledger.expiryFilter} sort={ledger.sort} category={ledger.category} />
 
       <div className="divide-y-8 divide-slate-100 overflow-hidden rounded-2xl border bg-slate-100 lg:hidden">
         {ledger.rows.map((item) => (

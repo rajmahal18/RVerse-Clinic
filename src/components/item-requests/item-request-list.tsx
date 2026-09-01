@@ -12,10 +12,12 @@ export type ItemRequestListRow = {
   quantity: number;
   status: string;
   patientName: string;
+  requestedBy: string;
   frequency: string;
   duration: string;
   dosage: string;
   brandName: string;
+  remarks: string;
   createdAt: string;
   resolvedAt: string;
 };
@@ -75,9 +77,11 @@ export function ItemRequestList({
                 {historyView ? <StatusPill status={request.status} /> : null}
               </div>
               <p className="mt-1 text-sm text-slate-600">{request.patientName} / {request.frequency || "No frequency"} / {request.duration || "No duration"}</p>
+              {request.requestedBy ? <p className="mt-1 text-xs text-slate-500">Requested by {request.requestedBy}</p> : null}
               <p className="mt-1 line-clamp-1 text-xs text-slate-400">
                 Batch: {request.dosage || "-"} / {request.brandName || "-"} / Requested {request.createdAt}
               </p>
+              {request.remarks ? <p className="mt-1 line-clamp-1 text-xs text-slate-500">Remarks: {request.remarks}</p> : null}
             </button>
             {!historyView && canResolveRequests ? (
               <div className="hidden md:block">
@@ -118,9 +122,11 @@ export function ItemRequestList({
                 ["Duration", selectedRequest.duration || "No duration"],
                 ["Dosage", selectedRequest.dosage || "-"],
                 ["Brand", selectedRequest.brandName || "-"],
+                ["Requested by", selectedRequest.requestedBy || "-"],
                 ["Requested", selectedRequest.createdAt],
                 ["Resolved", selectedRequest.resolvedAt || "-"],
                 ["Status", selectedRequest.status],
+                ["Remarks", selectedRequest.remarks || "-"],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl border bg-slate-50 px-3 py-2">
                   <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>

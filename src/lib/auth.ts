@@ -100,6 +100,7 @@ export async function getCurrentUser() {
     },
     select: {
       id: true,
+      clinicId: true,
       name: true,
       email: true,
       role: true,

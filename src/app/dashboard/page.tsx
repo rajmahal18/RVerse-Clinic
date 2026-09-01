@@ -15,8 +15,16 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const today = getDayRange();
   const month = getMonthRange();
+  const currentUser = await getCurrentUser();
+  const clinicRequestWhere = currentUser
+    ? {
+        OR: [
+          { visit: { patient: { clinicId: currentUser.clinicId } } },
+          { inventoryItem: { clinicId: currentUser.clinicId } },
+        ],
+      }
+    : { id: "__unauthenticated__" };
   const [
-    currentUser,
     patientCount,
     monthlyInteractionCount,
     todaysPatientCount,
@@ -27,7 +35,6 @@ export default async function DashboardPage() {
     pendingItemRequestCount,
     lowStockItems,
   ] = await Promise.all([
-    getCurrentUser(),
     prisma.patient.count(),
     prisma.visit.count({
       where: {
@@ -81,8 +88,11 @@ export default async function DashboardPage() {
         },
       },
     }),
-    prisma.medicineRequest.count({ where: { status: "REQUESTED" } }),
-    prisma.inventoryItem.findMany({ select: { stock: true, reorderLevel: true } }),
+    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: "REQUESTED" }] } }),
+    prisma.inventoryItem.findMany({
+      where: { clinicId: currentUser?.clinicId ?? "__unauthenticated__" },
+      select: { stock: true, reorderLevel: true },
+    }),
   ]);
   const role = isAppRole(currentUser?.role) ? currentUser.role : "RECORDS";
   const canViewPatients = canAccessPath(role, "/patients");

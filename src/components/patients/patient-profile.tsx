@@ -295,6 +295,16 @@ export async function PatientProfile({ id }: { id: string }) {
                     options={requestOptions}
                     defaultValues={activeVisit.requests.map((request) => request.type)}
                   />
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-slate-700">Vital signs</p>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                      <input name="bloodPressure" defaultValue={activeVisit.bloodPressure} className="rounded-xl border px-3 py-2 text-sm" placeholder="BP" />
+                      <input name="temperature" defaultValue={activeVisit.temperature} className="rounded-xl border px-3 py-2 text-sm" placeholder="Temp" />
+                      <input name="pulseRate" defaultValue={activeVisit.pulseRate} className="rounded-xl border px-3 py-2 text-sm" placeholder="PR" />
+                      <input name="respiratoryRate" defaultValue={activeVisit.respiratoryRate} className="rounded-xl border px-3 py-2 text-sm" placeholder="RR" />
+                      <input name="rbs" defaultValue={activeVisit.rbs} className="rounded-xl border px-3 py-2 text-sm" placeholder="RBS" />
+                    </div>
+                  </div>
                   <ChiefComplaintField initialValue={activeVisit.chiefComplaint} />
                   <label className="grid gap-2 text-sm font-semibold text-slate-700">
                     Progress Notes / Medical History
@@ -311,17 +321,6 @@ export async function PatientProfile({ id }: { id: string }) {
                 </section>
 
                 <section className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-sm font-semibold text-slate-700">Vital signs</p>
-                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                      <input name="bloodPressure" defaultValue={activeVisit.bloodPressure} className="rounded-xl border px-3 py-2 text-sm" placeholder="BP" />
-                      <input name="temperature" defaultValue={activeVisit.temperature} className="rounded-xl border px-3 py-2 text-sm" placeholder="Temp" />
-                      <input name="pulseRate" defaultValue={activeVisit.pulseRate} className="rounded-xl border px-3 py-2 text-sm" placeholder="PR" />
-                      <input name="respiratoryRate" defaultValue={activeVisit.respiratoryRate} className="rounded-xl border px-3 py-2 text-sm" placeholder="RR" />
-                      <input name="rbs" defaultValue={activeVisit.rbs} className="rounded-xl border px-3 py-2 text-sm" placeholder="RBS" />
-                    </div>
-                  </div>
-
                   <div className="rounded-3xl border bg-slate-50 px-4 py-4">
                     <p className="text-sm font-semibold text-slate-700">Visit requests</p>
                     <div className="mt-3 flex flex-wrap gap-2">

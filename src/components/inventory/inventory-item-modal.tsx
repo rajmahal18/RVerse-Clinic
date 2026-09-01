@@ -7,13 +7,18 @@ import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
 export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow; onClose: () => void }) {
+  const medicineLike = item.category === "Medicine" || item.category === "Vaccine";
   const editableFields = [
-    ["name", "Generic name", item.item],
-    ["dosage", "Dosage", item.dosage === "—" ? "" : item.dosage],
-    ["brandName", "Brand", item.brandName === "—" ? "" : item.brandName],
-    ["classification", "Classification", item.classification],
+    ["name", medicineLike ? "Generic name" : "Item name", item.item],
+    ...(medicineLike
+      ? [
+          ["dosage", "Dosage", item.dosage === "-" ? "" : item.dosage],
+          ["brandName", "Brand", item.brandName === "-" ? "" : item.brandName],
+          ["classification", "Classification", item.classification],
+        ]
+      : []),
     ["unit", "Unit", item.unit],
-    ["pcsPerBox", "Pieces per box", item.pcsPerBox === "—" ? "" : item.pcsPerBox],
+    ["pcsPerBox", "Pieces per box", item.pcsPerBox === "-" ? "" : item.pcsPerBox],
     ["reorderLevel", "Low-stock threshold", String(item.reorder)],
   ];
 
@@ -27,7 +32,7 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
           <div>
             <h2 className="text-lg font-black">{item.item}</h2>
             <p className="text-sm text-slate-500">
-              {item.dosage} / {item.brandName} / expires {item.expirationDate}
+              {medicineLike ? `${item.dosage} / ${item.brandName} / expires ${item.expirationDate}` : `${item.category} / ${item.stock} ${item.unit}`}
             </p>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose}>
@@ -62,10 +67,12 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
                 <input name={name} defaultValue={value} className="h-10 rounded-xl border px-3 font-normal" />
               </label>
             ))}
-            <label className="grid gap-1 text-sm font-bold">
-              Expiration date
-              <input name="expirationDate" type="date" defaultValue={item.expirationDateValue} className="h-10 rounded-xl border px-3 font-normal" />
-            </label>
+            {medicineLike ? (
+              <label className="grid gap-1 text-sm font-bold">
+                Expiration date
+                <input name="expirationDate" type="date" defaultValue={item.expirationDateValue} className="h-10 rounded-xl border px-3 font-normal" />
+              </label>
+            ) : null}
             <div className="sm:col-span-2">
               <Button type="submit">Save changes</Button>
             </div>

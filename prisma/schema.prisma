@@ -44,6 +44,7 @@ enum InventoryCategory {
   MEDICINE
   VACCINE
   SUPPLY
+  OFFICE_SUPPLY
   EQUIPMENT
 }
 
@@ -78,6 +79,7 @@ model User {
 
   clinic       Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   activityLogs ActivityLog[]
+  medicineRequests MedicineRequest[]
 }
 
 model LoginAttempt {
@@ -190,8 +192,9 @@ model VisitRequest {
 
 model MedicineRequest {
   id              String    @id @default(cuid())
-  visitId         String
+  visitId         String?
   inventoryItemId String?
+  requestedByUserId String?
   itemName        String
   quantity        Int
   frequency       String?
@@ -203,11 +206,13 @@ model MedicineRequest {
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?
 
-  visit         Visit               @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  visit         Visit?              @relation(fields: [visitId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem?      @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  requestedBy   User?              @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
   movements     InventoryMovement[]
 
   @@index([inventoryItemId])
+  @@index([requestedByUserId])
 }
 
 model ClientSatisfactionSurvey {
