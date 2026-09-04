@@ -15,7 +15,9 @@ function stockTone(status: string) {
 export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow; onClose: () => void }) {
   const medicineLike = item.category === "Medicine" || item.category === "Vaccine";
   const supportsExpiry = medicineLike || item.category === "Medical Supplies";
+  const equipmentLike = item.category === "Medical Equipment" || item.category === "Ambulance Supplies";
   const editableFields = [
+    ...(!medicineLike ? [["itemCode", "Item code", item.itemCode === "—" ? "" : item.itemCode]] : []),
     ["name", medicineLike ? (item.category === "Vaccine" ? "Vaccine name" : "Generic name") : "Item name", item.item],
     ...(medicineLike
       ? [
@@ -23,10 +25,11 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
           ["brandName", "Brand", item.brandName === "—" || item.brandName === "-" ? "" : item.brandName],
           ["classification", "Classification", item.classification],
         ]
-      : []),
+      : item.category === "Medical Supplies" || item.category === "Medical Equipment" ? [["brandName", "Brand", item.brandName === "—" ? "" : item.brandName]] : []),
+    ...(item.category === "Office Supplies" ? [["itemDescription", "Item description", item.itemDescription === "—" ? "" : item.itemDescription]] : []),
+    ...(!medicineLike ? [["location", "Location", item.location === "—" ? "" : item.location], ["remarks", "Remarks", item.remarks === "—" ? "" : item.remarks]] : []),
     ["unit", "Stock unit", item.unit],
-    ["pcsPerBox", "Pack size / pieces per box", item.pcsPerBox === "—" || item.pcsPerBox === "-" ? "" : item.pcsPerBox],
-    ["reorderLevel", "Low-stock threshold", String(item.reorder)],
+    ...(!equipmentLike ? [["pcsPerBox", "Qty per box", item.pcsPerBox === "—" || item.pcsPerBox === "-" ? "" : item.pcsPerBox], ["reorderLevel", "Low-stock threshold", String(item.reorder)]] : []),
   ];
 
   return (
@@ -40,7 +43,7 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-lg font-black text-slate-900">{item.item}</h2>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">{item.category}</span>
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>{item.status}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}>{equipmentLike ? item.functionalStatus : item.status}</span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
               {medicineLike
@@ -75,12 +78,16 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
                 <p className="text-xs text-slate-500 sm:hidden">Current: {item.stock} {item.unit}</p>
               </div>
             </div>
-            <form action={addInventoryQuantityAction} className="grid gap-3 p-3 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.3fr)_auto] sm:items-end">
+            <form action={addInventoryQuantityAction} className="grid gap-3 p-3 sm:grid-cols-2 sm:items-end">
               <CsrfField />
               <input type="hidden" name="itemId" value={item.id} />
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Quantity
                 <input name="quantity" type="number" min="1" step="1" required className="h-10 rounded-xl border bg-white px-3 font-normal" />
+              </label>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                Box quantity
+                <input name="boxQuantity" type="number" min="0" step="1" defaultValue="0" className="h-10 rounded-xl border bg-white px-3 font-normal" />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Entry type
@@ -89,7 +96,7 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
                   <option value="ENCODED_EXISTING">Existing stock encoded</option>
                 </select>
               </label>
-              <Button><PackagePlus className="h-4 w-4" /> Add</Button>
+              <Button className="sm:col-span-2 sm:justify-self-end"><PackagePlus className="h-4 w-4" /> Add</Button>
             </form>
           </section>
 
@@ -113,6 +120,11 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
                   <input name="expirationDate" type="date" defaultValue={item.expirationDateValue} className="h-10 rounded-xl border px-3 font-normal" />
                 </label>
               ) : null}
+              {equipmentLike ? <>
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">Physical count<input name="physicalCount" type="number" min="0" step="1" defaultValue={item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">Functional units<input name="functionalCount" type="number" min="0" step="1" defaultValue={item.functionalCount ?? item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
+                <p className="text-xs text-slate-500 sm:col-span-2">Functional units cannot exceed the physical count. The table displays AF, NF, or a count such as 2F.</p>
+              </> : null}
               <div className="flex justify-end border-t pt-3 sm:col-span-2">
                 <Button type="submit">Save changes</Button>
               </div>

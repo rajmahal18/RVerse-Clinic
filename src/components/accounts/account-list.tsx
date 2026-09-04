@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 type AccountUser = ClinicSettingsData["users"][number];
 
 function roleLabel(role: string) {
-  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
+  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "PHARMACIST" ? "Pharmacist" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
 }
 
 function StatusBadge({ active }: { active: boolean }) {

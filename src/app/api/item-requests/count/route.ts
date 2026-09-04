@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma, UserRole } from "@prisma/client";
 
-const itemRequestRoles: UserRole[] = [UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.SUPPLY_OFFICER];
+const itemRequestRoles: UserRole[] = [UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER];
 
 export async function GET() {
   const user = await getCurrentUser();

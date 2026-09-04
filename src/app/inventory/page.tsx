@@ -14,7 +14,8 @@ const inventoryCategories = [
   { value: InventoryCategory.SUPPLY, label: "Medical Supplies" },
   { value: InventoryCategory.OFFICE_SUPPLY, label: "Office Supplies" },
   { value: InventoryCategory.VACCINE, label: "Vaccine" },
-  { value: InventoryCategory.EQUIPMENT, label: "Equipment" },
+  { value: InventoryCategory.EQUIPMENT, label: "Medical Equipment" },
+  { value: InventoryCategory.AMBULANCE_SUPPLY, label: "Ambulance Supplies" },
 ];
 
 function categorySupportsExpiry(category: string) {

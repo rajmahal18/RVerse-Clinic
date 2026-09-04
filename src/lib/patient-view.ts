@@ -37,7 +37,8 @@ const inventoryCategoryLabels: Record<InventoryCategory, string> = {
   VACCINE: "Vaccine",
   SUPPLY: "Medical Supplies",
   OFFICE_SUPPLY: "Office Supplies",
-  EQUIPMENT: "Equipment",
+  EQUIPMENT: "Medical Equipment",
+  AMBULANCE_SUPPLY: "Ambulance Supplies",
 };
 
 const visitStatusLabels: Record<VisitStatus, string> = {
@@ -242,15 +243,23 @@ export type PatientWorkflowProfile = PatientProfileData & {
 export type InventoryTableRow = {
   id: string;
   item: string;
+  itemCode: string;
+  itemDescription: string;
   dosage: string;
   brandName: string;
   classification: string;
+  remarks: string;
+  location: string;
   category: string;
   pcsPerBox: string;
   expirationDate: string;
   expirationDateValue: string;
   expiryStatus: "Expired" | "Within 1 month" | "Within 3 months" | "Within 6 months" | "Safe" | "No expiry";
   stock: number;
+  boxStock: number;
+  physicalCount: number | null;
+  functionalCount: number | null;
+  functionalStatus: string;
   unit: string;
   reorder: number;
   status: "Healthy" | "Low stock" | "Out of stock";
@@ -263,6 +272,7 @@ export type InventoryTableRow = {
   beginningBoxes: string;
   beginningPieces: string;
   monthIn: string;
+  monthInBoxes: string;
   monthOutPieces: string;
   monthOutBoxes: string;
   remainingPieces: string;
@@ -1222,10 +1232,13 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
       ? { expirationDate: { gte: now, lte: addMonths(now, Number(expiryFilter)) } }
       : {};
   const searchWhere: Prisma.InventoryItemWhereInput = normalizedSearch ? { OR: [
+    { itemCode: { contains: normalizedSearch, mode: "insensitive" } },
     { name: { contains: normalizedSearch, mode: "insensitive" } },
+    { itemDescription: { contains: normalizedSearch, mode: "insensitive" } },
     { dosage: { contains: normalizedSearch, mode: "insensitive" } },
     { brandName: { contains: normalizedSearch, mode: "insensitive" } },
     { classification: { contains: normalizedSearch, mode: "insensitive" } },
+    { location: { contains: normalizedSearch, mode: "insensitive" } },
     { unit: { contains: normalizedSearch, mode: "insensitive" } },
   ] } : {};
   const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] =
@@ -1248,19 +1261,27 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
         .reduce((sum, movement) => sum + movement.quantityChange, 0);
       const dispensed = monthlyMovements.filter((movement) => movement.quantityChange < 0).reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
       const beginningStock = endingStock - received + dispensed;
+      const boxReceived = monthlyMovements.filter((movement) => movement.boxQuantityChange > 0 && !encodedStockReasons.has(movement.reason)).reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
+      const endingBoxStock = item.boxStock - laterMovements.reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
+      const latestCondition = [...item.movements].reverse().find((movement) => movement.createdAt < end && movement.physicalCount !== null);
+      const physicalCount = latestCondition?.physicalCount ?? (end > now ? item.physicalCount : null);
+      const functionalCount = latestCondition?.functionalCount ?? (end > now ? item.functionalCount : null);
+      const functionalStatus = physicalCount === null || functionalCount === null ? "Not recorded" : physicalCount === 0 || functionalCount === 0 ? "NF" : functionalCount === physicalCount ? "AF" : `${functionalCount}F`;
+      const legacyBatch = item.category === InventoryCategory.MEDICINE || item.category === InventoryCategory.VACCINE;
       return {
-        id: item.id, item: item.name, dosage: item.dosage ?? "—", brandName: item.brandName ?? "—",
+        id: item.id, item: item.name, itemCode: item.itemCode ?? "—", itemDescription: item.itemDescription ?? "—", dosage: item.dosage ?? "—", brandName: item.brandName ?? "—",
         classification: item.classification ?? inventoryCategoryLabels[item.category],
+        remarks: item.remarks ?? "—", location: item.location ?? "—",
         category: inventoryCategoryLabels[item.category], pcsPerBox: item.pcsPerBox?.toString() ?? "—",
         expirationDate: item.expirationDate ? formatDisplayDate(item.expirationDate) : "—",
         expirationDateValue: item.expirationDate ? formatDateKey(item.expirationDate) : "",
         expiryStatus: !item.expirationDate ? "No expiry" as const : item.expirationDate < now ? "Expired" as const : item.expirationDate <= addMonths(now, 1) ? "Within 1 month" as const : item.expirationDate <= addMonths(now, 3) ? "Within 3 months" as const : item.expirationDate <= addMonths(now, 6) ? "Within 6 months" as const : "Safe" as const,
-        stock: item.stock, unit: item.unit, reorder: item.reorderLevel,
-        status: item.stock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel ? "Low stock" as const : "Healthy" as const,
+        stock: item.stock, boxStock: item.boxStock, physicalCount, functionalCount, functionalStatus, unit: item.unit, reorder: item.reorderLevel,
+        status: item.stock <= 0 && item.boxStock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel && item.boxStock <= 0 ? "Low stock" as const : "Healthy" as const,
         beginningStock: Math.max(0, beginningStock), received, dispensed, endingStock: Math.max(0, endingStock), netMovement: received - dispensed,
-        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: item.pcsPerBox ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox)) : "—",
-        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthOutPieces: String(dispensed), monthOutBoxes: "0",
-        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: item.pcsPerBox ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox)) : "—",
+        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: legacyBatch && item.pcsPerBox ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox)) : String(Math.max(0, endingBoxStock - boxReceived)),
+        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthInBoxes: String(boxReceived), monthOutPieces: String(dispensed), monthOutBoxes: "0",
+        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: legacyBatch && item.pcsPerBox ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox)) : String(Math.max(0, endingBoxStock)),
       };
     }),
     selectedMonth: key, selectedMonthLabel: label, monthOptions: getInventoryMonthOptions(start), expiryFilter, sort, category: categoryFilter,
@@ -1353,7 +1374,7 @@ export async function getMedicineReportData(period: MedicineReportPeriod = "MONT
 
 export async function getSupplyFrequencyReportData(clinicId: string, period: MedicineReportPeriod = "MONTHLY", category = "all"): Promise<SupplyFrequencyReportData> {
   const { start, end } = getMedicineReportRange(period);
-  const allowedCategories: InventoryCategory[] = [InventoryCategory.MEDICINE, InventoryCategory.SUPPLY, InventoryCategory.OFFICE_SUPPLY];
+  const allowedCategories: InventoryCategory[] = [InventoryCategory.MEDICINE, InventoryCategory.SUPPLY, InventoryCategory.OFFICE_SUPPLY, InventoryCategory.EQUIPMENT, InventoryCategory.AMBULANCE_SUPPLY];
   const categoryFilter = allowedCategories.includes(category as InventoryCategory)
     ? category as InventoryCategory
     : null;

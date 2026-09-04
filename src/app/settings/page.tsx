@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClinicSettingsData } from "@/lib/patient-view";
 
 function roleLabel(role: string) {
-  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
+  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "PHARMACIST" ? "Pharmacist" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
 }
 
 function statusTone(active: boolean) {

@@ -11,6 +11,7 @@ datasource db {
 enum UserRole {
   ADMIN
   DOCTOR_NURSE
+  PHARMACIST
   SUPPLY_OFFICER
   RECORDS
 }
@@ -47,6 +48,7 @@ enum InventoryCategory {
   SUPPLY
   OFFICE_SUPPLY
   EQUIPMENT
+  AMBULANCE_SUPPLY
 }
 
 enum LabResultType {
@@ -350,14 +352,21 @@ model InventoryItem {
   id             String            @id @default(cuid())
   clinicId       String
   name           String
+  itemCode       String?
+  itemDescription String?
   dosage         String?
   brandName      String?
   classification String?
+  remarks        String?
+  location       String?
   pcsPerBox      Int?
   expirationDate DateTime?
   batchKey       String            @default(cuid())
   category       InventoryCategory
   stock          Int               @default(0)
+  boxStock       Int               @default(0)
+  physicalCount  Int?
+  functionalCount Int?
   unit           String
   reorderLevel   Int               @default(0)
   createdAt      DateTime          @default(now())
@@ -370,6 +379,7 @@ model InventoryItem {
   @@unique([clinicId, batchKey])
   @@index([clinicId, category])
   @@index([clinicId, name, expirationDate])
+  @@index([clinicId, itemCode])
   @@index([expirationDate])
 }
 
@@ -378,6 +388,9 @@ model InventoryMovement {
   inventoryItemId   String
   medicineRequestId String?
   quantityChange    Int
+  boxQuantityChange Int      @default(0)
+  physicalCount     Int?
+  functionalCount   Int?
   reason            String
   createdAt         DateTime @default(now())
 

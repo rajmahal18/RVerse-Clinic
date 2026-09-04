@@ -12,7 +12,8 @@ const categoryLabels: Record<string, string> = {
   VACCINE: "Vaccine",
   SUPPLY: "Medical Supplies",
   OFFICE_SUPPLY: "Office Supplies",
-  EQUIPMENT: "Equipment",
+  EQUIPMENT: "Medical Equipment",
+  AMBULANCE_SUPPLY: "Ambulance Supplies",
 };
 
 function expiryTone(status: string) {
@@ -41,6 +42,7 @@ export function InventoryTable({
   const selectedItem = ledger.rows.find((item) => item.id === selectedId);
   const medicineLike = ledger.category === "MEDICINE" || ledger.category === "VACCINE";
   const supportsExpiry = medicineLike || ledger.category === "SUPPLY";
+  const equipmentLike = ledger.category === "EQUIPMENT" || ledger.category === "AMBULANCE_SUPPLY";
   const categoryLabel = categoryLabels[ledger.category] ?? "Inventory";
   const movementVerb = medicineLike ? "dispensed" : "released / used";
 
@@ -113,11 +115,11 @@ export function InventoryTable({
                 <p className="mt-0.5 truncate text-sm text-slate-500">
                   {medicineLike
                     ? [item.dosage, item.brandName].filter((part) => part && part !== "—" && part !== "-").join(" / ") || "No dosage / brand"
-                    : `${item.unit}${item.pcsPerBox !== "—" ? ` · ${item.pcsPerBox} pcs/box` : ""}`}
+                    : [item.itemCode !== "—" ? item.itemCode : "", item.location !== "—" ? item.location : "", item.itemDescription !== "—" ? item.itemDescription : ""].filter(Boolean).join(" · ") || item.unit}
                 </p>
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>
-                {item.status}
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}>
+                {equipmentLike ? item.functionalStatus : item.status}
               </span>
             </div>
 
@@ -131,8 +133,8 @@ export function InventoryTable({
                 <b className="mt-0.5 block text-slate-800">{item.monthOutPieces} {item.unit}</b>
               </div>
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Remaining</span>
-                <b className="mt-0.5 block text-slate-900">{item.remainingPieces} {item.unit}</b>
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">{equipmentLike ? "Physical count" : "Remaining"}</span>
+                <b className="mt-0.5 block text-slate-900">{equipmentLike ? item.physicalCount ?? "—" : item.remainingPieces} {item.unit}</b>
               </div>
             </div>
 
@@ -211,44 +213,36 @@ export function InventoryTable({
         </div>
       ) : (
         <div className="hidden overflow-hidden rounded-2xl border bg-white shadow-soft lg:block">
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className={`w-full text-left text-sm ${supportsExpiry ? "min-w-[900px]" : "min-w-[760px]"}`}>
+          <div>
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="bg-slate-100 text-[11px] font-black uppercase tracking-[0.12em] text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 text-left">Item Name</th>
-                  <th className="px-4 py-3">Unit</th>
-                  <th className="px-4 py-3">Pack Size</th>
-                  {supportsExpiry ? <th className="px-4 py-3">Expiration</th> : null}
+                  <th className="w-[13%] px-4 py-3">Item Code</th>
+                  <th className="w-[29%] px-4 py-3 text-left">Item</th>
                   <th className="px-4 py-3 text-right">Beginning</th>
                   <th className="px-4 py-3 text-right text-emerald-700">In</th>
                   <th className="px-4 py-3 text-right">Out</th>
-                  <th className="px-4 py-3 text-right text-primary">Remaining</th>
+                  <th className="px-4 py-3 text-right text-primary">{equipmentLike ? "Physical Count" : "Remaining"}</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {ledger.rows.map((item) => (
                   <tr key={item.id} onClick={() => setSelectedId(item.id)} className="cursor-pointer transition hover:bg-slate-50">
-                    <td className="px-4 py-3 font-bold text-slate-900">{item.item}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.unit}</td>
-                    <td className="px-4 py-3 text-slate-600">{item.pcsPerBox === "—" ? "—" : `${item.pcsPerBox} pcs/box`}</td>
-                    {supportsExpiry ? (
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span>
-                      </td>
-                    ) : null}
-                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{item.beginningPieces}</td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{item.monthIn}</td>
+                    <td className="truncate px-4 py-3 font-semibold text-slate-600">{item.itemCode}</td>
+                    <td className="px-4 py-3"><p className="truncate font-bold text-slate-900">{item.item}</p><p className="truncate text-xs text-slate-500">{[item.brandName !== "—" ? item.brandName : "", item.itemDescription !== "—" ? item.itemDescription : "", item.location !== "—" ? item.location : ""].filter(Boolean).join(" · ") || item.unit}</p></td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700">{item.beginningBoxes} box / {item.beginningPieces} {item.unit}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums text-emerald-700">{item.monthInBoxes} box / {item.monthIn} {item.unit}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700">{item.monthOutPieces}</td>
-                    <td className="px-4 py-3 text-right font-black tabular-nums text-slate-900">{item.remainingPieces}</td>
+                    <td className="px-4 py-3 text-right font-black tabular-nums text-slate-900">{equipmentLike ? item.physicalCount ?? "—" : `${item.remainingBoxes} box / ${item.remainingPieces} ${item.unit}`}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(item.status)}`}>{item.status}</span>
+                      {supportsExpiry ? <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${expiryTone(item.expiryStatus)}`}>{item.expirationDate}</span> : <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}>{equipmentLike ? item.functionalStatus : item.status}</span>}
                     </td>
                   </tr>
                 ))}
                 {ledger.rows.length === 0 ? (
                   <tr>
-                    <td colSpan={supportsExpiry ? 9 : 8} className="px-4 py-12 text-center text-sm text-slate-500">
+                    <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-500">
                       No {categoryLabel.toLowerCase()} found for this view.
                     </td>
                   </tr>

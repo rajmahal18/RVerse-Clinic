@@ -301,7 +301,8 @@ function inventoryCategoryLabel(category: InventoryCategory) {
     VACCINE: "Vaccine",
     SUPPLY: "Medical supply",
     OFFICE_SUPPLY: "Office supply",
-    EQUIPMENT: "Equipment",
+    EQUIPMENT: "Medical equipment",
+    AMBULANCE_SUPPLY: "Ambulance supplies",
   };
   return labels[category];
 }
@@ -815,18 +816,28 @@ export async function cancelQueuedVisitAction(formData: FormData) {
 
 export async function createInventoryItemAction(formData: FormData) {
   await runAction(formData, "/inventory", "Inventory", "Create item", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
-    const clinic = await ensureClinic();
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
+    const clinic = await prisma.clinic.findUniqueOrThrow({ where: { id: user.clinicId } });
     const categoryValue = requiredString(formData, "category");
     const category = isInventoryCategory(categoryValue) ? categoryValue : InventoryCategory.SUPPLY;
     const stock = Number(formData.get("stock") ?? 0);
+    const boxStock = Number(formData.get("boxStock") ?? 0);
     const stockEntryType = String(formData.get("stockEntryType") ?? "ENCODED_EXISTING");
     const openingReason = stockEntryType === "RECEIVED" ? "Manual stock addition" : "Existing stock encoded";
     const reorderLevel = Number(formData.get("reorderLevel") ?? 0);
     const pcsPerBoxRaw = optionalString(formData, "pcsPerBox");
     const pcsPerBox = pcsPerBoxRaw ? Number(pcsPerBoxRaw) : null;
-    if (![stock, reorderLevel].every((value) => Number.isInteger(value) && value >= 0) || (pcsPerBox !== null && (!Number.isInteger(pcsPerBox) || pcsPerBox <= 0))) {
+    const equipmentLike = category === InventoryCategory.EQUIPMENT || category === InventoryCategory.AMBULANCE_SUPPLY;
+    const physicalCountRaw = optionalString(formData, "physicalCount");
+    const functionalCountRaw = optionalString(formData, "functionalCount");
+    const physicalCount = equipmentLike ? Number(physicalCountRaw ?? stock) : null;
+    const functionalCount = equipmentLike ? Number(functionalCountRaw ?? physicalCount) : null;
+    const initialStock = equipmentLike ? physicalCount! : stock;
+    if (![stock, boxStock, reorderLevel].every((value) => Number.isInteger(value) && value >= 0) || (pcsPerBox !== null && (!Number.isInteger(pcsPerBox) || pcsPerBox <= 0))) {
       throw new Error("Stock, threshold, and pieces per box must be valid whole numbers.");
+    }
+    if (equipmentLike && (!Number.isInteger(physicalCount) || !Number.isInteger(functionalCount) || physicalCount! < 0 || functionalCount! < 0 || functionalCount! > physicalCount!)) {
+      throw new Error("Functional units must be between zero and the physical count.");
     }
     const name = requiredString(formData, "name");
     const dosage = optionalString(formData, "dosage");
@@ -837,7 +848,11 @@ export async function createInventoryItemAction(formData: FormData) {
       throw new Error("Expiration date is required for medicines and vaccines.");
     }
     const expirationDate = expirationValue ? parseDate(expirationValue) : null;
-    const batchKey = [name, dosage, brandName, classification, expirationValue]
+    const itemCode = optionalString(formData, "itemCode");
+    const itemDescription = category === InventoryCategory.OFFICE_SUPPLY ? optionalString(formData, "itemDescription") : null;
+    const remarks = optionalString(formData, "remarks");
+    const location = optionalString(formData, "location");
+    const batchKey = [category, itemCode, name, dosage, brandName, classification, expirationValue]
       .map((value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " "))
       .join("|");
     const existingBatch = await prisma.inventoryItem.findUnique({
@@ -845,7 +860,7 @@ export async function createInventoryItemAction(formData: FormData) {
       select: { id: true },
     });
     if (existingBatch) {
-      throw new Error("This exact medicine batch and expiration date already exists. Use its existing inventory record instead.");
+      throw new Error("This inventory item already exists. Open its existing record instead.");
     }
 
     const item = await prisma.$transaction(async (tx) => {
@@ -853,24 +868,34 @@ export async function createInventoryItemAction(formData: FormData) {
         data: {
           clinicId: clinic.id,
           name,
+          itemCode,
+          itemDescription,
           dosage,
           brandName,
           classification,
+          remarks,
+          location,
           pcsPerBox,
           expirationDate,
           batchKey,
           category,
-          stock,
+          stock: initialStock,
+          boxStock,
+          physicalCount,
+          functionalCount,
           unit: requiredString(formData, "unit"),
           reorderLevel,
         },
       });
 
-      if (stock > 0) {
+      if (initialStock > 0 || boxStock > 0) {
         await tx.inventoryMovement.create({
           data: {
             inventoryItemId: createdItem.id,
-            quantityChange: stock,
+            quantityChange: initialStock,
+            boxQuantityChange: boxStock,
+            physicalCount,
+            functionalCount,
             reason: openingReason,
           },
         });
@@ -962,7 +987,7 @@ export async function requestMedicineAction(formData: FormData) {
 
 export async function createItemRequestAction(formData: FormData) {
   await runAction(formData, "/item-requests?view=my", "Medicines", "Request inventory item", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const inventoryItemId = requiredString(formData, "inventoryItemId");
     const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
     if (!inventoryItem) throw new Error("Selected inventory item was not found.");
@@ -1004,7 +1029,7 @@ export async function dispenseMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const medicineRequestId = requiredString(formData, "medicineRequestId");
   await runAction(formData, `/patients/${patientId}`, "Medicines", "Dispense medicine", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const releasedBy = optionalString(formData, "releasedBy") ?? "Clinic staff";
 
     const medicineRequest = await prisma.$transaction(async (tx) => {
@@ -1395,12 +1420,19 @@ export async function addInventoryQuantityAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
   const quantity = requiredPositiveInteger(formData, "quantity", "Quantity");
   await runAction(formData, "/inventory", "Inventory", "Add quantity", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const stockEntryType = String(formData.get("stockEntryType") ?? "RECEIVED");
     const reason = stockEntryType === "ENCODED_EXISTING" ? "Existing stock encoded" : "Manual stock addition";
+    const boxQuantity = Number(formData.get("boxQuantity") ?? 0);
+    if (!Number.isInteger(boxQuantity) || boxQuantity < 0) throw new Error("Box quantity must be a valid whole number.");
+    const current = await prisma.inventoryItem.findFirst({ where: { id: itemId, clinicId: user.clinicId } });
+    if (!current) throw new Error("Inventory item not found.");
+    const equipmentLike = current.category === InventoryCategory.EQUIPMENT || current.category === InventoryCategory.AMBULANCE_SUPPLY;
+    const nextPhysicalCount = equipmentLike ? (current.physicalCount ?? current.stock) + quantity : null;
+    const nextFunctionalCount = equipmentLike ? (current.functionalCount ?? current.physicalCount ?? current.stock) + quantity : null;
     await prisma.$transaction([
-      prisma.inventoryItem.update({ where: { id: itemId }, data: { stock: { increment: quantity } } }),
-      prisma.inventoryMovement.create({ data: { inventoryItemId: itemId, quantityChange: quantity, reason } }),
+      prisma.inventoryItem.update({ where: { id: itemId }, data: { stock: { increment: quantity }, boxStock: { increment: boxQuantity }, physicalCount: nextPhysicalCount, functionalCount: nextFunctionalCount } }),
+      prisma.inventoryMovement.create({ data: { inventoryItemId: itemId, quantityChange: quantity, boxQuantityChange: boxQuantity, reason, physicalCount: nextPhysicalCount, functionalCount: nextFunctionalCount } }),
     ]);
   }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
@@ -1409,10 +1441,11 @@ export async function addInventoryQuantityAction(formData: FormData) {
 export async function updateInventoryItemAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
   await runAction(formData, "/inventory", "Inventory", "Update item", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
-    const current = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
+    const current = await prisma.inventoryItem.findFirst({ where: { id: itemId, clinicId: user.clinicId } });
     if (!current) throw new Error("Inventory batch not found.");
     const name = requiredString(formData, "name");
+    const equipmentLike = current.category === InventoryCategory.EQUIPMENT || current.category === InventoryCategory.AMBULANCE_SUPPLY;
     const dosage = formData.has("dosage") ? optionalString(formData, "dosage") : current.dosage;
     const brandName = formData.has("brandName") ? optionalString(formData, "brandName") : current.brandName;
     const classification = formData.has("classification") ? optionalString(formData, "classification") : current.classification;
@@ -1421,23 +1454,47 @@ export async function updateInventoryItemAction(formData: FormData) {
       : current.expirationDate
         ? formatDateKey(current.expirationDate)
         : null;
-    const batchKey = [name, dosage, brandName, classification, expirationValue]
+    const physicalCount = equipmentLike ? Number(formData.get("physicalCount") ?? current.physicalCount ?? current.stock) : null;
+    const functionalCount = equipmentLike ? Number(formData.get("functionalCount") ?? current.functionalCount ?? physicalCount) : null;
+    if (equipmentLike && (!Number.isInteger(physicalCount) || !Number.isInteger(functionalCount) || physicalCount! < 0 || functionalCount! < 0 || functionalCount! > physicalCount!)) {
+      throw new Error("Functional units must be between zero and the physical count.");
+    }
+    const itemCode = formData.has("itemCode") ? optionalString(formData, "itemCode") : current.itemCode;
+    const reorderLevel = Number(formData.get("reorderLevel") ?? current.reorderLevel);
+    const pcsPerBoxValue = optionalString(formData, "pcsPerBox");
+    const pcsPerBox = pcsPerBoxValue ? Number(pcsPerBoxValue) : null;
+    if (!Number.isInteger(reorderLevel) || reorderLevel < 0 || (pcsPerBox !== null && (!Number.isInteger(pcsPerBox) || pcsPerBox <= 0))) {
+      throw new Error("Threshold and quantity per box must be valid whole numbers.");
+    }
+    const batchKey = [current.category, itemCode, name, dosage, brandName, classification, expirationValue]
       .map((value) => (value ?? "").trim().toLowerCase().replace(/\s+/g, " "))
       .join("|");
 
-    await prisma.inventoryItem.update({
-      where: { id: itemId },
-      data: {
+    await prisma.$transaction(async (tx) => {
+      await tx.inventoryItem.update({
+        where: { id: itemId },
+        data: {
         name,
+        itemCode,
+        itemDescription: formData.has("itemDescription") ? optionalString(formData, "itemDescription") : current.itemDescription,
         dosage,
         brandName,
         classification,
+        remarks: formData.has("remarks") ? optionalString(formData, "remarks") : current.remarks,
+        location: formData.has("location") ? optionalString(formData, "location") : current.location,
         expirationDate: expirationValue ? parseDate(expirationValue) : null,
         batchKey,
         unit: requiredString(formData, "unit"),
-        reorderLevel: Number(formData.get("reorderLevel") ?? 0),
-        pcsPerBox: optionalString(formData, "pcsPerBox") ? Number(formData.get("pcsPerBox")) : null,
-      },
+        reorderLevel,
+        pcsPerBox,
+        physicalCount,
+        functionalCount,
+        ...(equipmentLike ? { stock: physicalCount! } : {}),
+        },
+      });
+      if (equipmentLike && (physicalCount !== current.physicalCount || functionalCount !== current.functionalCount)) {
+        await tx.inventoryMovement.create({ data: { inventoryItemId: itemId, quantityChange: 0, reason: "Physical condition recorded", physicalCount, functionalCount } });
+      }
     });
   }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
@@ -1486,7 +1543,11 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
 
 export async function deleteInventoryItemAction(formData: FormData) {
   const itemId = requiredString(formData, "itemId");
-  await runAction(formData, "/inventory", "Inventory", "Delete item", async () => { await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]); await prisma.inventoryItem.delete({ where: { id: itemId } }); }, { type: "InventoryItem", id: itemId });
+  await runAction(formData, "/inventory", "Inventory", "Delete item", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
+    const deleted = await prisma.inventoryItem.deleteMany({ where: { id: itemId, clinicId: user.clinicId } });
+    if (deleted.count !== 1) throw new Error("Inventory item not found.");
+  }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
 }
 
@@ -1494,7 +1555,7 @@ export async function resolveItemRequestAction(formData: FormData) {
   const requestId = requiredString(formData, "requestId");
   const decision = requiredString(formData, "decision");
   await runAction(formData, "/item-requests", "Medicines", `${decision} item request`, async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
       if (!request || request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
@@ -1517,7 +1578,7 @@ export async function resolveItemRequestAction(formData: FormData) {
 export async function releaseItemRequestAction(formData: FormData) {
   const requestId = requiredString(formData, "requestId");
   await runAction(formData, "/item-requests", "Medicines", "Release item request", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.SUPPLY_OFFICER]);
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const releasedBy = optionalString(formData, "releasedBy") ?? user.name;
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.medicineRequest.findUnique({
@@ -1547,9 +1608,12 @@ export async function releaseItemRequestAction(formData: FormData) {
         data: { status: "RELEASED", releasedBy, releasedAt },
       });
       if (claimed.count !== 1) throw new Error("This request is no longer approved for release.");
+      const equipmentLike = item.category === InventoryCategory.EQUIPMENT || item.category === InventoryCategory.AMBULANCE_SUPPLY;
+      const nextPhysicalCount = equipmentLike ? Math.max(0, (item.physicalCount ?? item.stock) - request.quantity) : null;
+      const nextFunctionalCount = equipmentLike ? Math.min(item.functionalCount ?? nextPhysicalCount!, nextPhysicalCount!) : null;
       const stockUpdate = await tx.inventoryItem.updateMany({
         where: { id: item.id, stock: { gte: request.quantity } },
-        data: { stock: { decrement: request.quantity } },
+        data: { stock: { decrement: request.quantity }, physicalCount: nextPhysicalCount, functionalCount: nextFunctionalCount },
       });
       if (stockUpdate.count !== 1) throw new Error(`Insufficient stock. Only ${item.stock} ${item.unit} remain.`);
       await tx.inventoryMovement.create({
@@ -1557,6 +1621,8 @@ export async function releaseItemRequestAction(formData: FormData) {
           inventoryItemId: item.id,
           medicineRequestId: request.id,
           quantityChange: -request.quantity,
+          physicalCount: nextPhysicalCount,
+          functionalCount: nextFunctionalCount,
           reason: request.visitId ? `Medicine release for visit ${request.visitId}` : `Item request release ${request.id}`,
         },
       });

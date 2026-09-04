@@ -45,7 +45,7 @@ export default async function ItemRequestsPage({
     }),
     currentUser ? getInventoryRequestOptions(currentUser.clinicId) : [],
   ]);
-  const canResolveRequests = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.SUPPLY_OFFICER;
+  const canResolveRequests = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.PHARMACIST || currentUser?.role === UserRole.SUPPLY_OFFICER;
   const requestRows = requests.map((request) => ({
     id: request.id,
     itemName: request.itemName,
