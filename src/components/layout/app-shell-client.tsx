@@ -9,7 +9,7 @@ import { navItems } from "@/data/clinic";
 import { canAccessPath, filterNavigationByRole, type AppRole } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { OcmLogo } from "@/components/layout/ocm-logo";
+import { ClinicLogo } from "@/components/layout/clinic-logo";
 import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
 import { CsrfField } from "@/components/security/csrf-field";
 
@@ -79,11 +79,7 @@ export function AppShellClient({
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
         <Link href="/dashboard" className="flex h-16 items-center gap-3 border-b px-6">
-          <OcmLogo className="h-11 w-11" />
-          <div>
-            <p className="text-sm text-muted-foreground">Office of the Chief Minister</p>
-            <h1 className="font-black tracking-tight">THE CLINIC</h1>
-          </div>
+          <ClinicLogo className="w-full" />
         </Link>
         {renderNavigation()}
       </aside>
@@ -105,11 +101,7 @@ export function AppShellClient({
       >
         <div className="flex h-16 items-center gap-3 border-b px-4">
           <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3">
-            <OcmLogo className="h-10 w-10 shrink-0" />
-            <div className="min-w-0">
-              <p className="truncate text-xs text-muted-foreground">Office of the Chief Minister</p>
-              <h1 className="truncate font-black tracking-tight">THE CLINIC</h1>
-            </div>
+            <ClinicLogo className="w-full max-w-60" />
           </Link>
           <Button variant="ghost" size="icon" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">
             <X className="h-5 w-5" />
@@ -122,16 +114,15 @@ export function AppShellClient({
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="shrink-0 lg:hidden"
             onClick={() => setMobileNavOpen(true)}
             aria-label="Open navigation"
             aria-expanded={mobileNavOpen}
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
-            <OcmLogo className="h-9 w-9" />
-            <span className="text-sm font-black tracking-tight">THE CLINIC</span>
+          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center md:max-w-44 lg:hidden">
+            <ClinicLogo className="w-full max-w-44" />
           </Link>
           {canSearchPatients ? (
             <DebouncedSearchForm
@@ -141,7 +132,7 @@ export function AppShellClient({
               inputClassName="w-full max-w-xl rounded-2xl bg-slate-50"
             />
           ) : null}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 md:inline-flex">Online</span>
             <Button
               type="button"
