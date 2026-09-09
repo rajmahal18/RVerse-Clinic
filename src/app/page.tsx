@@ -14,7 +14,7 @@ import {
   Syringe,
   UsersRound,
 } from "lucide-react";
-import { OcmLogo } from "@/components/layout/ocm-logo";
+import { ClinicLogo } from "@/components/layout/clinic-logo";
 import { LandingRevealObserver } from "@/components/landing/landing-reveal-observer";
 import { verifySessionToken } from "@/lib/auth";
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
@@ -146,11 +146,7 @@ export default async function LandingPage() {
       <header className="landing-header fixed inset-x-0 top-0 z-40 border-b border-slate-950/10 bg-[#f7f8f4]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[92rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex min-w-0 items-center gap-3">
-            <OcmLogo className="h-10 w-10" />
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-teal-700">OCM Clinic</p>
-              <h1 className="truncate text-sm font-black text-slate-950 sm:text-base">EMR and Inventory System</h1>
-            </div>
+            <ClinicLogo className="w-60" />
           </Link>
           <nav className="ml-auto hidden items-center gap-1 border border-slate-950/10 bg-white p-1 text-sm font-bold text-slate-600 md:flex">
             {sections.map((section) => (
@@ -313,9 +309,8 @@ export default async function LandingPage() {
 
       <footer className="bg-slate-950 px-4 py-6 text-sm text-slate-300 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[92rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <OcmLogo className="h-9 w-9 bg-white" />
-            <span className="font-bold">OCM Clinic EMR and Inventory System</span>
+          <div className="w-60 max-w-full bg-white">
+            <ClinicLogo className="w-full" />
           </div>
           <Link href={accessHref} className="landing-button inline-flex w-fit items-center gap-2 font-black text-white">
             {accessLabel}

@@ -7,7 +7,7 @@ import { ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound, XC
 import { createAccountAction, loginAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
-import { OcmLogo } from "@/components/layout/ocm-logo";
+import { ClinicLogo } from "@/components/layout/clinic-logo";
 
 type AuthMode = "sign-in" | "create-account";
 
@@ -48,12 +48,8 @@ export default function LoginPage() {
     <main className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
       <div className="grid min-h-screen lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
         <section className="hidden border-r bg-white px-10 py-8 lg:flex lg:flex-col">
-          <Link href="/" className="flex w-fit items-center gap-3">
-            <OcmLogo className="h-12 w-12" />
-            <div>
-              <p className="text-sm text-slate-500">Office of the Chief Minister</p>
-              <h1 className="text-xl font-black tracking-tight">THE CLINIC</h1>
-            </div>
+          <Link href="/" className="flex w-60 max-w-full items-center">
+            <ClinicLogo className="w-full" />
           </Link>
 
           <div className="mt-16 max-w-xl">
@@ -76,11 +72,7 @@ export default function LoginPage() {
         <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="mb-8 flex items-center gap-3 lg:hidden">
-              <OcmLogo className="h-12 w-12" />
-              <div>
-                <p className="text-sm text-slate-500">Office of the Chief Minister</p>
-                <h1 className="font-black tracking-tight">THE CLINIC</h1>
-              </div>
+              <ClinicLogo className="w-60" />
             </div>
 
             <div className="rounded-3xl border bg-white p-4 shadow-soft sm:p-6">
