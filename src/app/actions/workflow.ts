@@ -20,6 +20,7 @@ import { getLabFieldKeys, getLabResultType, labTypeLabels } from "@/lib/lab-resu
 import { hashPassword, isStrongPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { TRUST_PROXY_HEADERS } from "@/lib/security-config";
+import { safeLoginNext } from "@/lib/login-next";
 
 const MAIN_CLINIC_ID = "main-clinic";
 const LOGIN_ATTEMPT_WINDOW_MINUTES = 15;
@@ -1800,8 +1801,8 @@ export async function toggleUserStatusAction(formData: FormData) {
 }
 
 export async function loginAction(formData: FormData) {
-  const next = optionalString(formData, "next") ?? "/dashboard";
-  const destination = await runAction(formData, "/login", "Authentication", "Sign in", async () => {
+  const next = safeLoginNext(optionalString(formData, "next"));
+  const destination = await runAction(formData, `/login?next=${encodeURIComponent(next)}`, "Authentication", "Sign in", async () => {
     const email = requiredString(formData, "email").toLowerCase();
     const password = requiredString(formData, "password");
     const ipAddress = await getClientIpAddress();
@@ -1859,59 +1860,10 @@ export async function loginAction(formData: FormData) {
       metadata: { ipAddress },
     });
 
-    return next.startsWith("/") ? next : "/dashboard";
+    return next;
   });
 
   redirect(destination);
-}
-
-export async function createAccountAction(formData: FormData) {
-  await runAction(formData, "/login?mode=create-account", "Accounts", "Request account", async () => {
-    const clinic = await ensureClinic();
-    const name = requiredString(formData, "name");
-    const email = requiredString(formData, "email").toLowerCase();
-    const password = requiredString(formData, "password");
-    const confirmPassword = requiredString(formData, "confirmPassword");
-
-    if (password !== confirmPassword) {
-      throw new Error("Passwords do not match.");
-    }
-
-    if (!isStrongPassword(password)) {
-      throw new Error("Password does not meet the requirements.");
-    }
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      throw new Error("An account with this email already exists.");
-    }
-
-    const user = await prisma.user.create({
-      data: {
-        clinicId: clinic.id,
-        name,
-        email,
-        passwordHash: hashPassword(password),
-        role: UserRole.DOCTOR_NURSE,
-        isActive: false,
-      },
-    });
-
-    await writeActivityLog({
-      clinicId: clinic.id,
-      module: "Accounts",
-      action: "Request account",
-      entityType: "User",
-      entityId: user.id,
-      description: `Submitted account request for ${user.name}.`,
-    });
-  });
-
-  revalidatePath("/accounts");
-  redirect(`/login?message=${encodeURIComponent("Account request submitted. An admin must activate the account before sign in.")}`);
 }
 
 export async function logoutAction(formData: FormData) {
@@ -1924,4 +1876,3 @@ export async function logoutAction(formData: FormData) {
   await clearAuthCookie();
   redirect("/login");
 }
-

@@ -7,12 +7,15 @@ import {
 } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
 import { getAvailedServiceLabels } from "@/lib/patient-view";
+import { getPatientFormCode } from "@/lib/patient-form-number";
+import { getCurrentUser } from "@/lib/auth";
 
-export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "daily-patient-summary" | "medical-certificate" | "referral-form" | "medical-allowance" | "doctors-order" | "client-satisfaction-survey";
+export type ClinicFormSlug = "employee-information" | "assessment-monitoring" | "medicine-log" | "daily-patient-summary" | "medical-certificate" | "referral-form" | "medical-allowance" | "doctors-order" | "client-satisfaction-survey";
 
 export const clinicForms: { slug: ClinicFormSlug; title: string; scope: "patient" | "visit"; filenamePrefix: string }[] = [
   { slug: "employee-information", title: "Employee Information", scope: "patient", filenamePrefix: "employee-information" },
   { slug: "assessment-monitoring", title: "Assessment Monitoring Sheet", scope: "patient", filenamePrefix: "assessment-monitoring" },
+  { slug: "medicine-log", title: "Medicine Log", scope: "patient", filenamePrefix: "medicine-log" },
   { slug: "daily-patient-summary", title: "Daily Patient Summary", scope: "visit", filenamePrefix: "daily-patient-summary" },
   { slug: "medical-certificate", title: "Medical Certificate", scope: "visit", filenamePrefix: "medical-certificate" },
   { slug: "referral-form", title: "Referral Form", scope: "visit", filenamePrefix: "referral-form" },
@@ -130,9 +133,11 @@ function medicineLine(medicine: PatientWithFormData["visits"][number]["medicines
   return [medicine.itemName, medicine.frequency, medicine.duration].map(clean).filter(Boolean).join(" - ");
 }
 
-export async function getClinicFormData(patientId: string, visitId?: string) {
-  const patient = await prisma.patient.findUnique({
-    where: { id: patientId },
+export async function getClinicFormData(patientId: string, visitId?: string, includePatientFormCode = false) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const patient = await prisma.patient.findFirst({
+    where: { id: patientId, clinicId: user.clinicId },
     include: {
       clinic: true,
       visits: {
@@ -183,6 +188,21 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
   const formatStaffName = (name: string | null | undefined) => displayNameByAccountName.get(clean(name)) || clean(name);
 
   return {
+    patientFormCode: includePatientFormCode ? await getPatientFormCode(patient.id, patient.createdAt) : "",
+    medicineLog: patient.visits
+      .flatMap((visit) => visit.medicines)
+      .filter((medicine) => medicine.status !== "REJECTED")
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+      .map((medicine) => ({
+        id: medicine.id,
+        date: formatShortDate(medicine.createdAt),
+        timeRequested: formatTime(medicine.createdAt),
+        item: [medicine.itemName, medicine.inventoryItem?.dosage].map(clean).filter(Boolean).join(" "),
+        quantity: String(medicine.quantity),
+        releasedBy: formatStaffName(medicine.releasedBy),
+        receivedBy: formatStaffName(medicine.receivedBy),
+        timeReceived: formatTime(medicine.receivedAt),
+      })),
     patient: {
       id: patient.id,
       fullName: fullName(patient),
@@ -285,6 +305,6 @@ export async function getClinicFormData(patientId: string, visitId?: string) {
 
 export function clinicFormFilename(form: ClinicFormSlug, data: ClinicFormData) {
   const formConfig = clinicForms.find((item) => item.slug === form);
-  const datePart = data.selectedVisit?.shortDate.replaceAll("/", "-");
+  const datePart = form === "medicine-log" ? undefined : data.selectedVisit?.shortDate.replaceAll("/", "-");
   return [formConfig?.filenamePrefix ?? form, data.patient.id, datePart].filter(Boolean).join("-");
 }

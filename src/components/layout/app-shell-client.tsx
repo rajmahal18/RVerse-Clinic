@@ -78,7 +78,7 @@ export function AppShellClient({
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
-        <Link href="/dashboard" className="flex h-16 items-center gap-3 border-b px-6">
+        <Link href="/dashboard" className="flex min-h-24 items-center gap-3 border-b px-4 py-3">
           <ClinicLogo className="w-full" />
         </Link>
         {renderNavigation()}
@@ -99,7 +99,7 @@ export function AppShellClient({
         aria-label="Mobile navigation"
         aria-hidden={!mobileNavOpen}
       >
-        <div className="flex h-16 items-center gap-3 border-b px-4">
+        <div className="flex min-h-24 shrink-0 items-center gap-3 border-b px-4 py-3">
           <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3">
             <ClinicLogo className="w-full max-w-60" />
           </Link>
@@ -110,7 +110,7 @@ export function AppShellClient({
         <div className="min-h-0 flex-1 overflow-y-auto">{renderNavigation()}</div>
       </aside>
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-white/85 px-4 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-white/85 px-3 backdrop-blur md:gap-3 md:px-8">
           <Button
             variant="ghost"
             size="icon"
@@ -122,7 +122,7 @@ export function AppShellClient({
             <Menu className="h-5 w-5" />
           </Button>
           <Link href="/dashboard" className="flex min-w-0 flex-1 items-center md:max-w-44 lg:hidden">
-            <ClinicLogo className="w-full max-w-44" />
+            <ClinicLogo variant="compact" className="w-full max-w-44" />
           </Link>
           {canSearchPatients ? (
             <DebouncedSearchForm
@@ -132,7 +132,7 @@ export function AppShellClient({
               inputClassName="w-full max-w-xl rounded-2xl bg-slate-50"
             />
           ) : null}
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 md:inline-flex">Online</span>
             <Button
               type="button"
@@ -151,7 +151,7 @@ export function AppShellClient({
                 <LogOut className="h-5 w-5" />
               </Button>
             </form>
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-slate-900 text-sm font-bold text-white">{userInitials}</div>
+            <div className="grid h-8 w-8 place-items-center rounded-full bg-slate-900 text-xs font-bold text-white md:h-10 md:w-10 md:text-sm">{userInitials}</div>
           </div>
         </header>
         {hasMedicineExpiryAlert ? (

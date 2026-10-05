@@ -24,7 +24,7 @@ export default async function ClinicFormPreviewPage({
     notFound();
   }
 
-  const data = await getClinicFormData(id, resolvedSearchParams?.visitId);
+  const data = await getClinicFormData(id, resolvedSearchParams?.visitId, form === "medical-allowance");
 
   if (!data) {
     notFound();

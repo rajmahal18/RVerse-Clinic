@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, UserRound, XCircle } from "lucide-react";
-import { createAccountAction, loginAction } from "@/app/actions/workflow";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { loginAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 import { ClinicLogo } from "@/components/layout/clinic-logo";
+import { safeLoginNext } from "@/lib/login-next";
 
-type AuthMode = "sign-in" | "create-account";
+function LoginDestination() {
+  const searchParams = useSearchParams();
+  return <input type="hidden" name="next" value={safeLoginNext(searchParams.get("next"))} />;
+}
 
 function LoginNotice() {
   const searchParams = useSearchParams();
@@ -28,28 +32,14 @@ function LoginNotice() {
 }
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<AuthMode>("sign-in");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const isCreateAccount = mode === "create-account";
-  const passwordRules = [
-    { label: "More than 8 characters", met: password.length > 8 },
-    { label: "At least 1 uppercase letter", met: /[A-Z]/.test(password) },
-    { label: "At least 1 lowercase letter", met: /[a-z]/.test(password) },
-    { label: "At least 1 number", met: /\d/.test(password) },
-    { label: "At least 1 special character", met: /[^A-Za-z0-9]/.test(password) },
-  ];
-  const passwordMeetsRules = passwordRules.every((rule) => rule.met);
-  const passwordsMatch = !isCreateAccount || (confirmPassword.length > 0 && password === confirmPassword);
-  const canSubmit = passwordMeetsRules && passwordsMatch;
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
       <div className="grid min-h-screen lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
         <section className="hidden border-r bg-white px-10 py-8 lg:flex lg:flex-col">
-          <Link href="/" className="flex w-60 max-w-full items-center">
-            <ClinicLogo className="w-full" />
+          <Link href="/" className="flex w-full max-w-sm items-center">
+            <ClinicLogo variant="large" className="w-full" />
           </Link>
 
           <div className="mt-16 max-w-xl">
@@ -72,7 +62,7 @@ export default function LoginPage() {
         <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
           <div className="w-full max-w-md">
             <div className="mb-8 flex items-center gap-3 lg:hidden">
-              <ClinicLogo className="w-60" />
+              <ClinicLogo variant="large" className="w-full" />
             </div>
 
             <div className="rounded-3xl border bg-white p-4 shadow-soft sm:p-6">
@@ -80,52 +70,16 @@ export default function LoginPage() {
                 <LoginNotice />
               </Suspense>
 
-              <div className="mb-6 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => setMode("sign-in")}
-                  className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
-                    mode === "sign-in" ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-950"
-                  }`}
-                >
-                  Sign in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("create-account")}
-                  className={`rounded-xl px-3 py-2 text-sm font-bold transition ${
-                    isCreateAccount ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:text-slate-950"
-                  }`}
-                >
-                  Create account
-                </button>
-              </div>
-
               <div className="mb-6">
-                <h2 className="text-2xl font-black tracking-tight">{isCreateAccount ? "Create Account" : "Sign In"}</h2>
+                <h2 className="text-2xl font-black tracking-tight">Sign In</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-500">
-                  {isCreateAccount
-                    ? "Create an account for clinic system access. Account approval can be handled after role assignments are confirmed."
-                    : "Use your assigned clinic system account."}
+                  Use your assigned clinic system account.
                 </p>
               </div>
 
-              <form action={isCreateAccount ? createAccountAction : loginAction} className="space-y-4">
+              <form action={loginAction} className="space-y-4">
                 <CsrfField />
-                {isCreateAccount ? (
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-slate-700">Full name</span>
-                    <span className="relative block">
-                      <UserRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <input
-                        name="name"
-                        className="h-11 w-full rounded-2xl border bg-slate-50 pl-10 pr-4 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-primary/30"
-                        placeholder="Enter full name"
-                        required
-                      />
-                    </span>
-                  </label>
-                ) : null}
+                <Suspense fallback={null}><LoginDestination /></Suspense>
 
                 <label className="block">
                   <span className="mb-2 block text-sm font-bold text-slate-700">Email address</span>
@@ -134,6 +88,7 @@ export default function LoginPage() {
                     <input
                       name="email"
                       type="email"
+                      autoComplete="username"
                       className="h-11 w-full rounded-2xl border bg-slate-50 pl-10 pr-4 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-primary/30"
                       placeholder="name@office.gov"
                       required
@@ -148,8 +103,7 @@ export default function LoginPage() {
                     <input
                       name="password"
                       type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
+                      autoComplete="current-password"
                       className="h-11 w-full rounded-2xl border bg-slate-50 pl-10 pr-10 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-primary/30"
                       placeholder="Enter password"
                       required
@@ -165,49 +119,15 @@ export default function LoginPage() {
                   </span>
                 </label>
 
-                <div className="rounded-2xl border bg-slate-50 p-3">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Password Requirements</p>
-                  <div className="grid gap-2">
-                    {passwordRules.map((rule) => (
-                      <div key={rule.label} className={`flex items-center gap-2 text-sm ${rule.met ? "text-emerald-700" : "text-slate-500"}`}>
-                        {rule.met ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                        <span>{rule.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {isCreateAccount ? (
-                  <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-slate-700">Confirm password</span>
-                    <span className="relative block">
-                      <LockKeyhole className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <input
-                        name="confirmPassword"
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        className="h-11 w-full rounded-2xl border bg-slate-50 pl-10 pr-4 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-primary/30"
-                        placeholder="Confirm password"
-                        required
-                      />
-                    </span>
-                    <span className={`mt-2 flex items-center gap-2 text-sm ${passwordsMatch ? "text-emerald-700" : "text-slate-500"}`}>
-                      {passwordsMatch ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                      Passwords match
-                    </span>
-                  </label>
-                ) : null}
-
-                <Button type="submit" className="h-11 w-full" disabled={!canSubmit}>
-                  {isCreateAccount ? "Create Account" : "Sign In"}
+                <Button type="submit" className="h-11 w-full">
+                  Sign In
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </form>
             </div>
 
             <p className="mt-4 text-center text-xs leading-5 text-slate-500">
-              Role-based access will be configured after the client confirms user roles and module visibility.
+              Contact your administrator to request an account.
             </p>
           </div>
         </section>

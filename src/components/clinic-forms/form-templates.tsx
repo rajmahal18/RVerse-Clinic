@@ -1,5 +1,6 @@
 import type { ClinicFormData, ClinicFormSlug } from "@/lib/clinic-forms";
 import { formatLongDate } from "@/lib/date-time";
+import { ResponsivePaper } from "@/components/clinic-forms/responsive-paper";
 
 const covidDoseLabels = ["1", "2", "3", "Booster 1 & 2"];
 
@@ -184,6 +185,43 @@ function AssessmentMonitoringSheet({ data }: { data: ClinicFormData }) {
       </table>
     </div>
   );
+}
+
+function MedicineLogForm({ data }: { data: ClinicFormData }) {
+  const rowsPerPage = 30;
+  const pageCount = Math.max(1, Math.ceil(data.medicineLog.length / rowsPerPage));
+
+  return <ResponsivePaper>
+    {Array.from({ length: pageCount }, (_, pageIndex) => (
+      <div className="clinic-form-page medicine-log-page" key={pageIndex}>
+        <div className="medicine-log-header">
+          <p>OFFICE OF THE CHIEF MINISTER- BARMM</p>
+          <p>THE CLINIC</p>
+        </div>
+        <div className="medicine-log-patient">
+          <span>Name: <b>{data.patient.fullName}</b></span>
+          <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
+          <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
+          <span>Allergies: <b>{data.patient.allergy}</b></span>
+        </div>
+        <table className="patient-medicine-log-table">
+          <colgroup>{[10, 11, 35, 8, 12, 13, 11].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup>
+          <thead>
+            <tr><th colSpan={7} className="medicine-log-title">MEDICINE LOG</th></tr>
+            <tr><th>Date</th><th>Time<br />Requested</th><th>Item<br />(Indicate Dosage)</th><th>Qty</th><th>Released by:</th><th>Received by:</th><th>Time<br />Received</th></tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rowsPerPage }, (_, index) => {
+              const row = data.medicineLog[pageIndex * rowsPerPage + index];
+              return <tr key={row?.id ?? index}>
+                <td>{row?.date}</td><td>{row?.timeRequested}</td><td className="medicine-log-item">{row?.item}</td><td>{row?.quantity}</td><td>{row?.releasedBy}</td><td>{row?.receivedBy}</td><td>{row?.timeReceived}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    ))}
+  </ResponsivePaper>;
 }
 
 function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
@@ -374,14 +412,14 @@ function MedicalAllowanceForm({ data }: { data: ClinicFormData }) {
       <OfficialHeader />
       <h1 className="allowance-title">CERTIFICATION FOR THE GRANT OF<br />MEDICAL ALLOWANCE</h1>
       <div className="allowance-body">
-        <div className="allowance-employee-line"><span>This is to certify that</span><span className="allowance-underline">{data.patient.fullName}</span></div>
+        <div className="allowance-employee-line"><span>This is to certify that</span><span className="allowance-underline">{data.patient.fullName.toUpperCase()}</span></div>
         <div className="allowance-identity-row"><div><b>{data.patient.designation}</b><i>Position/Title</i></div><div><b>{data.patient.officeDivision}</b><i>Office/Division</i></div></div>
         <p>based on the review and validation of this office, the submitted documents were found to be complete and authentic consisting of official receipts and supporting medical documents with a total amount equal or exceeding to Seven Thousand Pesos (P7,000.00).</p>
         <p>This certification is issued pursuant to Memorandum Order No. 0381. Series of 2025, &quot;Supplemental Guidelines on the Grant of Medical Allowance to Eligible Employees of the Office of the Chief Minister - BARMM.&quot; to endorse the said employee as <b>CLEARED</b> for the Medical Allowance liquidation to the FMS-Accounting and AMS-HRMD.</p>
         <p className="allowance-issued">Issued this <b>{data.issued.ordinalDay}</b> day of <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.</p>
         <div className="allowance-signature-block"><div className="allowance-signature-row"><span>Reviewed and Validated by:</span><Signatory name={data.signatory.nurseName} position={data.signatory.nursePosition} /></div><div className="allowance-signature-row"><span>Certified by:</span><Signatory name={data.signatory.physicianName} position={data.signatory.physicianPosition} /></div></div>
       </div>
-      <Footer revision="OCMTC_CFYOMA_2025_01" data={data} />
+      <Footer revision={data.patientFormCode} data={data} />
     </div>
   );
 }
@@ -484,6 +522,7 @@ function ClientSatisfactionSurveyForm({ data }: { data: ClinicFormData }) {
 }
 
 export function ClinicFormTemplate({ form, data }: { form: ClinicFormSlug; data: ClinicFormData }) {
+  if (form === "medicine-log") return <MedicineLogForm data={data} />;
   if (form === "employee-information") return <EmployeeInformationForm data={data} />;
   if (form === "assessment-monitoring") return <AssessmentMonitoringSheet data={data} />;
   if (form === "daily-patient-summary") return <DailyPatientSummaryForm data={data} />;

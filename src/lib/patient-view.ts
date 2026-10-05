@@ -7,6 +7,8 @@ import {
   VisitStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { findPatientByFormCode } from "@/lib/patient-form-number";
 import {
   addMonths,
   calculateAgeInAppTimeZone,
@@ -747,6 +749,7 @@ function getPatientSearchWhere(search?: string): Prisma.PatientWhereInput | unde
 
   return {
     OR: [
+      { patientNumber: { contains: normalizedSearch, mode: "insensitive" } },
       { lastName: { contains: normalizedSearch, mode: "insensitive" } },
       { firstName: { contains: normalizedSearch, mode: "insensitive" } },
       { middleName: { contains: normalizedSearch, mode: "insensitive" } },
@@ -783,7 +786,12 @@ export async function getPatientTableRows(
   search?: string,
   options?: PatientTableFilters
 ): Promise<PatientListResult> {
-  const where = getPatientSearchWhere(search);
+  let where = getPatientSearchWhere(search);
+  if (/^TC\d{6}-\d{4,}$/i.test(search?.trim() ?? "")) {
+    const user = await getCurrentUser();
+    const patientId = user ? await findPatientByFormCode(search!, user.clinicId) : null;
+    where = patientId ? { id: patientId, clinicId: user!.clinicId } : { id: "__no_matching_patient_code__" };
+  }
 
   if (!filter && !where && !hasPatientTableFilters(options)) {
     const safePage = Math.max(1, page);
@@ -1161,8 +1169,10 @@ export async function getPatientProfile(id: string): Promise<PatientProfileData 
 }
 
 export async function getPatientWorkflowProfile(id: string): Promise<PatientWorkflowProfile | null> {
-  const patient = await prisma.patient.findUnique({
-    where: { id },
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const patient = await prisma.patient.findFirst({
+    where: { id, clinicId: user.clinicId },
     include: {
       visits: {
         orderBy: {

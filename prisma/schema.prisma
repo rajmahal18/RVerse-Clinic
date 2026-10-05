@@ -125,6 +125,13 @@ model ActivityLog {
   @@index([status, createdAt])
 }
 
+// Permanent numbers for printed patient forms. Kept independently so deleted
+// patient records do not cause numbers to be reused.
+model PatientFormNumber {
+  patientId String @id
+  number    Int    @unique @default(autoincrement())
+}
+
 model Patient {
   id          String        @id @default(cuid())
   patientNumber String      @unique

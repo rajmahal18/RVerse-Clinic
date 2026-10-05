@@ -58,7 +58,7 @@ export default async function PatientsPage({
             <DebouncedSearchForm
               action="/patients"
               initialQuery={searchQuery}
-              placeholder="Search name, contact, age"
+              placeholder="Search name, patient code, contact, age"
               preserveParams={filterQueryParams}
             />
             <Button asChild>

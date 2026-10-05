@@ -303,6 +303,16 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
   padding: 24px;
 }
 
+.patient-qr-screen { min-height: 100vh; padding: 24px 16px; overflow-x: hidden; background: #f8fafc; }
+.patient-qr-sticker { display: block; width: 30mm; height: 34mm; margin: 0 auto; background: white; }
+
+@media print {
+  @page patient-qr-label { size: A4 portrait; margin: 10mm; }
+  html:has(.patient-qr-screen), body:has(.patient-qr-screen) { width: auto; min-height: 0; }
+  .patient-qr-screen { page: patient-qr-label; min-height: 0; padding: 0; background: white; }
+  .patient-qr-sticker { margin: 0; }
+}
+
 .clinic-form-page {
   width: 210mm;
   min-height: 297mm;
@@ -719,6 +729,30 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 
 .assessment-page {
   padding: 6mm 6mm 7mm;
+}
+
+.medicine-paper-preview { width: min(100%, 210mm); margin: 0 auto; overflow: hidden; }
+.medicine-paper-content { width: 210mm; transform-origin: top left; }
+.medicine-log-page { padding: 7mm; }
+.medicine-log-page + .medicine-log-page { margin-top: 16px; }
+.medicine-log-header { text-align: center; font-size: 12pt; line-height: 1.2; font-weight: 400; }
+.medicine-log-patient { display: grid; grid-template-columns: 32% 18% 25% 25%; margin: 4mm 0 2mm; font-size: 10pt; }
+.medicine-log-patient span { padding-right: 2mm; overflow-wrap: anywhere; }
+.medicine-log-patient b { font-weight: 400; }
+.patient-medicine-log-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.patient-medicine-log-table th, .patient-medicine-log-table td { border: 1px solid #888; padding: 0.7mm; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
+.patient-medicine-log-table th { height: 10mm; font-size: 10pt; font-weight: 400; }
+.patient-medicine-log-table .medicine-log-title { height: 10mm; background: #d1d1d1; font-size: 18pt; font-weight: 700; }
+.patient-medicine-log-table td { height: 7mm; font-size: 8pt; }
+.patient-medicine-log-table .medicine-log-item { text-align: left; }
+
+@media print {
+  .medicine-paper-preview { width: 210mm; height: auto !important; overflow: visible; }
+  .medicine-paper-content { transform: none !important; }
+  .medicine-log-page { break-after: page; }
+  .medicine-log-page:last-child { break-after: auto; }
+  .medicine-log-page + .medicine-log-page { margin-top: 0; }
+  .patient-medicine-log-table tr { break-inside: avoid; }
 }
 
 .assessment-header {

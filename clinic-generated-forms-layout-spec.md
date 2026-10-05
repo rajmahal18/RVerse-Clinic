@@ -2,6 +2,36 @@
 
 ## Purpose
 
+## Patient QR ID label
+
+- Patient Profile > Print QR Label opens a 30 × 34 mm label: black QR above the permanent `TCYYYYMM-NNNN` patient code, without name or medical details.
+- QR encodes the patient profile URL, using the browser's current deployment origin (also behind reverse proxies). Optional `APP_BASE_URL` can pin a permanent origin; no deployment domain is hardcoded.
+- Print / Save PDF uses actual-size output on A4 with a 10 mm margin; SVG download includes both QR and patient code.
+- Four-module quiet zone, Q error correction, vector output. Verify a physical test print with clinic scanners before bulk printing.
+- Full patient codes can be searched in Patient Records. QR links require existing authentication/role checks; label generation and code lookup are scoped to the signed-in clinic.
+- Login preserves the scanned patient destination, including after failed attempts. External redirects are rejected.
+- Uses the existing additive PatientFormNumber migration from Medical Allowance numbering; apply it before label generation. Other patient screens/searches do not depend on the table unless searching a full TC code.
+- A newly generated label uses the current deployment URL. Previously printed labels still contain their original URL; keep that URL reachable or reprint after changing domains.
+
+## Medical Allowance patient identification
+
+- Print the patient's full name in uppercase on this form.
+- Replace the footer code with `TCYYYYMM-NNNN`: `TC` means The Clinic; year/month come from the patient's registration date in Asia/Shanghai; the number is permanent and continues across months (minimum four digits).
+- The additive `20261005090000_patient_form_number` migration assigns existing patients numbers in registration order. New patients receive permanent numbers when Medical Allowance forms are generated, in registration order, under a transaction lock.
+- Existing patient IDs/numbers remain unchanged. Allocated form numbers are retained independently and never reused. Reprints reuse the same number.
+- Deploy the migration before using the updated Medical Allowance form. Other forms do not query the new table.
+
+## Medicine Log (patient record)
+
+- Available separately under Patient Profile > Clinic Forms > Medicine Log.
+- Uses the supplied Medicine Log reference: centered office/clinic header, Name, Age/Sex, Date of Birth, Allergies, gray MEDICINE LOG title band, and seven bordered columns.
+- Columns: Date, Time Requested, Item (Indicate Dosage), Qty, Released by, Received by, Time Received.
+- Includes the selected patient's medicine requests across all visits, oldest request first. Rejected requests are excluded, following the existing Daily Patient Summary medicine log. Release/receipt fields stay blank until recorded.
+- A4 portrait; 30 rows per sheet, including blank rows. Additional records continue on another sheet with the same header; records are not truncated.
+- Mobile preview scales to the viewport. Printing and Save PDF retain full A4 dimensions.
+- The existing Daily Patient Summary retains its selected-visit medicine log.
+- Filename: medicine-log-{patient-id}.pdf. No schema migration required.
+
 Implement printable, auto-generated clinic forms that closely reproduce the supplied reference layouts.
 
 This document intentionally focuses on:

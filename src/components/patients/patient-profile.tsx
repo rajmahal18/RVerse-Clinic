@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ChevronDown, FileText, Pencil, PlayCircle, Save, UserRound } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronDown, FileText, Pencil, PlayCircle, QrCode, Save, UserRound } from "lucide-react";
 import { RequestType, UserRole, VisitStatus } from "@prisma/client";
 import {
   autosaveVisitDraftAction,
@@ -137,6 +137,9 @@ export async function PatientProfile({ id }: { id: string }) {
           <p className="text-sm text-slate-500">Registered: {patient.createdAt}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/patients/${patient.id}/qr`}><QrCode className="h-4 w-4" /> Print QR Label</Link>
+          </Button>
           <Button asChild variant="outline">
             <Link href={`/patients/${patient.id}/forms`}>
               <FileText className="h-4 w-4" /> Clinic Forms
@@ -597,4 +600,3 @@ export async function PatientProfile({ id }: { id: string }) {
     </div>
   );
 }
-
