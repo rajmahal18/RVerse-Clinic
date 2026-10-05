@@ -48,6 +48,7 @@ async function main() {
     const render = async (element, width) => {
       await page.setViewportSize({ width, height: 900 });
       await page.setContent(`<!doctype html><html><head><style>${css}</style></head><body>${renderToStaticMarkup(element)}</body></html>`);
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.evaluate(() => Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => {}))));
     };
     const assertNoOverflow = async (label) => {
@@ -73,13 +74,19 @@ async function main() {
       assert.equal(await page.getByText("Create account", { exact: true }).count(), 0);
       await render(React.createElement(Shell, {
         role: "ADMIN", userInitials: "SA", medicineExpiry: { expired: 0, expiringSoon: 0 },
-      }, React.createElement("p", null, "Patient Profile")), width);
+      }, React.createElement("div", { style: { minHeight: "2400px" } }, "Patient Profile")), width);
       await assertNoOverflow(`Shell ${width}`);
       await assertSingleLineRegion();
       const visibleLogos = await page.locator('img[alt="Bangsamoro seal"]').evaluateAll((images) => images
         .filter((image) => image.getBoundingClientRect().width && image.getBoundingClientRect().x >= 0)
         .map((image) => ({ width: image.getBoundingClientRect().width, text: image.parentElement.lastElementChild.getBoundingClientRect().width })));
       assert.ok(visibleLogos.some((logo) => logo.width >= 32 && logo.text >= 70), `Logo too small at ${width}`);
+      await page.evaluate(async () => {
+        window.scrollTo(0, 500);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      });
+      assert.ok(Math.abs((await page.locator("header").boundingBox()).y) <= 1, `Header must stay pinned while scrolling at ${width}px`);
+      await page.evaluate(() => window.scrollTo(0, 0));
       if (width < 1024) {
         await page.locator('aside[aria-label="Mobile navigation"]').evaluate((drawer) => { drawer.style.transform = "none"; });
         await assertNoOverflow(`Open mobile menu ${width}`);

@@ -76,7 +76,7 @@ export function AppShellClient({
   );
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50">
+    <div className="min-h-screen overflow-x-clip bg-slate-50">
       <aside className="fixed bottom-0 left-0 top-24 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
         {renderNavigation()}
       </aside>
