@@ -8,7 +8,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { findPatientByFormCode } from "@/lib/patient-form-number";
+import { findPatientByFormCode, getPatientCodeForDisplay } from "@/lib/patient-form-number";
 import {
   addMonths,
   calculateAgeInAppTimeZone,
@@ -1224,6 +1224,7 @@ export async function getPatientWorkflowProfile(id: string): Promise<PatientWork
 
   return {
     ...baseProfile,
+    patientNumber: await getPatientCodeForDisplay(patient.id, patient.createdAt) ?? "Not assigned",
     latestVisit: visitHistory[0] ?? null,
     visitHistory,
   };

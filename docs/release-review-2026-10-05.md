@@ -7,6 +7,7 @@
 - Public account registration removed; existing admin-only creation retained.
 - Printable QR plus patient code; existing patient IDs retained and full printed codes searchable.
 - Readable seal/text branding in sidebar, login, and mobile navigation.
+- Follow-up: Patient No. now shows the permanent TC code, with a safe `Not assigned` display before the additive table exists. Legacy IDs stay unchanged. Branding occupies the full desktop header; the region name stays on one line, with stacked seal/text on small login/menu layouts.
 - Review fixes: browser-origin QR URLs for reverse proxies, patient/form clinic scoping, Medicine Log column widths totaling 100%, and more space for the logo at 320 px.
 - Number allocation uses a transaction table lock. Allocated numbers remain independent of deleted patient records.
 

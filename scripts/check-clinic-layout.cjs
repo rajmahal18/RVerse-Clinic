@@ -56,19 +56,35 @@ async function main() {
     };
     const Login = load("src/app/login/page.tsx").default;
     const Shell = load("src/components/layout/app-shell-client.tsx").AppShellClient;
-    for (const width of [320, 375, 768, 1280]) {
+    const assertSingleLineRegion = async () => {
+      const regions = await page.locator("[data-clinic-region]").evaluateAll((elements) => elements
+        .filter((element) => { const rect = element.getBoundingClientRect(); return rect.width && rect.x >= 0; })
+        .map((element) => ({ height: element.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(element).lineHeight), right: element.getBoundingClientRect().left + element.scrollWidth })));
+      for (const region of regions) {
+        assert.ok(region.height <= region.lineHeight + 1, "Region name must stay on one line");
+        assert.ok(region.right <= page.viewportSize().width, "Region name must fit the viewport");
+      }
+    };
+    for (const width of [320, 375, 768, 1024, 1280]) {
       await render(React.createElement(Login), width);
       await assertNoOverflow(`Login ${width}`);
+      await assertSingleLineRegion();
       assert.equal(await page.getByRole("button", { name: "Sign In", exact: true }).count(), 1);
       assert.equal(await page.getByText("Create account", { exact: true }).count(), 0);
       await render(React.createElement(Shell, {
         role: "ADMIN", userInitials: "SA", medicineExpiry: { expired: 0, expiringSoon: 0 },
       }, React.createElement("p", null, "Patient Profile")), width);
       await assertNoOverflow(`Shell ${width}`);
+      await assertSingleLineRegion();
       const visibleLogos = await page.locator('img[alt="Bangsamoro seal"]').evaluateAll((images) => images
         .filter((image) => image.getBoundingClientRect().width && image.getBoundingClientRect().x >= 0)
         .map((image) => ({ width: image.getBoundingClientRect().width, text: image.parentElement.lastElementChild.getBoundingClientRect().width })));
       assert.ok(visibleLogos.some((logo) => logo.width >= 32 && logo.text >= 70), `Logo too small at ${width}`);
+      if (width < 1024) {
+        await page.locator('aside[aria-label="Mobile navigation"]').evaluate((drawer) => { drawer.style.transform = "none"; });
+        await assertNoOverflow(`Open mobile menu ${width}`);
+        await assertSingleLineRegion();
+      }
     }
 
     // Render actual form templates with synthetic data; no patient database is used.
@@ -110,7 +126,7 @@ async function main() {
     assert.ok(Math.abs(sticker.height - 34 * 96 / 25.4) < 1, "QR print height must stay 34 mm");
     const qrPdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
     assert.equal(qrPdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length, 1);
-    console.log("PASS: login/sidebar at 320/375/768/1280 px; Medicine Log PDFs; all existing form templates; uppercase allowance/code; actual-size QR print and hidden controls.");
+    console.log("PASS: login/header/open menu at 320/375/768/1024/1280 px, single-line region name; Medicine Log PDFs; existing forms; allowance/code; actual-size QR print.");
   } finally {
     await browser.close();
   }

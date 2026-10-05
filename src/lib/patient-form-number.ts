@@ -13,6 +13,10 @@ export function formatPatientFormCode(registeredAt: Date, number: number) {
 }
 
 export async function getPatientFormCode(patientId: string, registeredAt: Date) {
+  const [existing] = await prisma.$queryRaw<{ number: number }[]>`
+    SELECT "number" FROM "PatientFormNumber" WHERE "patientId" = ${patientId}
+  `;
+  if (existing) return formatPatientFormCode(registeredAt, existing.number);
   return prisma.$transaction(async (tx) => {
     // Serialize allocation and include patients registered since the migration,
     // regardless of which patient's form is opened first.
@@ -32,6 +36,15 @@ export async function getPatientFormCode(patientId: string, registeredAt: Date) 
     if (!record) throw new Error("Patient form number could not be assigned.");
     return formatPatientFormCode(registeredAt, record.number);
   });
+}
+
+export async function getPatientCodeForDisplay(patientId: string, registeredAt: Date) {
+  const [table] = await prisma.$queryRaw<{ name: string | null }[]>`
+    SELECT to_regclass('"PatientFormNumber"')::text AS "name"
+  `;
+  // Keep existing patient profiles usable during the additive migration rollout.
+  if (!table?.name) return null;
+  return getPatientFormCode(patientId, registeredAt);
 }
 
 export async function findPatientByFormCode(code: string, clinicId: string) {

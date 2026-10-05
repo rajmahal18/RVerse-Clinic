@@ -38,7 +38,7 @@ export default function LoginPage() {
     <main className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
       <div className="grid min-h-screen lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
         <section className="hidden border-r bg-white px-10 py-8 lg:flex lg:flex-col">
-          <Link href="/" className="flex w-full max-w-sm items-center">
+          <Link href="/" className="flex w-full items-center">
             <ClinicLogo variant="large" className="w-full" />
           </Link>
 

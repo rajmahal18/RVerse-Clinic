@@ -48,7 +48,8 @@ async function main() {
       if (name === "@/lib/date-time") return { APP_TIME_ZONE: "Asia/Shanghai" };
       throw new Error(`Unexpected module: ${name}`);
     }, module, module.exports);
-    const { getPatientFormCode, findPatientByFormCode } = module.exports;
+    const { getPatientFormCode, findPatientByFormCode, getPatientCodeForDisplay } = module.exports;
+    assert.equal(await getPatientCodeForDisplay("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
     assert.equal(await getPatientFormCode("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
     await db.exec(`INSERT INTO "Patient" VALUES
       ('patient-e','clinic-one','OLD-E','2026-10-03T00:00:00Z'),
@@ -67,6 +68,8 @@ async function main() {
     assert.equal(await getPatientFormCode("patient-f", new Date("2026-11-01T00:00:00Z")), "TC202611-0006");
     assert.equal(await getPatientFormCode("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
     assert.equal(await findPatientByFormCode("TC202610-0005", "clinic-one"), null);
+    await db.exec('DROP TABLE "PatientFormNumber"');
+    assert.equal(await getPatientCodeForDisplay("patient-b", new Date("2026-09-10T00:00:00Z")), null);
     console.log("PASS: additive migration, registration order, parallel requests, reprints, month rollover, clinic scope, and deleted-number retention (isolated PostgreSQL).");
   } finally {
     await db.close();

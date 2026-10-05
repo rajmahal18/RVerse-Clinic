@@ -18,6 +18,7 @@
 - Print the patient's full name in uppercase on this form.
 - Replace the footer code with `TCYYYYMM-NNNN`: `TC` means The Clinic; year/month come from the patient's registration date in Asia/Shanghai; the number is permanent and continues across months (minimum four digits).
 - The additive `20261005090000_patient_form_number` migration assigns existing patients numbers in registration order. New patients receive permanent numbers when Medical Allowance forms are generated, in registration order, under a transaction lock.
+- Patient Information also displays this permanent code as Patient No. Once assigned, existing numbers are read without allocation locks. Before the additive migration is applied, the profile remains usable and shows `Not assigned` rather than the legacy internal identifier.
 - Existing patient IDs/numbers remain unchanged. Allocated form numbers are retained independently and never reused. Reprints reuse the same number.
 - Deploy the migration before using the updated Medical Allowance form. Other forms do not query the new table.
 
