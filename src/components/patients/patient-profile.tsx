@@ -79,6 +79,7 @@ export async function PatientProfile({ id }: { id: string }) {
   const vaccineOptions = await getVaccineOptions(patient.clinicId);
   const currentUser = await getCurrentUser();
   const canManageVisits = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR_NURSE;
+  const canQueueVisits = canManageVisits || currentUser?.role === UserRole.RECORDS;
   const canEditPatient = currentUser?.role === UserRole.ADMIN;
   const latestVisit = patient.latestVisit;
   const activeVisit = patient.visitHistory.find((visit) => visit.statusCode !== VisitStatus.COMPLETED && visit.statusCode !== VisitStatus.CANCELLED) ?? null;
@@ -148,13 +149,13 @@ export async function PatientProfile({ id }: { id: string }) {
           {canEditPatient ? <Button asChild variant="outline">
             <Link href={`/patients/${patient.id}/edit`}><Pencil className="h-4 w-4" /> Edit Patient</Link>
           </Button> : null}
-          {canManageVisits ? (
+          {canQueueVisits ? (
             <NewVisitModal
               action={createVisitAction}
               patientId={patient.id}
               requestOptions={requestOptions}
               defaultRequestTypes={[RequestType.CONSULTATION]}
-              assignedStaffName={currentUser?.name}
+              assignedStaffName={currentUser?.role === UserRole.RECORDS ? "Not assigned" : currentUser?.name}
             />
           ) : null}
         </div>

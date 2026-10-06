@@ -42,7 +42,7 @@ async function main() {
   if (!chrome) throw new Error("Set CHROME_PATH to an installed Chromium browser.");
   const browser = await chromium.launch({ executablePath: chrome, headless: true });
   try {
-    const css = fs.readdirSync(".next/static/css").filter((name) => name.endsWith(".css"))
+    const css = process.env.CLINIC_LAYOUT_CSS ? fs.readFileSync(process.env.CLINIC_LAYOUT_CSS, "utf8") : fs.readdirSync(".next/static/css").filter((name) => name.endsWith(".css"))
       .map((name) => fs.readFileSync(path.join(".next/static/css", name), "utf8")).join("\n");
     const page = await browser.newPage();
     const render = async (element, width) => {
@@ -94,6 +94,47 @@ async function main() {
       }
     }
 
+    // Short tablet viewports must reach the bottom menu in both navigation modes.
+    const touchSession = await page.context().newCDPSession(page);
+    for (const [width, height] of [[375, 667], [768, 600], [1024, 600], [1180, 600], [1280, 600]]) {
+      await render(React.createElement(Shell, {
+        role: "ADMIN", userInitials: "SA", medicineExpiry: { expired: 0, expiringSoon: 0 },
+      }, React.createElement("div", { style: { minHeight: "2400px" } }, "Patient Profile")), width);
+      await page.setViewportSize({ width, height });
+      const drawer = page.locator('aside[aria-label="Mobile navigation"]');
+      if (width < 1024) {
+        // Static rendering has no React handlers; reproduce the open drawer and body lock.
+        await drawer.evaluate((element) => {
+          element.style.transition = "none";
+          element.style.transform = "none";
+          element.setAttribute("aria-hidden", "false");
+          document.body.style.overflow = "hidden";
+        });
+      }
+      const scroller = width < 1024 ? drawer.locator("div.overflow-y-auto") : page.locator("aside").first();
+      const bounds = await scroller.boundingBox();
+      assert.ok(bounds && bounds.y + bounds.height <= height + 1, `Navigation must fit viewport at ${width}x${height}`);
+      assert.ok(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight), `Expected overflowing navigation at ${width}x${height}`);
+      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      await page.mouse.wheel(0, 1500);
+      await page.waitForFunction((element) => element.scrollTop > 0, await scroller.elementHandle());
+      const lastLink = scroller.locator("nav a").last();
+      const lastBounds = await lastLink.boundingBox();
+      assert.ok(lastBounds.y >= bounds.y && lastBounds.y + lastBounds.height <= bounds.y + bounds.height + 1, `Last menu must be reachable at ${width}x${height}`);
+      await scroller.evaluate((element) => { element.scrollTop = 0; });
+      const x = Math.round(bounds.x + bounds.width / 2);
+      const startY = Math.round(bounds.y + bounds.height - 40);
+      await touchSession.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: startY }] });
+      for (let step = 1; step <= 8; step++) {
+        await touchSession.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: Math.round(startY - step * (bounds.height - 80) / 8) }] });
+      }
+      await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await page.waitForFunction((element) => element.scrollTop > 0, await scroller.elementHandle());
+      await assertNoOverflow(`Scrollable navigation ${width}x${height}`);
+      assert.equal(await page.evaluate(() => window.scrollY), 0, "Navigation scroll must not move the page");
+    }
+    await touchSession.detach();
+
     // Render actual form templates with synthetic data; no patient database is used.
     mocks["@/lib/date-time"] = { formatLongDate: () => "October 5, 2026" };
     const Form = load("src/components/clinic-forms/form-templates.tsx").ClinicFormTemplate;
@@ -133,7 +174,7 @@ async function main() {
     assert.ok(Math.abs(sticker.height - 34 * 96 / 25.4) < 1, "QR print height must stay 34 mm");
     const qrPdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
     assert.equal(qrPdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length, 1);
-    console.log("PASS: login/header/open menu at 320/375/768/1024/1280 px, single-line region name; Medicine Log PDFs; existing forms; allowance/code; actual-size QR print.");
+    console.log("PASS: login/header/open menu at 320/375/768/1024/1280 px; wheel/touch navigation scroll at mobile/tablet/desktop sizes; single-line region name; Medicine Log PDFs; existing forms; allowance/code; actual-size QR print.");
   } finally {
     await browser.close();
   }

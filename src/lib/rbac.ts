@@ -39,7 +39,7 @@ const ROLE_MODULES: Record<AppRole, string[]> = {
   ],
   PHARMACIST: ["/dashboard", "/inventory", "/item-requests", "/reports"],
   SUPPLY_OFFICER: ["/dashboard", "/inventory", "/item-requests", "/reports"],
-  RECORDS: ["/dashboard", "/patients", "/reports"],
+  RECORDS: ["/dashboard", "/patients", "/todays-patients", "/reports"],
 };
 
 export function isAppRole(value: unknown): value is AppRole {

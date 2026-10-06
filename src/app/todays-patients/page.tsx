@@ -6,6 +6,8 @@ import { PatientTable } from "@/components/patients/patient-table";
 import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
 import { ActionAlert } from "@/components/ui/action-alert";
 import { getTodaysPatientQueueSections, type PatientListResult } from "@/lib/patient-view";
+import { getCurrentUser } from "@/lib/auth";
+import { UserRole } from "@prisma/client";
 
 function QueueSection({
   title,
@@ -40,6 +42,8 @@ export default async function TodaysPatientsPage({
   searchParams?: Promise<{ prevPage?: string; todayPage?: string; q?: string; error?: string; message?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
+  const currentUser = await getCurrentUser();
+  const canCancelVisits = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR_NURSE;
   const previousPage = Number(resolvedSearchParams?.prevPage ?? "1");
   const todayPage = Number(resolvedSearchParams?.todayPage ?? "1");
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
@@ -79,7 +83,7 @@ export default async function TodaysPatientsPage({
             basePath="/todays-patients"
             searchQuery={searchQuery}
             queryParams={{ prevPage: String(result.previousQueue.currentPage) }}
-            cancelVisitAction={cancelQueuedVisitAction}
+            cancelVisitAction={canCancelVisits ? cancelQueuedVisitAction : undefined}
             cancelRedirectTo={cancelRedirectTo}
             pageParamName="todayPage"
             visitDateLabel="Queued date"
@@ -102,7 +106,7 @@ export default async function TodaysPatientsPage({
             basePath="/todays-patients"
             searchQuery={searchQuery}
             queryParams={{ todayPage: String(result.todaysQueue.currentPage) }}
-            cancelVisitAction={cancelQueuedVisitAction}
+            cancelVisitAction={canCancelVisits ? cancelQueuedVisitAction : undefined}
             cancelRedirectTo={cancelRedirectTo}
             pageParamName="prevPage"
             visitDateLabel="Queued date"

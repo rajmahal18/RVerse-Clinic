@@ -502,7 +502,10 @@ export async function updatePatientAction(formData: FormData) {
 export async function createVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   await runAction(formData, `/patients/${patientId}`, "Patient Records", "Queue visit", async () => {
-    const nurseOnDuty = await getCurrentStaffName();
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE, UserRole.RECORDS]);
+    const nurseOnDuty = user.role === UserRole.RECORDS ? null : user.name;
+    const patient = await prisma.patient.findFirst({ where: { id: patientId, clinicId: user.clinicId }, select: { id: true } });
+    if (!patient) throw new Error("The selected patient was not found.");
     const requestTypes = selectedRequestTypes(formData);
     if (!requestTypes.length) {
       throw new Error("Select at least one service requested.");
@@ -1555,8 +1558,11 @@ export async function deleteInventoryItemAction(formData: FormData) {
 export async function resolveItemRequestAction(formData: FormData) {
   const requestId = requiredString(formData, "requestId");
   const decision = requiredString(formData, "decision");
+  const rejectionReason = decision === "REJECT" ? optionalString(formData, "rejectionReason") : null;
   await runAction(formData, "/item-requests", "Medicines", `${decision} item request`, async () => {
     const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
+    if (decision !== "REJECT" && decision !== "APPROVE") throw new Error("Invalid request decision.");
+    if (rejectionReason && rejectionReason.length > 500) throw new Error("Rejection reason must be 500 characters or fewer.");
     const result = await prisma.$transaction(async (tx) => {
       const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
       if (!request || request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
@@ -1565,13 +1571,17 @@ export async function resolveItemRequestAction(formData: FormData) {
         throw new Error("This request is no longer pending.");
       }
       if (decision === "REJECT") {
-        const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "REJECTED", resolvedAt: new Date() } });
+        const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: {
+          status: "REJECTED",
+          resolvedAt: new Date(),
+          ...(rejectionReason ? { remarks: [request.remarks, `Rejection reason: ${rejectionReason}`].filter(Boolean).join("\n") } : {}),
+        } });
         return { request: updatedRequest, clinicId: requestClinicId };
       }
       const updatedRequest = await tx.medicineRequest.update({ where: { id: requestId }, data: { status: "APPROVED", resolvedAt: new Date() } });
       return { request: updatedRequest, clinicId: requestClinicId };
     });
-    await writeActivityLog({ clinicId: result.clinicId, userId: user.id, module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.request.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.request.quantity} ${result.request.itemName}.` });
+    await writeActivityLog({ clinicId: result.clinicId, userId: user.id, module: "Medicines", action: `${decision} item request`, entityType: "MedicineRequest", entityId: result.request.id, description: `${decision === "REJECT" ? "Rejected" : "Approved"} request for ${result.request.quantity} ${result.request.itemName}.${rejectionReason ? ` Rejection reason: ${rejectionReason}` : ""}` });
   }, { type: "MedicineRequest", id: requestId });
   revalidatePath("/item-requests"); revalidatePath("/inventory"); redirect("/item-requests");
 }

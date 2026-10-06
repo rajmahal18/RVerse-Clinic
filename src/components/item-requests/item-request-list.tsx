@@ -35,16 +35,36 @@ function StatusPill({ status }: { status: string }) {
 }
 
 function DecisionActions({ requestId, compact = false }: { requestId: string; compact?: boolean }) {
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
   return (
-    <form action={resolveItemRequestAction} className={compact ? "grid grid-cols-2 gap-2" : "flex gap-2"}>
+    <form action={resolveItemRequestAction} className="grid min-w-0 gap-2">
       <CsrfField />
       <input type="hidden" name="requestId" value={requestId} />
-      <Button name="decision" value="REJECT" type="submit" variant="outline" className="text-rose-700">
-        <X className="h-4 w-4" /> Reject
-      </Button>
-      <Button name="decision" value="APPROVE" type="submit">
-        <Check className="h-4 w-4" /> Approve
-      </Button>
+      {rejectOpen ? (
+        <div className="grid min-w-0 gap-2 border-l-2 border-rose-200 pl-3 md:max-w-xs">
+          <span className="text-sm font-semibold text-slate-700">Rejection reason</span>
+          <Button type="button" variant="outline" className="justify-self-start" aria-pressed={rejectionReason === "Not available"} onClick={() => setRejectionReason("Not available")}>
+            {rejectionReason === "Not available" ? <Check className="h-4 w-4" /> : null} Not available
+          </Button>
+          <textarea name="rejectionReason" aria-label="Rejection reason" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} maxLength={500} placeholder="Enter reason" className="min-h-20 w-full min-w-0 rounded-xl border px-3 py-2 text-sm" />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button name="decision" value="REJECT" type="submit" variant="outline" className="text-rose-700">
+              <X className="h-4 w-4" /> Confirm Reject
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className={compact ? "grid grid-cols-2 gap-2" : "flex gap-2"}>
+          <Button type="button" variant="outline" className="text-rose-700" onClick={() => setRejectOpen(true)}>
+            <X className="h-4 w-4" /> Reject
+          </Button>
+          <Button name="decision" value="APPROVE" type="submit">
+            <Check className="h-4 w-4" /> Approve
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
@@ -203,7 +223,7 @@ export function ItemRequestList({
 
             {!historyView && canResolveRequests ? (
               <div className="border-t bg-slate-50/70 p-4 md:px-5">
-                {selectedRequest.status === "REQUESTED" ? <DecisionActions requestId={selectedRequest.id} compact /> : null}
+                {selectedRequest.status === "REQUESTED" ? <DecisionActions key={selectedRequest.id} requestId={selectedRequest.id} compact /> : null}
                 {selectedRequest.status === "APPROVED" ? <ReleaseAction requestId={selectedRequest.id} compact /> : null}
               </div>
             ) : null}

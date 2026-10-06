@@ -945,6 +945,7 @@ export async function getTodaysPatientTableRows(
 
 async function getQueueRowsByVisitWhere(
   visitWhere: Prisma.VisitWhereInput,
+  clinicId: string,
   page: number,
   pageSize: number,
   search?: string,
@@ -953,6 +954,7 @@ async function getQueueRowsByVisitWhere(
   const searchWhere = getPatientSearchWhere(search);
   const where = {
     ...(searchWhere ?? {}),
+    clinicId,
     visits: {
       some: visitWhere,
     },
@@ -1005,6 +1007,13 @@ export async function getTodaysPatientQueueSections(
   pageSize = 25,
   search?: string
 ): Promise<TodaysPatientQueueSections> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      previousQueue: paginateRows([], previousPage, pageSize),
+      todaysQueue: paginateRows([], todayPage, pageSize),
+    };
+  }
   const { start, end } = getDayRange();
   const previousQueueWhere = {
     timeIn: {
@@ -1021,8 +1030,8 @@ export async function getTodaysPatientQueueSections(
     },
   } satisfies Prisma.VisitWhereInput;
   const [previousQueue, todaysQueue] = await Promise.all([
-    getQueueRowsByVisitWhere(previousQueueWhere, previousPage, pageSize, search, true),
-    getQueueRowsByVisitWhere(todaysQueueWhere, todayPage, pageSize, search, false),
+    getQueueRowsByVisitWhere(previousQueueWhere, user.clinicId, previousPage, pageSize, search, true),
+    getQueueRowsByVisitWhere(todaysQueueWhere, user.clinicId, todayPage, pageSize, search, false),
   ]);
 
   return {

@@ -77,7 +77,7 @@ export function AppShellClient({
 
   return (
     <div className="min-h-screen overflow-x-clip bg-slate-50">
-      <aside className="fixed bottom-0 left-0 top-24 z-30 hidden w-72 border-r bg-white/90 backdrop-blur lg:block">
+      <aside className="fixed bottom-0 left-0 top-24 z-30 hidden w-72 overflow-x-hidden overflow-y-auto overscroll-y-contain border-r bg-white/90 backdrop-blur lg:block">
         {renderNavigation()}
       </aside>
       <div
@@ -90,7 +90,7 @@ export function AppShellClient({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(100vw,24rem)] -translate-x-full flex-col border-r bg-white shadow-2xl transition-transform duration-200 lg:hidden",
+          "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(100vw,24rem)] -translate-x-full flex-col border-r bg-white shadow-2xl transition-transform duration-200 lg:hidden",
           mobileNavOpen && "translate-x-0"
         )}
         aria-label="Mobile navigation"
@@ -104,7 +104,7 @@ export function AppShellClient({
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">{renderNavigation()}</div>
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">{renderNavigation()}</div>
       </aside>
       <div className="lg:pl-72">
         <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b bg-white/85 px-3 backdrop-blur md:gap-3 md:px-8 lg:-ml-72 lg:h-24">
