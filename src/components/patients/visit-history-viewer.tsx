@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Activity, CalendarClock, CheckCircle2, ClipboardList, FlaskConical, Pill, Stethoscope, Syringe, type LucideIcon } from "lucide-react";
 import { labForms } from "@/lib/lab-results";
 import type { PatientVisitWorkflow } from "@/lib/patient-view";
@@ -25,7 +26,7 @@ function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string 
   );
 }
 
-export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] }) {
+export function VisitHistoryViewer({ visits, patientId }: { visits: PatientVisitWorkflow[]; patientId: string }) {
   const [selectedVisitId, setSelectedVisitId] = useState(visits[0]?.id ?? "");
   const selectedVisit = visits.find((visit) => visit.id === selectedVisitId) ?? visits[0];
 
@@ -78,6 +79,12 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
       </section>
 
       <section className="min-w-0 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <p className="text-sm font-semibold text-slate-700">{selectedVisit.timeIn}</p>
+          <Link href={`/patients/${patientId}/forms?visitId=${encodeURIComponent(selectedVisit.id)}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold text-primary hover:bg-teal-50">
+            <ClipboardList className="h-4 w-4" /> Open visit forms
+          </Link>
+        </div>
         <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={ClipboardList} title="Visit Summary" />
           <div className="grid md:grid-cols-3">
@@ -158,6 +165,7 @@ export function VisitHistoryViewer({ visits }: { visits: PatientVisitWorkflow[] 
           </div>
         </div>
 
+        {selectedVisit.referrals.length ? <section className="border-t pt-4"><h3 className="text-sm font-bold text-slate-900">Referrals</h3><div className="divide-y">{selectedVisit.referrals.map(referral => <div key={referral.id} className="py-3"><p className="text-sm font-semibold">{referral.referredTo || "Referral"}</p><p className="text-xs text-slate-500">{referral.scheduledFor}</p><p className="mt-1 whitespace-pre-wrap break-words text-sm"><span className="font-semibold">Reason for referral: </span>{referral.reasonForReferral || "No reason recorded"}</p>{referral.medicalHistory ? <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">Medical history: {referral.medicalHistory}</p> : null}{referral.remarks ? <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{referral.remarks}</p> : null}</div>)}</div></section> : null}
         <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={FlaskConical} title="Laboratory Results" />
           <div className="divide-y">

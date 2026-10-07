@@ -2,7 +2,7 @@
 
 import type { InventoryTableRow } from "@/lib/patient-view";
 import { AlertTriangle, PackagePlus, PencilLine, Trash2, X } from "lucide-react";
-import { addInventoryQuantityAction, deleteInventoryItemAction, updateInventoryItemAction } from "@/app/actions/workflow";
+import { addInventoryQuantityAction, deductInventoryQuantityAction, deleteInventoryItemAction, updateInventoryItemAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
@@ -35,13 +35,16 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-4" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inventory-item-title"
         className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl sm:border"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-lg font-black text-slate-900">{item.item}</h2>
+              <h2 id="inventory-item-title" className="truncate text-lg font-black text-slate-900">{item.item}</h2>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">{item.category}</span>
               <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}>{equipmentLike ? item.functionalStatus : item.status}</span>
             </div>
@@ -100,6 +103,18 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             </form>
           </section>
 
+          {!equipmentLike ? <section className="mt-5 border-t pt-4">
+            <h3 className="text-sm font-bold text-slate-900">Deduct stock</h3>
+            <p className="mt-1 text-xs text-slate-500">For damaged, expired, lost, or corrected stock. Medicine releases already deduct automatically.</p>
+            <form action={deductInventoryQuantityAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+              <CsrfField /><input type="hidden" name="itemId" value={item.id} />
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">Unit quantity<input name="quantity" type="number" min="0" max={item.stock} step="1" defaultValue="0" required className="h-10 rounded-xl border px-3 font-normal" /></label>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700">Box quantity<input name="boxQuantity" type="number" min="0" max={item.boxStock} step="1" defaultValue="0" className="h-10 rounded-xl border px-3 font-normal" /></label>
+              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">Reason<textarea name="reason" required maxLength={500} placeholder="e.g. Expired stock removed" className="min-h-20 rounded-xl border px-3 py-2 font-normal" /></label>
+              <Button type="submit" variant="outline" disabled={item.stock <= 0 && item.boxStock <= 0} className="text-rose-700 sm:col-span-2 sm:justify-self-end">Record deduction</Button>
+            </form>
+          </section> : null}
+
           <section className="mt-4 overflow-hidden rounded-xl border">
             <div className="flex items-center gap-2 border-b bg-slate-50 px-3 py-2.5">
               <PencilLine className="h-4 w-4 text-primary" />
@@ -131,6 +146,7 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             </form>
           </section>
 
+          {item.movements?.length ? <details className="mt-5 border-t pt-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Recent stock movements</summary><div className="mt-2 divide-y">{item.movements.map(movement => <div key={movement.id} className="py-3 text-sm"><p className="font-semibold">{movement.quantity > 0 ? "+" : ""}{movement.quantity} {item.unit}{movement.boxQuantity ? ` / ${movement.boxQuantity > 0 ? "+" : ""}${movement.boxQuantity} boxes` : ""}</p><p className="whitespace-pre-wrap break-words text-slate-600">{movement.reason}</p><p className="mt-1 text-xs text-slate-500">{movement.date}</p></div>)}</div></details> : null}
           <form
             action={deleteInventoryItemAction}
             className="mt-4 flex items-center justify-between gap-4 border-t pt-4"

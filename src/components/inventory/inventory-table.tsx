@@ -44,7 +44,7 @@ export function InventoryTable({
   const supportsExpiry = medicineLike || ledger.category === "SUPPLY";
   const equipmentLike = ledger.category === "EQUIPMENT" || ledger.category === "AMBULANCE_SUPPLY";
   const categoryLabel = categoryLabels[ledger.category] ?? "Inventory";
-  const movementVerb = medicineLike ? "dispensed" : "released / used";
+  const movementVerb = "stock out";
 
   return (
     <div className="space-y-4">

@@ -2,8 +2,16 @@ import { ArrowRight, BarChart3, ClipboardList, FileHeart, Syringe } from "lucide
 import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { getCurrentUser } from "@/lib/auth";
 
 const reportGroups = [
+  {
+    title: "Daily Patient Summary",
+    description: "Submit completed daily visits to records and print saved summaries.",
+    icon: ClipboardList,
+    tone: "bg-violet-50 text-violet-700",
+    href: "/reports/daily-summary",
+  },
   {
     title: "Assessment Reports",
     description: "Consultation entries, vital signs, diagnosis, and treatment records.",
@@ -25,7 +33,9 @@ const reportGroups = [
   },
 ];
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const user = await getCurrentUser();
+  const visibleReports = reportGroups.filter(report => report.href !== "/reports/daily-summary" || ["ADMIN", "DOCTOR_NURSE", "RECORDS"].includes(user?.role ?? ""));
   return (
     <AppShell>
       <PageHeader title="Reports" />
@@ -39,8 +49,8 @@ export default function ReportsPage() {
             <p className="mt-0.5 text-sm text-slate-500">Open an available report to review operational records and trends.</p>
           </div>
         </div>
-        <div className="grid divide-y lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-          {reportGroups.map((report) => {
+        <div className="divide-y">
+          {visibleReports.map((report) => {
             const Icon = report.icon;
             const content = (
               <>

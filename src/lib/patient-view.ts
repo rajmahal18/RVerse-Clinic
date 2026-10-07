@@ -205,6 +205,7 @@ export type PatientVisitWorkflow = {
     nextDose: string;
     remarks: string;
   }[];
+  referrals: { id: string; referredTo: string; scheduledFor: string; reasonForReferral: string; medicalHistory: string; remarks: string }[];
   followUps: {
     id: string;
     scheduledFor: string;
@@ -243,6 +244,7 @@ export type PatientWorkflowProfile = PatientProfileData & {
 };
 
 export type InventoryTableRow = {
+  movements?: { id: string; quantity: number; boxQuantity: number; reason: string; date: string }[];
   id: string;
   item: string;
   itemCode: string;
@@ -703,6 +705,7 @@ function toVisitWorkflow(
       nextDose: record.nextDose ? formatDisplayDate(record.nextDose) : "",
       remarks: record.remarks ?? "",
     })),
+    referrals: visit.referrals.map(referral => ({ id: referral.id, referredTo: referral.referredTo ?? "", scheduledFor: referral.scheduledFor ? formatDateTime(referral.scheduledFor) : "", reasonForReferral: referral.reasonForReferral ?? "", medicalHistory: referral.medicalHistory ?? "", remarks: referral.remarks ?? "" })),
     followUps: visit.followUps.map((followUp) => ({
       id: followUp.id,
       scheduledFor: formatDateTime(followUp.scheduledFor),
@@ -1282,13 +1285,16 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
       const dispensed = monthlyMovements.filter((movement) => movement.quantityChange < 0).reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
       const beginningStock = endingStock - received + dispensed;
       const boxReceived = monthlyMovements.filter((movement) => movement.boxQuantityChange > 0 && !encodedStockReasons.has(movement.reason)).reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
+      const boxDeducted = monthlyMovements.filter(movement => movement.boxQuantityChange < 0).reduce((sum, movement) => sum - movement.boxQuantityChange, 0);
       const endingBoxStock = item.boxStock - laterMovements.reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
       const latestCondition = [...item.movements].reverse().find((movement) => movement.createdAt < end && movement.physicalCount !== null);
       const physicalCount = latestCondition?.physicalCount ?? (end > now ? item.physicalCount : null);
       const functionalCount = latestCondition?.functionalCount ?? (end > now ? item.functionalCount : null);
       const functionalStatus = physicalCount === null || functionalCount === null ? "Not recorded" : physicalCount === 0 || functionalCount === 0 ? "NF" : functionalCount === physicalCount ? "AF" : `${functionalCount}F`;
       const legacyBatch = item.category === InventoryCategory.MEDICINE || item.category === InventoryCategory.VACCINE;
+      const deriveBoxesFromUnits = legacyBatch && item.pcsPerBox && item.boxStock === 0 && !item.movements.some(movement => movement.boxQuantityChange !== 0);
       return {
+        movements: [...item.movements].reverse().slice(0, 20).map(movement => ({ id: movement.id, quantity: movement.quantityChange, boxQuantity: movement.boxQuantityChange, reason: movement.reason, date: formatDateTime(movement.createdAt) })),
         id: item.id, item: item.name, itemCode: item.itemCode ?? "—", itemDescription: item.itemDescription ?? "—", dosage: item.dosage ?? "—", brandName: item.brandName ?? "—",
         classification: item.classification ?? inventoryCategoryLabels[item.category],
         remarks: item.remarks ?? "—", location: item.location ?? "—",
@@ -1299,9 +1305,9 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
         stock: item.stock, boxStock: item.boxStock, physicalCount, functionalCount, functionalStatus, unit: item.unit, reorder: item.reorderLevel,
         status: item.stock <= 0 && item.boxStock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel && item.boxStock <= 0 ? "Low stock" as const : "Healthy" as const,
         beginningStock: Math.max(0, beginningStock), received, dispensed, endingStock: Math.max(0, endingStock), netMovement: received - dispensed,
-        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: legacyBatch && item.pcsPerBox ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox)) : String(Math.max(0, endingBoxStock - boxReceived)),
-        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthInBoxes: String(boxReceived), monthOutPieces: String(dispensed), monthOutBoxes: "0",
-        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: legacyBatch && item.pcsPerBox ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox)) : String(Math.max(0, endingBoxStock)),
+        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: deriveBoxesFromUnits ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox!)) : String(Math.max(0, endingBoxStock - boxReceived + boxDeducted)),
+        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthInBoxes: String(boxReceived), monthOutPieces: String(dispensed), monthOutBoxes: String(boxDeducted),
+        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: deriveBoxesFromUnits ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox!)) : String(Math.max(0, endingBoxStock)),
       };
     }),
     selectedMonth: key, selectedMonthLabel: label, monthOptions: getInventoryMonthOptions(start), expiryFilter, sort, category: categoryFilter,

@@ -7,7 +7,7 @@ export function PrintActions({ filename }: { filename: string }) {
   return (
     <div className="no-print flex flex-wrap items-center gap-2 rounded-2xl border bg-white p-3 shadow-soft">
       <p className="min-w-0 flex-1 text-sm text-slate-600">
-        Suggested filename: <span className="font-semibold text-slate-900">{filename}.pdf</span>
+        Suggested filename: <span className="break-all font-semibold text-slate-900">{filename}.pdf</span>
       </p>
       <Button
         type="button"

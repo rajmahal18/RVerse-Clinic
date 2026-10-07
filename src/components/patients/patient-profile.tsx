@@ -403,6 +403,7 @@ export async function PatientProfile({ id }: { id: string }) {
                   </div>
                 </div>
               </div>
+              {activeVisit.referrals.length ? <section className="mt-5 border-t pt-4"><h3 className="text-sm font-bold text-slate-900">Referrals</h3><div className="divide-y">{activeVisit.referrals.map(referral => <div key={referral.id} className="py-3"><p className="text-sm font-semibold">{referral.referredTo || "Referral"}</p><p className="text-xs text-slate-500">{referral.scheduledFor}</p><p className="mt-2 whitespace-pre-wrap break-words text-sm"><span className="font-semibold">Reason for referral: </span>{referral.reasonForReferral || "No reason recorded"}</p>{referral.remarks ? <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{referral.remarks}</p> : null}</div>)}</div></section> : null}
               </>
               )}
             </CardContent>
@@ -414,7 +415,7 @@ export async function PatientProfile({ id }: { id: string }) {
               id: "history",
               label: "HISTORY",
               content: (
-                <VisitHistoryViewer visits={historicalVisits} />
+                <VisitHistoryViewer visits={historicalVisits} patientId={patient.id} />
               ),
             },
             {
@@ -574,7 +575,7 @@ export async function PatientProfile({ id }: { id: string }) {
                 {
                   id: "history",
                   label: "HISTORY",
-                  content: <VisitHistoryViewer visits={historicalVisits} />,
+                  content: <VisitHistoryViewer visits={historicalVisits} patientId={patient.id} />,
                 },
               ]}
             />
@@ -587,7 +588,7 @@ export async function PatientProfile({ id }: { id: string }) {
             {
               id: "history",
               label: "HISTORY",
-              content: <VisitHistoryViewer visits={historicalVisits} />,
+              content: <VisitHistoryViewer visits={historicalVisits} patientId={patient.id} />,
             },
           ]}
         />

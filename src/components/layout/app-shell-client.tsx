@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Bell, LogOut, Menu, X } from "lucide-react";
+import { AlertTriangle, LogOut, Menu, X } from "lucide-react";
 import { logoutAction } from "@/app/actions/workflow";
 import { navItems } from "@/data/clinic";
 import { canAccessPath, filterNavigationByRole, type AppRole } from "@/lib/rbac";
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ClinicLogo } from "@/components/layout/clinic-logo";
 import { DebouncedSearchForm } from "@/components/search/debounced-search-form";
 import { CsrfField } from "@/components/security/csrf-field";
+import { Notifications } from "@/components/layout/notifications";
 
 export function AppShellClient({
   children,
@@ -134,17 +135,7 @@ export function AppShellClient({
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1 md:gap-2">
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 xl:inline-flex">Online</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="relative"
-              onClick={() => hasMedicineExpiryAlert && setExpiryModalOpen(true)}
-              aria-label={hasMedicineExpiryAlert ? "Open medicine expiration alert" : "Notifications"}
-            >
-              <Bell className="h-5 w-5" />
-              {hasMedicineExpiryAlert ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" /> : null}
-            </Button>
+            <Notifications hasExpiry={hasMedicineExpiryAlert} onExpiry={() => setExpiryModalOpen(true)} />
             <form action={logoutAction}>
               <CsrfField />
               <Button type="submit" variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label="Sign out">

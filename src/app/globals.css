@@ -307,6 +307,19 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .patient-qr-sticker { display: block; width: 30mm; height: 34mm; margin: 0 auto; background: white; }
 
 @media print {
+  body:has(.daily-summary-screen) aside,
+  body:has(.daily-summary-screen) header,
+  body:has(.daily-summary-screen) .lg\:pl-72 > :not(main),
+  body:has(.daily-summary-screen) main > :not(.daily-summary-screen) {
+    display: none !important;
+  }
+  body:has(.daily-summary-screen) main,
+  body:has(.daily-summary-screen) .lg\:pl-72 {
+    padding: 0 !important;
+  }
+  .daily-summary-paper > .sm\:hidden { display: none !important; }
+  .daily-patient-report-table { display: table !important; }
+  .daily-patient-report-table tr { break-inside: avoid; }
   @page patient-qr-label { size: A4 portrait; margin: 10mm; }
   html:has(.patient-qr-screen), body:has(.patient-qr-screen) { width: auto; min-height: 0; }
   .patient-qr-screen { page: patient-qr-label; min-height: 0; padding: 0; background: white; }

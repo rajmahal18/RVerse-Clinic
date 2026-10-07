@@ -21,6 +21,7 @@ import { hashPassword, isStrongPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { TRUST_PROXY_HEADERS } from "@/lib/security-config";
 import { safeLoginNext } from "@/lib/login-next";
+import { buildDailySummary, validSummaryDate } from "@/lib/daily-summary";
 
 const MAIN_CLINIC_ID = "main-clinic";
 const LOGIN_ATTEMPT_WINDOW_MINUTES = 15;
@@ -354,6 +355,22 @@ async function runAction<T>(
 
     redirect(appendActionFeedback(failurePath, "error", message));
   }
+}
+
+export async function submitDailySummaryAction(formData: FormData) {
+  let submissionId = "";
+  await runAction(formData, "/reports/daily-summary", "Daily Summary", "Submit daily summary", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR_NURSE]);
+    const date = validSummaryDate(requiredString(formData, "date"));
+    if (date > formatDateKey(new Date())) throw new Error("Cannot submit a future daily summary.");
+    const summary = await buildDailySummary(user.clinicId, date);
+    if (!summary.rows.length) throw new Error("There are no patient visits for this date.");
+    if (summary.rows.some(row => row.status !== "completed")) throw new Error("Complete all patient visits for this date before submitting the summary.");
+    const submission = await prisma.activityLog.create({ data: { clinicId: user.clinicId, userId: user.id, module: "Daily Summary", action: "Submit daily summary", entityType: "DailySummary", entityId: date, description: `${date}: ${summary.rows.length} patient visits submitted by ${user.name}.`, metadata: summary } });
+    submissionId = submission.id;
+  });
+  revalidatePath("/reports/daily-summary");
+  redirect(`/reports/daily-summary?submission=${submissionId}`);
 }
 
 export async function createPatientAction(formData: FormData) {
@@ -828,7 +845,7 @@ export async function createInventoryItemAction(formData: FormData) {
     const boxStock = Number(formData.get("boxStock") ?? 0);
     const stockEntryType = String(formData.get("stockEntryType") ?? "ENCODED_EXISTING");
     const openingReason = stockEntryType === "RECEIVED" ? "Manual stock addition" : "Existing stock encoded";
-    const reorderLevel = Number(formData.get("reorderLevel") ?? 0);
+    const reorderLevel = Number(formData.get("reorderLevel") ?? 5);
     const pcsPerBoxRaw = optionalString(formData, "pcsPerBox");
     const pcsPerBox = pcsPerBoxRaw ? Number(pcsPerBoxRaw) : null;
     const equipmentLike = category === InventoryCategory.EQUIPMENT || category === InventoryCategory.AMBULANCE_SUPPLY;
@@ -1440,6 +1457,29 @@ export async function addInventoryQuantityAction(formData: FormData) {
     ]);
   }, { type: "InventoryItem", id: itemId });
   revalidatePath("/inventory"); redirect("/inventory");
+}
+
+export async function deductInventoryQuantityAction(formData: FormData) {
+  await runAction(formData, "/inventory", "Inventory", "Deduct quantity", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
+    const itemId = requiredString(formData, "itemId");
+    const quantity = Number(requiredString(formData, "quantity"));
+    const reason = requiredString(formData, "reason");
+    if (reason.length > 500) throw new Error("Adjustment reason must be 500 characters or fewer.");
+    const boxQuantity = Number(formData.get("boxQuantity") ?? 0);
+    if (!Number.isInteger(quantity) || quantity < 0 || !Number.isInteger(boxQuantity) || boxQuantity < 0 || quantity + boxQuantity <= 0) throw new Error("Enter a positive deduction in units or boxes using whole numbers.");
+    await prisma.$transaction(async tx => {
+      const item = await tx.inventoryItem.findFirst({ where: { id: itemId, clinicId: user.clinicId } });
+      if (!item) throw new Error("Inventory item not found.");
+      if (item.category === InventoryCategory.EQUIPMENT || item.category === InventoryCategory.AMBULANCE_SUPPLY) throw new Error("Use physical and functional counts for equipment adjustments.");
+      const updated = await tx.inventoryItem.updateMany({ where: { id: itemId, clinicId: user.clinicId, stock: { gte: quantity }, boxStock: { gte: boxQuantity } }, data: { stock: { decrement: quantity }, boxStock: { decrement: boxQuantity } } });
+      if (updated.count !== 1) throw new Error("Deduction exceeds available stock or boxes. Refresh and try again.");
+      await tx.inventoryMovement.create({ data: { inventoryItemId: itemId, quantityChange: -quantity, boxQuantityChange: -boxQuantity, reason: `Manual adjustment by ${user.name}: ${reason}` } });
+      await tx.activityLog.create({ data: { clinicId: user.clinicId, userId: user.id, module: "Inventory", action: "Deduct quantity", entityType: "InventoryItem", entityId: itemId, description: `Deducted ${quantity} ${item.unit} of ${item.name}: ${reason}`, metadata: { quantity, boxQuantity, reason } } });
+    });
+  });
+  revalidatePath("/inventory");
+  redirect(appendActionFeedback("/inventory", "message", "Stock deduction recorded."));
 }
 
 export async function updateInventoryItemAction(formData: FormData) {

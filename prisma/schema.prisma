@@ -375,7 +375,7 @@ model InventoryItem {
   physicalCount  Int?
   functionalCount Int?
   unit           String
-  reorderLevel   Int               @default(0)
+  reorderLevel   Int               @default(5)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 

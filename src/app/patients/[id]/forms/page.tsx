@@ -5,14 +5,18 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { clinicForms, getClinicFormData } from "@/lib/clinic-forms";
+import { FormVisitSelector } from "@/components/clinic-forms/visit-selector";
 
 export default async function PatientFormsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ visitId?: string }>;
 }) {
   const { id } = await params;
-  const data = await getClinicFormData(id);
+  const query = await searchParams;
+  const data = await getClinicFormData(id, query?.visitId);
 
   if (!data) {
     notFound();
@@ -36,10 +40,14 @@ export default async function PatientFormsPage({
             <p className="mt-0.5 text-sm text-slate-500">Preview, print, or save available clinic forms as PDF.</p>
           </div>
           {data.selectedVisit ? (
-            <Badge className="w-fit bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">Visit selected</Badge>
+            <Badge className="w-fit bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">{data.selectedVisit.shortDate} · {data.selectedVisit.timeIn}</Badge>
           ) : (
             <Badge className="w-fit bg-slate-100 text-slate-600">No visit selected</Badge>
           )}
+        </div>
+        <div className="border-b px-4 py-4 md:px-5">
+          <FormVisitSelector action={`/patients/${id}/forms`} visits={data.visits} selectedVisitId={data.selectedVisit?.id} />
+          <p className="mt-2 text-xs text-slate-500">Visit forms use the selected appointment. Patient forms include the overall patient record.</p>
         </div>
         <div className="divide-y divide-slate-100">
           {clinicForms.map((form) => {
@@ -48,7 +56,7 @@ export default async function PatientFormsPage({
             return (
               <Link
                 key={form.slug}
-                href={disabled ? "#" : `/patients/${id}/forms/${form.slug}`}
+                href={disabled ? "#" : `/patients/${id}/forms/${form.slug}${data.selectedVisit ? `?visitId=${encodeURIComponent(data.selectedVisit.id)}` : ""}`}
                 aria-disabled={disabled}
                 className={`group flex items-center gap-3 px-4 py-3.5 transition md:px-5 ${disabled ? "pointer-events-none opacity-45" : "hover:bg-slate-50"}`}
               >
@@ -57,7 +65,7 @@ export default async function PatientFormsPage({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-bold text-slate-900">{form.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{form.scope === "patient" ? "Patient record" : "Current visit record"}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">{form.scope === "patient" ? "Patient record" : "Selected visit record"}</p>
                 </div>
                 {disabled ? (
                   <Badge className="bg-slate-100 text-slate-600">Requires visit</Badge>

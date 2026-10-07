@@ -161,7 +161,8 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
   if (!patient) return null;
 
   const latestVisit = patient.visits[0] ?? null;
-  const selectedVisit = (visitId ? patient.visits.find((visit) => visit.id === visitId) : latestVisit) ?? latestVisit;
+  const selectedVisit = visitId !== undefined ? patient.visits.find((visit) => visit.id === visitId) : latestVisit;
+  if (visitId !== undefined && !selectedVisit) return null;
   const completedOrLatestVisit = patient.visits.find((visit) => visit.status === "COMPLETED") ?? latestVisit;
   const issueDate = new Date();
   const selectedDate = selectedVisit?.timeIn ?? issueDate;
@@ -275,6 +276,7 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
       .map((visit) => ({
         id: visit.id,
         date: formatShortDate(visit.timeIn),
+        status: visit.status.replaceAll("_", " ").toLowerCase(),
         timeIn: formatTime(visit.timeIn),
         chiefComplaint: clean(visit.chiefComplaint),
         bloodPressure: clean(visit.bloodPressure),
@@ -306,5 +308,6 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
 export function clinicFormFilename(form: ClinicFormSlug, data: ClinicFormData) {
   const formConfig = clinicForms.find((item) => item.slug === form);
   const datePart = form === "medicine-log" ? undefined : data.selectedVisit?.shortDate.replaceAll("/", "-");
-  return [formConfig?.filenamePrefix ?? form, data.patient.id, datePart].filter(Boolean).join("-");
+  const visitPart = formConfig?.scope === "visit" ? data.selectedVisit?.id : undefined;
+  return [formConfig?.filenamePrefix ?? form, data.patient.id, datePart, visitPart].filter(Boolean).join("-");
 }
