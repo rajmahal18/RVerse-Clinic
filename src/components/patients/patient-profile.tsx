@@ -361,9 +361,8 @@ export async function PatientProfile({
                             assessment.
                           </h3>
                           <p className="mt-2 text-sm leading-6 text-slate-600">
-                            Assessment fields, medicine requests, vaccination
-                            records, and follow-up scheduling will open after
-                            the visit is started.
+                            Enter the patient's vital signs to begin the
+                            assessment.
                           </p>
                           <form
                             action={startVisitAction}
@@ -860,9 +859,7 @@ export async function PatientProfile({
                           ))}
                           {!activeVisit.vaccinations.length ? (
                             <p className="py-6 text-sm text-slate-500">
-                              No administered vaccines recorded for this visit.
-                              Requests appear in services requested; save an
-                              administration here to update services availed.
+                              No vaccines administered during this visit yet.
                             </p>
                           ) : null}
                         </div>

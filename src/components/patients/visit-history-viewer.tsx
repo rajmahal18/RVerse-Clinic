@@ -340,7 +340,7 @@ export function VisitHistoryViewer({
         {selectedVisit.status === "Completed" ? (
           <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-bold text-emerald-700">
             <CheckCircle2 className="h-4 w-4" />
-            This visit is completed and shown as history.
+            This visit is completed.
           </div>
         ) : null}
       </section>

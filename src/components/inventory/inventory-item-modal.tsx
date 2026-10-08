@@ -138,7 +138,7 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
               {equipmentLike ? <>
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Physical count<input name="physicalCount" type="number" min="0" step="1" defaultValue={item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Functional units<input name="functionalCount" type="number" min="0" step="1" defaultValue={item.functionalCount ?? item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
-                <p className="text-xs text-slate-500 sm:col-span-2">Functional units cannot exceed the physical count. The table displays AF, NF, or a count such as 2F.</p>
+                <p className="text-xs text-slate-500 sm:col-span-2">Working units cannot exceed the total units available.</p>
               </> : null}
               <div className="flex justify-end border-t pt-3 sm:col-span-2">
                 <Button type="submit">Save changes</Button>
@@ -151,14 +151,14 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
             action={deleteInventoryItemAction}
             className="mt-4 flex items-center justify-between gap-4 border-t pt-4"
             onSubmit={(event) => {
-              if (!window.confirm("Delete this inventory batch? Its movement rows will also be removed.")) event.preventDefault();
+              if (!window.confirm("Delete this inventory batch? Its stock movement history will also be deleted.")) event.preventDefault();
             }}
           >
             <CsrfField />
             <input type="hidden" name="itemId" value={item.id} />
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-800">Delete inventory item</p>
-              <p className="text-xs text-slate-500">This also removes its movement rows.</p>
+              <p className="text-xs text-slate-500">Its stock movement history will also be deleted.</p>
             </div>
             <Button type="submit" variant="outline" className="shrink-0 border-rose-200 text-rose-700 hover:bg-rose-50">
               <Trash2 className="h-4 w-4" /> Delete

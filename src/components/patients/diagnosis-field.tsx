@@ -177,7 +177,7 @@ export function DiagnosisField({
         <p className="text-xs text-slate-500">
           {diseases.length
             ? "No matching diseases."
-            : "No diseases added yet. Admin can manage the master list in Settings."}
+            : "No diseases available. Ask an administrator to add them in Settings."}
         </p>
       ) : null}
       <label className="grid gap-1 text-sm font-semibold text-slate-700">
@@ -188,15 +188,9 @@ export function DiagnosisField({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="min-h-24 rounded-xl border p-3 font-normal"
-          placeholder="Additional findings or existing diagnosis text"
+          placeholder="Enter other findings or diagnoses"
         />
       </label>
-      {!structured && initialValue ? (
-        <p className="text-xs text-slate-500">
-          Existing text is preserved here. Disease selections must be recorded
-          explicitly.
-        </p>
-      ) : null}
     </section>
   );
 }

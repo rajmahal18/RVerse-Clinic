@@ -153,7 +153,7 @@ export default async function MonthlyReportsPage({
             <div className="flex flex-wrap gap-x-6 gap-y-3 border-y py-4 text-sm">
               {(tab === "accomplishment"
                 ? [
-                  ["Recorded visits", report.summary.visits],
+                    ["Recorded visits", report.summary.visits],
                     ["Completed visits", report.summary.completedVisits],
                     [
                       "Unique patients catered",
@@ -162,7 +162,7 @@ export default async function MonthlyReportsPage({
                     [
                       "Average turnaround",
                       report.summary.averageMinutes === null
-                        ? "No valid durations"
+                        ? "Not available"
                         : `${report.summary.averageMinutes.toFixed(1)} min`,
                     ],
                   ]
@@ -170,7 +170,7 @@ export default async function MonthlyReportsPage({
                     ["Surveys", report.summary.surveys],
                     ["Unique survey patients", report.summary.surveyPatients],
                     [
-                      "Surveys without recorded service delivery",
+                      "Surveys with no service availed",
                       report.summary.withoutAvailedService,
                     ],
                   ]
@@ -185,23 +185,22 @@ export default async function MonthlyReportsPage({
             </div>
             {tab === "satisfaction" ? (
               <p className="text-sm leading-6 text-slate-500">
-                Based on the recorded survey date, including saved surveys for
-                open visits. {report.summary.undatedSurveys} surveys use their
-                creation date because the survey date is missing. Patient and
-                service subtotals can overlap; do not add them to obtain unique
-                overall patients.
+                Surveys dated this month. Patients may appear under more than
+                one service.
+                {report.summary.undatedSurveys > 0
+                  ? ` ${report.summary.undatedSurveys} surveys with no date are grouped by their submission date.`
+                  : ""}
               </p>
             ) : (
               <p className="text-sm leading-6 text-slate-500">
-                Visits are assigned to the month of recorded Time in. Cancelled
-                and deleted visits are excluded. Repeat visits and multi-service
-                requests are counted separately from unique patients.
+                Visits this month, excluding cancelled appointments. Patients
+                may appear under more than one service.
               </p>
             )}
             {tab === "accomplishment" ? (
               <details className="no-print border-b pb-4">
                 <summary className="cursor-pointer text-sm font-semibold text-primary">
-                  BP / RBS reporting thresholds
+                  BP / RBS limits
                 </summary>
                 <form
                   action="/reports/monthly"
@@ -234,31 +233,12 @@ export default async function MonthlyReportsPage({
                     </label>
                   ))}
                   <button className="h-10 rounded-lg border px-4 text-sm font-semibold text-primary">
-                    Apply thresholds
+                    Apply limits
                   </button>
                 </form>
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Default report flags: BP ≥140 systolic or ≥90 diastolic; RBS
-                  ≥200 mg/dL. These summarize recorded readings and do not
-                  establish a diagnosis. Reference:{" "}
-                  <a
-                    href="https://www.who.int/en/news-room/fact-sheets/detail/hypertension"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
-                    WHO
-                  </a>{" "}
-                  and{" "}
-                  <a
-                    href="https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline"
-                  >
-                    NIDDK
-                  </a>
-                  .
+                  Adjust the limits used in this report. Readings at or above
+                  these limits are counted.
                 </p>
               </details>
             ) : null}

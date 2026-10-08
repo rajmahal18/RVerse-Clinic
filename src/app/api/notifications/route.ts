@@ -85,7 +85,7 @@ export async function GET() {
   }
   const patientLink = (patientId: string, visitId: string, section: string) =>
     `/patients/${patientId}?visitId=${visitId}&section=${section}#${section}`;
-  for (const visit of intakeReady) if (visit.readyForDoctorAt) notifications.push({ id: "intake-ready:" + visit.id + ":" + visit.readyForDoctorAt.toISOString(), title: "Patient ready for doctor", detail: visit.patient.lastName + ", " + visit.patient.firstName + " ? intake completed", href: patientLink(visit.patientId, visit.id, "progressNotes"), at: visit.readyForDoctorAt.toISOString() });
+  for (const visit of intakeReady) if (visit.readyForDoctorAt) notifications.push({ id: "intake-ready:" + visit.id + ":" + visit.readyForDoctorAt.toISOString(), title: "Patient ready for doctor", detail: visit.patient.lastName + ", " + visit.patient.firstName + " ? Ready for assessment", href: patientLink(visit.patientId, visit.id, "progressNotes"), at: visit.readyForDoctorAt.toISOString() });
   for (const visit of doctorDone) {
     for (const [section, at] of [
       ["progressNotes", visit.progressNotesDoneAt],

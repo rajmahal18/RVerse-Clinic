@@ -96,7 +96,7 @@ const sections = [
     id: "consultation",
     number: "03",
     title: "Consultation",
-    description: "Record clinic findings with structured fields for complaints, vital signs, diagnosis, treatment plan, and progress notes.",
+    description: "Record complaints, vital signs, diagnosis, treatment, and progress notes for each visit.",
     bg: "bg-[#eaf2f7]",
     text: "text-slate-950",
     accent: "text-sky-700",

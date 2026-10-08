@@ -72,9 +72,9 @@ export function InventoryTable({
           />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t bg-slate-50/70 px-4 py-2 text-xs text-slate-500 md:px-5">
-          <span>Existing encoded stock is included in beginning stock.</span>
+          <span>Beginning shows the stock available at the start of the month.</span>
           <span className="hidden text-slate-300 sm:inline">•</span>
-          <span>Only newly received stock appears under In.</span>
+          <span>In shows stock received during the month.</span>
         </div>
       </div>
 

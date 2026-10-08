@@ -108,7 +108,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
           </button>
         ))}
         {users.length === 0 ? (
-          <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No accounts configured yet.</p>
+          <p className="bg-white px-4 py-10 text-center text-sm text-slate-500">No staff accounts yet.</p>
         ) : null}
       </div>
 
@@ -161,7 +161,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             {users.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-500">
-                  No accounts configured yet.
+                  No staff accounts yet.
                 </td>
               </tr>
             ) : null}

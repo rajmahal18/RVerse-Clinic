@@ -95,7 +95,7 @@ async function main() {
       await page.goto("https://clinic.test/review");
       await page.evaluate(() => sessionStorage.clear());
       await page.addScriptTag({ path: path.join(tempRoot, "bundle.js") });
-      await page.getByText("Draft autosave ready").waitFor();
+      await page.getByText("Autosave on").waitFor();
       await page
         .getByLabel("Progress notes", { exact: true })
         .fill("Recover these notes");

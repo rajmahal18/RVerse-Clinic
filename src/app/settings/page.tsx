@@ -171,7 +171,7 @@ export default async function SettingsPage({
                 </div>
               ))}
               {settings.users.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-slate-500">No user accounts configured yet.</p>
+                <p className="px-4 py-10 text-center text-sm text-slate-500">No staff accounts yet.</p>
               ) : null}
             </div>
           </CardContent>

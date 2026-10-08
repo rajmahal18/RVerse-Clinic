@@ -97,7 +97,9 @@ export function reportThresholds(values: {
     if (!values[key]) continue;
     const value = Number(values[key]);
     if (!Number.isFinite(value) || value <= 0 || value > 2000)
-      throw new Error("Report thresholds must be positive numbers up to 2000.");
+      throw new Error(
+        "Enter a BP or blood sugar limit greater than 0 and no higher than 2000.",
+      );
     result[key] = value;
   }
   return result;
@@ -289,6 +291,7 @@ export function buildMonthlyReports(
   const validDurations = durations.filter(
     (d): d is { visit: ReportVisit; minutes: number } => d.minutes !== null,
   );
+  const missingTimes = durations.length - validDurations.length;
   const averageMinutes = validDurations.length
     ? validDurations.reduce((n, d) => n + d.minutes, 0) / validDurations.length
     : null;
@@ -299,7 +302,7 @@ export function buildMonthlyReports(
       formatDateTime(v.timeIn),
       v.timeOut ? formatDateTime(v.timeOut) : "Missing",
       minutes === null
-        ? "Excluded: missing / invalid time"
+        ? "Not available — check visit times"
         : `${minutes.toFixed(1)} min`,
     ],
     details: [
@@ -481,7 +484,7 @@ export function buildMonthlyReports(
       id: "requested",
       title: "Gender distribution per service requested",
       description:
-        "All non-cancelled visits in the month, including queued visits. Gender is from the patient profile; unique patients are counted once within each service.",
+        "Patients grouped by requested service, including those still in the queue.",
       columns: genderColumns,
       rows: serviceRows,
     },
@@ -489,23 +492,23 @@ export function buildMonthlyReports(
       id: "catered",
       title: "Patients catered per service",
       description:
-        "Completed visits only. Medicines require receipt; vaccines require an administration record; referrals require a referral record. Other selected services count on completion. A patient may appear in several services.",
+        "Services received during completed visits. Patients may appear under more than one service.",
       columns: ["Service availed", "Unique patients", "Completed visits"],
       rows: cateredRows,
     },
     {
       id: "turnaround",
       title: "Patient turnaround time",
-      description: `Recorded Time in → Time out, including queue time. Completed visits only; ${validDurations.length} valid durations, ${durations.length - validDurations.length} excluded. Average is per completed visit, so repeat visits count separately.`,
+      description: `Time spent per completed visit, including waiting.${missingTimes ? ` ${missingTimes} ${missingTimes === 1 ? "visit is" : "visits are"} excluded because the times are missing or incorrect.` : ""}`,
       columns: ["Patient", "Time in (PHT)", "Time out (PHT)", "Turnaround"],
       rows: durationRows,
     },
     {
       id: "vitals",
       title: "Increased BP and random blood sugar",
-      description: `Started visits only. Counts flag recorded readings at the selected thresholds, not diagnoses. ${started.length - withBP.length} visits lack usable BP and ${started.length - withRBS.length} lack usable RBS. Numeric RBS is treated as mg/dL; other units are excluded. “Both” may be recorded on separate visits.`,
+      description: `Patients with readings at or above the selected limits. Raised readings alone do not confirm a diagnosis.${started.length > withBP.length ? ` BP readings are unavailable for ${started.length - withBP.length} visits.` : ""}${started.length > withRBS.length ? ` Blood sugar readings are unavailable for ${started.length - withRBS.length} visits.` : ""}`,
       columns: [
-        "Reading threshold",
+        "Reading limit",
         "Unique flagged patients",
         "Flagged visits",
         "Unique patients measured",
@@ -516,7 +519,7 @@ export function buildMonthlyReports(
       id: "complaints",
       title: "Top 10 chief complaints",
       description:
-        "Started visits only; ranked by unique patients, then visits. Semicolon-separated selections count individually; Other prefixes are removed and exact text is grouped without case differences. Free text is not medically reclassified.",
+        "Most common chief complaints for the month. Patients with multiple complaints may appear in more than one category.",
       columns: ["Chief complaint", "Unique patients", "Visits"],
       rows: complaintRows,
     },
@@ -526,15 +529,14 @@ export function buildMonthlyReports(
       id: "responses",
       title: "Responses per question",
       description:
-        "All saved surveys in the selected survey month. Each survey contributes once per question; N/A is an answer. Open a row to see counts for each response option.",
+        "Survey answers for the month. Select a question to view the response breakdown.",
       columns: ["Question", "Answered", "Unanswered"],
       rows: questionRows,
     },
     {
       id: "survey-services",
       title: "Patients catered per service",
-      description:
-        "Survey-linked services with recorded delivery/completion evidence. A submitted survey alone does not prove the requested service was delivered.",
+      description: "Services received by patients who submitted a survey.",
       columns: ["Service availed", "Unique patients", "Surveys"],
       rows: surveyServices,
     },
@@ -542,7 +544,7 @@ export function buildMonthlyReports(
       id: "survey-gender",
       title: "Gender distribution per service requested",
       description:
-        "Respondent sex from the survey, without substituting patient gender. Latest survey per patient within each service determines the demographic count; all survey submissions are shown separately.",
+        "Respondents grouped by requested service, using their latest survey for each service.",
       columns: [
         "Service requested",
         "Unique patients",
@@ -555,7 +557,7 @@ export function buildMonthlyReports(
       id: "survey-age",
       title: "Age distribution per service requested",
       description:
-        "Recorded respondent age; latest survey per patient within each service. Each patient contributes to exactly one age range per service. Blank ages remain Did not specify.",
+        "Age groups by requested service, using each patient's latest survey. Unanswered ages appear under Did not specify.",
       columns: ["Service requested", "Age range", "Unique patients"],
       rows: ageRows,
     },
@@ -563,7 +565,7 @@ export function buildMonthlyReports(
       id: "customer-type",
       title: "Customer type",
       description:
-        "Employee / Dependent is recorded separately from the official Citizen / Business / Government client type. Older surveys remain unspecified. Repeat surveys can place a patient in more than one customer category.",
+        "Patients grouped as Employee, Dependent, or Other. Unanswered surveys appear under Did not specify.",
       columns: ["Customer type", "Unique patients", "Surveys"],
       rows: customerRows,
     },
@@ -571,7 +573,7 @@ export function buildMonthlyReports(
       id: "agencies",
       title: "Patients and gender distribution per agency",
       description:
-        "Agency recorded on the survey; older surveys without an agency remain unspecified. Gender uses the latest survey per patient within each agency. No employer/dependent relationship is inferred.",
+        "Patients grouped by agency. Missing agency details appear under Did not specify.",
       columns: ["Agency", "Unique patients", ...sexLabels, "Surveys"],
       rows: agencyRows,
     },

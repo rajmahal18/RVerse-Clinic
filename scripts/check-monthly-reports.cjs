@@ -247,7 +247,7 @@ async function main() {
   );
   assert.ok(
     section(reportData, "accomplishment", "turnaround").description.includes(
-      "1 excluded",
+      "1 visit is excluded because the times are missing or incorrect.",
     ),
   );
   const vitals = section(reportData, "accomplishment", "vitals").rows;

@@ -58,8 +58,7 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
               Client Satisfaction Measurement Survey
             </h2>
             <p className="text-sm text-slate-500">
-              One survey is saved for this appointment and may be updated before
-              completion.
+              You can update this survey until the visit is completed.
             </p>
           </div>
           <Button

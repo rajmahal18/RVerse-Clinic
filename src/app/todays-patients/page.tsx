@@ -78,7 +78,7 @@ export default async function TodaysPatientsPage({
       <div className="grid gap-5">
         <QueueSection
           title="Today's Patient"
-          description="Patient visits queued or updated for the current clinic day."
+          description="Manage today's appointments and patient queue."
           result={result.todaysQueue}
         >
           <PatientTable
@@ -101,7 +101,7 @@ export default async function TodaysPatientsPage({
 
         <QueueSection
           title="Queued From Previous Days"
-          description="Active queue entries from earlier dates that are not yet completed or cancelled."
+          description="Patients still waiting from earlier dates."
           result={result.previousQueue}
         >
           <PatientTable

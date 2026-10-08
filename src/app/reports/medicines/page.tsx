@@ -173,7 +173,7 @@ function ReportTable({ report }: { report: Awaited<ReturnType<typeof getMedicine
       <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">
         <div className="border-b bg-slate-50/70 px-4 py-3 md:px-5">
           <h2 className="font-black text-slate-900">History of newly added medicines</h2>
-          <p className="mt-0.5 text-sm text-slate-500">New stock received entries only. Existing stock encoded is excluded.</p>
+          <p className="mt-0.5 text-sm text-slate-500">Medicine stock received during this period.</p>
         </div>
         <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full min-w-[980px] text-left text-sm">

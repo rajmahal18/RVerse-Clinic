@@ -29,7 +29,7 @@ export function AutosaveForm({
   const storageKey = useRef("");
   const restoring = useRef(false);
   const version = useRef(0);
-  const [state, setState] = useState("Draft autosave ready");
+  const [state, setState] = useState("Autosave on");
 
   function save(data: FormData, currentVersion: number) {
     queue.current = queue.current.then(async () => {

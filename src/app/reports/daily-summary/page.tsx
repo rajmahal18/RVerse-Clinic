@@ -63,8 +63,8 @@ export default async function DailySummaryPage({ searchParams }: { searchParams:
           </div>
           {!submission ? (
             <p className="mt-2 text-sm text-slate-500">
-              Submit after all visits for the day are completed. Records
-              receives a notification and a saved printable version.
+              Complete all visits for the day before submitting this summary to
+              Records.
             </p>
           ) : null}
         </div>

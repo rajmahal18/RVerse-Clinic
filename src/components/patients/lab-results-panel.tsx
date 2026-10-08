@@ -242,7 +242,7 @@ export function LabResultsPanel({ patientId, visit }: { patientId: string; visit
             </span>
             <div>
               <h3 className="font-black text-slate-900">Laboratory Results</h3>
-              <p className="mt-0.5 text-sm text-slate-500">Encode and retain structured laboratory results for this visit.</p>
+              <p className="mt-0.5 text-sm text-slate-500">Add and review laboratory results for this visit.</p>
             </div>
           </div>
           <span className="w-fit rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">

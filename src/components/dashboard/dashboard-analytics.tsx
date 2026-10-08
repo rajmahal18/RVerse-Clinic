@@ -132,7 +132,7 @@ export async function DashboardAnalytics() {
         <div className="p-4 lg:p-5">
           <div className="flex items-center gap-2">
             <UsersRound className="h-5 w-5 text-primary" />
-            <h4 className="text-base font-bold text-slate-900">Profile snapshot</h4>
+            <h4 className="text-base font-bold text-slate-900">Patient overview</h4>
           </div>
           <div className="mt-3 overflow-hidden rounded-xl border">
             <div className="grid grid-cols-2 divide-x border-b">

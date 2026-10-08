@@ -33,7 +33,7 @@ export default async function AccountsPage({
           <div className="flex flex-col gap-2 border-b bg-slate-50 px-4 py-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-base font-black text-slate-900">Admin Account List</h2>
-              <p className="text-sm text-slate-500">Users registered for clinic system access.</p>
+              <p className="text-sm text-slate-500">Manage staff accounts and access.</p>
             </div>
             <Badge className="w-fit bg-blue-50 text-blue-700">{settings.users.length} total accounts</Badge>
           </div>

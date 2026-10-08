@@ -16,7 +16,7 @@ export function DeleteAppointmentButton({
       onSubmit={(event) => {
         if (
           !window.confirm(
-            "Delete this appointment? It will be removed from the queue and retained for recovery.",
+            "Delete this appointment? It will be removed from the queue.",
           )
         )
           event.preventDefault();

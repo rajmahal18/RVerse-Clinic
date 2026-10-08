@@ -15,8 +15,8 @@ export function DiseaseMasterList({
       <div className="mb-4">
         <h2 className="font-bold text-slate-900">Disease master list</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Choices for diagnosis checkboxes. Removing an entry keeps existing
-          patient diagnoses intact.
+          Manage the diseases available for diagnosis. Removing a disease does
+          not change past patient records.
         </p>
       </div>
       <form
@@ -31,7 +31,7 @@ export function DiseaseMasterList({
             required
             maxLength={180}
             className="h-10 w-full min-w-0 rounded-lg border px-3 font-normal"
-            placeholder="Enter a disease from the client’s master list"
+            placeholder="Enter disease name"
           />
         </label>
         <Button type="submit" className="sm:self-end">
@@ -89,7 +89,7 @@ export function DiseaseMasterList({
       </div>
       {!diseases.some((d) => d.isActive) ? (
         <p className="py-6 text-sm text-slate-500">
-          No diseases added yet. Add the client’s master list here.
+          No diseases added yet. Enter a name above to get started.
         </p>
       ) : null}
     </section>
