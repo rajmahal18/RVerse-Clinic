@@ -1,16 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function MedicineScheduleFields() {
+  const ref = useRef<HTMLSelectElement>(null);
   const [frequencyMode, setFrequencyMode] = useState("ONCE_DAILY");
   const [durationMode, setDurationMode] = useState("DAYS");
+
+  useEffect(() => {
+    const form = ref.current?.closest("form");
+    const restore = (event: Event) => {
+      const data = (event as CustomEvent<Record<string, string[]>>).detail;
+      if (data.frequencyMode) setFrequencyMode(data.frequencyMode[0]);
+      if (data.durationMode) setDurationMode(data.durationMode[0]);
+    };
+    form?.addEventListener("restore-draft", restore);
+    return () => form?.removeEventListener("restore-draft", restore);
+  }, []);
 
   return (
     <>
       <div className="grid gap-2">
         <label className="text-xs font-bold uppercase tracking-wide text-slate-500" htmlFor="frequencyMode">Frequency</label>
         <select
+          ref={ref}
           id="frequencyMode"
           name="frequencyMode"
           value={frequencyMode}

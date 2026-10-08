@@ -1117,18 +1117,18 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 }
 
 .allowance-body > p {
-  margin: 0 0 17mm;
+  margin: 0 0 7mm;
   text-align: justify;
 }
 
 .allowance-issued {
   text-align: left !important;
-  margin-bottom: 13mm !important;
+  margin-bottom: 20mm !important;
 }
 
 .allowance-signature-block {
   display: grid;
-  gap: 11mm;
+  gap: 17mm;
 }
 
 .allowance-signature-row {
@@ -1404,5 +1404,55 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
   .clinic-form-page {
     margin: 0;
     box-shadow: none !important;
+  }
+}
+
+.clinic-draft-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.clinic-draft-form select,
+.clinic-draft-form textarea {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.report-hidden-screen {
+  display: none;
+}
+
+@media print {
+  .monthly-report-screen {
+    padding: 0 !important;
+    font-size: 9pt;
+  }
+  body:has(.monthly-report-screen) aside,
+  body:has(.monthly-report-screen) header,
+  body:has(.monthly-report-screen) .lg\:pl-72 > :not(main),
+  body:has(.monthly-report-screen) main > :not(.monthly-report-screen) {
+    display: none !important;
+  }
+  body:has(.monthly-report-screen) main,
+  body:has(.monthly-report-screen) .lg\:pl-72 {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .monthly-report-screen .report-hidden-screen {
+    display: table-row !important;
+  }
+  .monthly-report-screen .report-mobile-rows {
+    display: none !important;
+  }
+  .monthly-report-screen .monthly-report-section > div.hidden {
+    display: block !important;
+  }
+  .monthly-report-screen th,
+  .monthly-report-screen td {
+    padding: 2mm !important;
+    font-size: 8pt;
+  }
+  .monthly-report-screen tr {
+    break-inside: avoid;
+  }
+  .monthly-report-screen thead {
+    display: table-header-group;
   }
 }

@@ -38,6 +38,7 @@ export default async function DashboardPage() {
     prisma.patient.count(),
     prisma.visit.count({
       where: {
+        deletedAt: null,
         timeIn: {
           gte: month.start,
           lt: month.end,
@@ -159,21 +160,33 @@ export default async function DashboardPage() {
               <CardTitle className="text-sm md:text-lg">Clinic Overview</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-              <p className="text-2xl font-black md:text-4xl">{monthlyInteractionCount.toLocaleString()}</p>
+              <p className="text-2xl font-black md:text-4xl">
+                {monthlyInteractionCount.toLocaleString()}
+              </p>
               <p className="text-xs text-teal-50 md:text-sm">interactions this month</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
-              <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
-                <UsersRound className="h-4 w-4 text-primary md:h-5 md:w-5" /> Patient Records
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-              <p className="text-2xl font-black md:text-4xl">{patientCount.toLocaleString()}</p>
-              <p className="text-xs text-muted-foreground md:text-sm">registered patients</p>
-            </CardContent>
-          </Card>
+          <Link
+            href="/patients"
+            className="rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-600"
+          >
+            <Card className="h-full transition hover:bg-teal-50/30">
+              <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
+                <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
+                  <UsersRound className="h-4 w-4 text-primary md:h-5 md:w-5" />{" "}
+                  Patient Records
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
+                <p className="text-2xl font-black md:text-4xl">
+                  {patientCount.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground md:text-sm">
+                  registered patients
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 md:gap-4">
@@ -182,18 +195,25 @@ export default async function DashboardPage() {
               <CardTitle className="text-sm md:text-lg">Item Requests</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-              <p className="text-2xl font-black md:text-4xl">{pendingItemRequestCount.toLocaleString()}</p>
-              <p className="text-xs text-indigo-50 md:text-sm">pending approval</p>
+              <p className="text-2xl font-black md:text-4xl">
+                {pendingItemRequestCount.toLocaleString()}
+              </p>
+              <p className="text-xs text-indigo-50 md:text-sm">
+                pending approval
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="p-3 pb-1 md:p-5 md:pb-2">
               <CardTitle className="flex items-center gap-1.5 text-sm md:gap-2 md:text-lg">
-                <Pill className="h-4 w-4 text-primary md:h-5 md:w-5" /> Inventory
+                <Pill className="h-4 w-4 text-primary md:h-5 md:w-5" />{" "}
+                Inventory
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 md:p-5 md:pt-0">
-              <p className="text-2xl font-black md:text-4xl">{lowStockCount.toLocaleString()}</p>
+              <p className="text-2xl font-black md:text-4xl">
+                {lowStockCount.toLocaleString()}
+              </p>
               <p className="text-xs text-muted-foreground md:text-sm">low stock items</p>
             </CardContent>
           </Card>
@@ -213,9 +233,13 @@ export default async function DashboardPage() {
                 <Icon className="h-5 w-5 md:h-6 md:w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-500">{queue.title}</p>
+                <p className="truncate text-sm font-semibold text-slate-500">
+                  {queue.title}
+                </p>
                 <div className="flex items-end justify-between gap-3 sm:mt-2">
-                  <span className="text-2xl font-black md:text-4xl">{queue.count}</span>
+                  <span className="text-2xl font-black md:text-4xl">
+                    {queue.count}
+                  </span>
                   <ArrowRight className="h-5 w-5 shrink-0 text-slate-400 transition group-hover:translate-x-1" />
                 </div>
               </div>
@@ -224,7 +248,6 @@ export default async function DashboardPage() {
         })}
       </div>
       {canViewPatients ? <DashboardAnalytics /> : null}
-
     </AppShell>
   );
 }

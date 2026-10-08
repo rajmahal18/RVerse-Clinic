@@ -19,6 +19,7 @@ type PatientFormValues = {
   heightCm?: number | null;
   weightKg?: number | null;
   primaryContact?: string;
+  primaryContactNo?: string;
   medicalHistory?: string;
   vaccineHistory?: string;
   allergy?: string;
@@ -26,11 +27,21 @@ type PatientFormValues = {
   additionalMedicalInformation?: string;
 };
 
-function SectionLabel({ title, description }: { title: string; description?: string }) {
+function SectionLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
   return (
     <div className="border-b pb-2 md:col-span-2">
-      <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">{title}</p>
-      {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">
+        {title}
+      </p>
+      {description ? (
+        <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+      ) : null}
     </div>
   );
 }
@@ -47,7 +58,9 @@ export function PatientForm({
   return (
     <form action={action} className="grid gap-4 rounded-2xl border bg-white p-4 shadow-soft md:grid-cols-2 md:p-5">
       <CsrfField />
-      {values?.patientId ? <input type="hidden" name="patientId" value={values.patientId} /> : null}
+      {values?.patientId ? (
+        <input type="hidden" name="patientId" value={values.patientId} />
+      ) : null}
 
       <SectionLabel title="Personal information" description="Basic identity and contact details." />
 
@@ -90,8 +103,14 @@ export function PatientForm({
         Agency / Office
         <select name="agency" defaultValue={values?.agency} className="h-10 rounded-xl border bg-white px-3 font-normal">
           <option value="">Select agency / office</option>
-          {values?.agency && !(AGENCIES as readonly string[]).includes(values.agency) ? <option value={values.agency}>{values.agency}</option> : null}
-          {AGENCIES.map((agency) => <option key={agency} value={agency}>{agency}</option>)}
+          {values?.agency && !(AGENCIES as readonly string[]).includes(values.agency) ? (
+            <option value={values.agency}>{values.agency}</option>
+          ) : null}
+          {AGENCIES.map((agency) => (
+            <option key={agency} value={agency}>
+              {agency}
+            </option>
+          ))}
         </select>
       </label>
       <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
@@ -114,7 +133,12 @@ export function PatientForm({
       <SectionLabel title="Medical information" description="Relevant history and information used during clinic visits." />
 
       {[
-        ["primaryContact", "Primary Contact", values?.primaryContact],
+        ["primaryContact", "Primary Contact Name", values?.primaryContact],
+        [
+          "primaryContactNo",
+          "Primary Contact Number",
+          values?.primaryContactNo,
+        ],
         ["allergy", "Allergy", values?.allergy],
         ["maintenance", "Maintenance", values?.maintenance],
         ["vaccineHistory", "Vaccine History", values?.vaccineHistory],

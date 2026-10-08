@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -18,6 +18,8 @@ const complaints = [
   "Blurred Vision",
   "Dizziness",
   "Fever / Chills / Sweating",
+  "For CS 211 Medical Certificate",
+  "For Regular Medical Certificate",
   "Headache",
   "History of Asthma",
   "History of Anemia",
@@ -59,7 +61,15 @@ function parseInitial(value: string) {
   return { selected, other: otherEntry?.slice(6).trim() || unstructured.join("; ") };
 }
 
-export function ChiefComplaintField({ initialValue = "" }: { initialValue?: string }) {
+export function ChiefComplaintField({
+  initialValue = "",
+  disabled = false,
+}: {
+  initialValue?: string;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
   const initial = useMemo(() => parseInitial(initialValue), [initialValue]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>(initial.selected);
@@ -72,17 +82,41 @@ export function ChiefComplaintField({ initialValue = "" }: { initialValue?: stri
   const visibleComplaints = complaints.filter((complaint) => complaint.toLowerCase().includes(search.toLowerCase()));
 
   useEffect(() => { const id = window.setTimeout(() => setSearch(searchDraft.trim()), 250); return () => window.clearTimeout(id); }, [searchDraft]);
+  useEffect(() => {
+    const form = ref.current?.closest("form");
+    const restore = (event: Event) => {
+      const data = (event as CustomEvent<Record<string, string[]>>).detail;
+      if (!data.chiefComplaint) return;
+      const parsed = parseInitial(data.chiefComplaint[0]);
+      setSelected(parsed.selected);
+      setOther(parsed.other);
+      setOtherSelected(Boolean(parsed.other));
+    };
+    form?.addEventListener("restore-draft", restore);
+    return () => form?.removeEventListener("restore-draft", restore);
+  }, []);
+  useEffect(() => {
+    if (mounted.current)
+      ref.current?.dispatchEvent(new Event("input", { bubbles: true }));
+    else mounted.current = true;
+  }, [value]);
 
   function toggle(complaint: string) {
     setSelected((current) => current.includes(complaint) ? current.filter((item) => item !== complaint) : [...current, complaint]);
   }
 
   return (
-    <div className="grid gap-2">
-      <input type="hidden" name="chiefComplaint" value={value} />
+    <div ref={ref} className="grid gap-2">
+      <input
+        type="hidden"
+        name="chiefComplaint"
+        value={value}
+        disabled={disabled}
+      />
       <span className="text-sm font-semibold text-slate-700">Chief complaint</span>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen(true)}
         className="flex min-h-20 w-full items-center justify-between gap-3 rounded-xl border bg-yellow-50/70 px-3 py-3 text-left text-sm outline-none transition hover:border-primary/40 focus:ring-2 focus:ring-primary/30"
       >

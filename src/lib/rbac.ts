@@ -1,4 +1,11 @@
-export type AppRole = "ADMIN" | "DOCTOR_NURSE" | "PHARMACIST" | "SUPPLY_OFFICER" | "RECORDS";
+export type AppRole =
+  | "ADMIN"
+  | "DOCTOR"
+  | "NURSE"
+  | "DOCTOR_NURSE"
+  | "PHARMACIST"
+  | "SUPPLY_OFFICER"
+  | "RECORDS";
 
 type NavigationItem = {
   href: string;
@@ -6,6 +13,8 @@ type NavigationItem = {
 
 const ROLE_HOME: Record<AppRole, string> = {
   ADMIN: "/dashboard",
+  DOCTOR: "/dashboard",
+  NURSE: "/dashboard",
   DOCTOR_NURSE: "/dashboard",
   PHARMACIST: "/dashboard",
   SUPPLY_OFFICER: "/dashboard",
@@ -27,6 +36,26 @@ const ROLE_MODULES: Record<AppRole, string[]> = {
     "/accounts",
     "/settings",
   ],
+  DOCTOR: [
+    "/dashboard",
+    "/patients",
+    "/todays-patients",
+    "/follow-ups",
+    "/vaccination",
+    "/emergency-cases",
+    "/item-requests",
+    "/reports",
+  ],
+  NURSE: [
+    "/dashboard",
+    "/patients",
+    "/todays-patients",
+    "/follow-ups",
+    "/vaccination",
+    "/emergency-cases",
+    "/item-requests",
+    "/reports",
+  ],
   DOCTOR_NURSE: [
     "/dashboard",
     "/patients",
@@ -43,7 +72,15 @@ const ROLE_MODULES: Record<AppRole, string[]> = {
 };
 
 export function isAppRole(value: unknown): value is AppRole {
-  return value === "ADMIN" || value === "DOCTOR_NURSE" || value === "PHARMACIST" || value === "SUPPLY_OFFICER" || value === "RECORDS";
+  return (
+    value === "DOCTOR" ||
+    value === "NURSE" ||
+    value === "ADMIN" ||
+    value === "DOCTOR_NURSE" ||
+    value === "PHARMACIST" ||
+    value === "SUPPLY_OFFICER" ||
+    value === "RECORDS"
+  );
 }
 
 export function getRoleHome(role: AppRole) {

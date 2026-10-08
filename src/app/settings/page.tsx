@@ -1,3 +1,8 @@
+import { DiseaseMasterList } from "@/components/settings/disease-master-list";
+import { PatientRecordTabs } from "@/components/patients/patient-record-tabs";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 import { createUserAction, toggleUserStatusAction, updateClinicSettingsAction } from "@/app/actions/workflow";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,7 +14,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getClinicSettingsData } from "@/lib/patient-view";
 
 function roleLabel(role: string) {
-  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "PHARMACIST" ? "Pharmacist" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
+  return role === "DOCTOR"
+    ? "Doctor"
+    : role === "NURSE"
+      ? "Nurse"
+      : role === "DOCTOR_NURSE"
+        ? "Clinical staff (assign role)"
+        : role === "PHARMACIST"
+          ? "Pharmacist"
+          : role === "SUPPLY_OFFICER"
+            ? "Supply Officer"
+            : role === "RECORDS"
+              ? "Records"
+              : "Admin";
 }
 
 function statusTone(active: boolean) {
@@ -19,16 +36,20 @@ function statusTone(active: boolean) {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string; message?: string }>;
+  searchParams?: Promise<{ error?: string; message?: string; tab?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
+  const user = await getCurrentUser();
+  if (!user || user.role !== UserRole.ADMIN) redirect("/dashboard");
   const settings = await getClinicSettingsData();
+  const diseases = await prisma.diseaseCatalog.findMany({ where: { clinicId: user.clinicId }, orderBy: { name: "asc" } });
 
   return (
     <AppShell>
       <PageHeader title="Settings" />
       <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <PatientRecordTabs defaultTabId={resolvedSearchParams?.tab === "diseases" ? "diseases" : "general"} tabs={[{id: "general", label: "CLINIC & ACCOUNTS", content: (
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <Card>
           <CardHeader className="border-b bg-slate-50/70">
             <CardTitle>Clinic Profile</CardTitle>
@@ -69,11 +90,16 @@ export default async function SettingsPage({
                 <CardTitle>User Accounts</CardTitle>
                 <p className="mt-1 text-sm text-slate-500">Create staff accounts and manage access status.</p>
               </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">{settings.users.length} users</span>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-600 ring-1 ring-slate-200">
+                {settings.users.length} users
+              </span>
             </div>
           </CardHeader>
           <CardContent className="pt-5">
-            <form action={createUserAction} className="grid gap-3 md:grid-cols-2">
+            <form
+              action={createUserAction}
+              className="grid gap-3 md:grid-cols-2"
+            >
               <CsrfField />
               <input type="hidden" name="redirectTo" value="/settings" />
               <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
@@ -94,10 +120,18 @@ export default async function SettingsPage({
               </label>
               <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
                 Role
-                <select name="role" defaultValue={UserRole.DOCTOR_NURSE} className="h-10 rounded-xl border bg-white px-3 font-normal">
-                  {Object.values(UserRole).map((role) => (
-                    <option key={role} value={role}>{roleLabel(role)}</option>
-                  ))}
+                <select
+                  name="role"
+                  defaultValue={UserRole.NURSE}
+                  className="h-10 rounded-xl border bg-white px-3 font-normal"
+                >
+                  {Object.values(UserRole)
+                    .filter((role) => role !== UserRole.DOCTOR_NURSE)
+                    .map((role) => (
+                      <option key={role} value={role}>
+                        {roleLabel(role)}
+                      </option>
+                    ))}
                 </select>
               </label>
               <div className="flex items-end">
@@ -112,13 +146,19 @@ export default async function SettingsPage({
                 <div key={user.id} className={`flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between ${index ? "border-t" : ""}`}>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate font-bold text-slate-900">{user.name}</p>
+                      <p className="truncate font-bold text-slate-900">
+                        {user.name}
+                      </p>
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ${statusTone(user.isActive)}`}>
                         {user.isActive ? "Active" : "Inactive"}
                       </span>
                     </div>
-                    <p className="mt-0.5 truncate text-sm text-slate-500">{user.email}</p>
-                    <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">{roleLabel(user.role)}</p>
+                    <p className="mt-0.5 truncate text-sm text-slate-500">
+                      {user.email}
+                    </p>
+                    <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                      {roleLabel(user.role)}
+                    </p>
                   </div>
                   <form action={toggleUserStatusAction} className="shrink-0">
                     <CsrfField />
@@ -137,6 +177,7 @@ export default async function SettingsPage({
           </CardContent>
         </Card>
       </div>
+      )}, {id: "diseases", label: "DISEASE MASTER LIST", content: <DiseaseMasterList diseases={diseases} />}]} />
     </AppShell>
   );
 }

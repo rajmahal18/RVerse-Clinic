@@ -37,6 +37,10 @@ function load(filename) {
 }
 
 async function main() {
+  patient.primaryContact = "Emergency contact";
+  patient.primaryContactNo = "09992223333";
+  patient.contactNo = "09171112222";
+  patient.visits.find(v => v.id === "past").chiefComplaint = "Other: Custom complaint; Cough";
   const forms = load("src/lib/clinic-forms.ts");
   const past = await forms.getClinicFormData("patient-a", "past");
   const latest = await forms.getClinicFormData("patient-a");
@@ -53,6 +57,13 @@ async function main() {
   assert.ok(certificate.includes("PAST diagnosis"));
   assert.ok(certificate.includes("PAST diagnosis treatment"));
   assert.ok(!certificate.includes("LATEST diagnosis"));
+  assert.equal(past.selectedVisit.chiefComplaint, "Custom complaint; Cough");
+  const employee = renderToStaticMarkup(React.createElement(Template, { form: "employee-information", data: past }));
+  const primaryStart = employee.indexOf("Primary Contact");
+  const primary = employee.slice(primaryStart, employee.indexOf("</table>", primaryStart));
+  assert.ok(primary.includes("09992223333"));
+  assert.ok(!primary.includes("09171112222"));
+  assert.equal(primary.match(/Contact Number:/g)?.length, 1);
 
   const FormsPage = load("src/app/patients/[id]/forms/page.tsx").default;
   const Preview = load("src/app/patients/[id]/forms/[form]/page.tsx").default;

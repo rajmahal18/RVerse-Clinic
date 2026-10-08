@@ -1,3 +1,5 @@
+import { requestTypeLabels, getAvailedServiceLabels } from "@/lib/clinic-services";
+export { getAvailedServiceLabels } from "@/lib/clinic-services";
 import {
   InventoryCategory,
   LabResultType,
@@ -21,18 +23,6 @@ import {
   getMonthRange,
 } from "@/lib/date-time";
 import { labTypeLabels } from "@/lib/lab-results";
-
-const requestTypeLabels: Record<RequestType, string> = {
-  CONSULTATION: "Medical Consultation",
-  MEDICINES: "Provision of Medicine",
-  CS_211_MEDICAL_CERTIFICATE: "CS 211 Medical Certificate",
-  REGULAR_MEDICAL_CERTIFICATE: "Medical Certificate",
-  VACCINATION: "Provision of Vaccine",
-  EMERGENCY: "Emergency Medical Services",
-  MEDICAL_ALLOWANCE: "Medical Allowance",
-  REFERRAL: "Referral",
-  FIRST_AID_KIT: "Provision of First Aid Kit",
-};
 
 const inventoryCategoryLabels: Record<InventoryCategory, string> = {
   MEDICINE: "Medicine",
@@ -68,6 +58,7 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
     visits: {
       include: {
         requests: true;
+        diagnoses: true;
         medicines: true;
         satisfactionSurvey: true;
         followUps: true;
@@ -102,6 +93,7 @@ export type PatientTableRow = {
   weightKg: number | null;
   bmi: number | null;
   primaryContact: string;
+  primaryContactNo: string;
   medicalHistory: string;
   vaccineHistory: string;
   allergy: string;
@@ -171,6 +163,16 @@ export type PatientVisitWorkflow = {
   diagnosis: string;
   treatmentPlan: string;
   progressNotes: string;
+  physicalExam: string;
+  updatedAt: string;
+  intakeNotes: string;
+  readyForDoctorAt: string | null;
+  diagnosisNotes: string;
+  diagnosesStructured: boolean;
+  diagnoses: { diseaseId: string; diseaseName: string; status: string }[];
+  doctorLockedFields: string[];
+  progressNotesDoneAt: string | null;
+  treatmentDoneAt: string | null;
   nurseOnDuty: string;
   requests: { id: string; type: RequestType; label: string }[];
   medicines: {
@@ -215,6 +217,8 @@ export type PatientVisitWorkflow = {
   satisfactionSurvey: {
     id: string;
     clientType: string;
+    customerType: string;
+    agencyName: string;
     surveyDate: string;
     officeVisited: string;
     regionOfResidence: string;
@@ -434,7 +438,10 @@ function matchesAgeGroup(age: number, ageGroup?: string) {
   return true;
 }
 
-function applyPatientTableFilters(rows: PatientTableRow[], options?: PatientTableFilters) {
+function applyPatientTableFilters(
+  rows: PatientTableRow[],
+  options?: PatientTableFilters,
+) {
   const status = options?.status;
   const request = options?.request;
   const gender = options?.gender;
@@ -453,7 +460,14 @@ function applyPatientTableFilters(rows: PatientTableRow[], options?: PatientTabl
     const agencyMatches = !agency || row.agency === agency;
     const lastVisitMatches = !lastVisitRange || (row.latestVisitTimestamp >= lastVisitRange.start && row.latestVisitTimestamp < lastVisitRange.end);
 
-    return statusMatches && requestMatches && genderMatches && agencyMatches && matchesAgeGroup(row.age, options?.ageGroup) && lastVisitMatches;
+    return (
+      statusMatches &&
+      requestMatches &&
+      genderMatches &&
+      agencyMatches &&
+      matchesAgeGroup(row.age, options?.ageGroup) &&
+      lastVisitMatches
+    );
   });
 }
 
@@ -475,9 +489,18 @@ function sortPatientTableRows(rows: PatientTableRow[], sort = "name_asc") {
     if (sort === "name_desc") return -compareName(a, b);
     if (sort === "age_asc") return a.age - b.age || compareName(a, b);
     if (sort === "age_desc") return b.age - a.age || compareName(a, b);
-    if (sort === "last_visit_asc") return a.latestVisitTimestamp - b.latestVisitTimestamp || compareName(a, b);
-    if (sort === "last_visit_desc") return b.latestVisitTimestamp - a.latestVisitTimestamp || compareName(a, b);
-    if (sort === "status_priority") return (statusPriority[a.statusCode] ?? 99) - (statusPriority[b.statusCode] ?? 99) || compareName(a, b);
+    if (sort === "last_visit_asc")
+      return (
+        a.latestVisitTimestamp - b.latestVisitTimestamp || compareName(a, b)
+      );
+    if (sort === "last_visit_desc")
+      return (
+        b.latestVisitTimestamp - a.latestVisitTimestamp || compareName(a, b)
+      );
+    if (sort === "status_priority")
+      return (
+        (statusPriority[a.statusCode] ?? 99) - (statusPriority[b.statusCode] ?? 99) || compareName(a, b)
+      );
     return compareName(a, b);
   });
 }
@@ -513,6 +536,7 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     weightKg: patient.weightKg,
     bmi,
     primaryContact: patient.primaryContact ?? "Not provided",
+    primaryContactNo: patient.primaryContactNo ?? "Not provided",
     medicalHistory: patient.medicalHistory ?? "Not provided",
     vaccineHistory: patient.vaccineHistory ?? "Not provided",
     allergy: patient.allergy ?? "Not provided",
@@ -609,46 +633,8 @@ function toFollowUpPatientTableRow(patient: FollowUpPatientRecord): PatientTable
   };
 }
 
-type AvailedVisitSource = {
-  status: VisitStatus;
-  requests: { type: RequestType }[];
-  medicines: { status: string }[];
-  vaccinations: unknown[];
-  followUps: { status: string }[];
-  referrals: unknown[];
-};
-
-export function getAvailedServiceLabels(visit: AvailedVisitSource) {
-  const requested = new Set(visit.requests.map((request) => request.type));
-  const labels: string[] = [];
-
-  if (requested.has(RequestType.CONSULTATION) && visit.status === VisitStatus.COMPLETED) {
-    labels.push(requestTypeLabels.CONSULTATION);
-  }
-  if (visit.medicines.some((medicine) => medicine.status === "RECEIVED")) {
-    labels.push(requestTypeLabels.MEDICINES);
-  }
-  if (visit.vaccinations.length > 0) {
-    labels.push(requestTypeLabels.VACCINATION);
-  }
-  if (visit.referrals.length > 0) {
-    labels.push(requestTypeLabels.REFERRAL);
-  }
-  for (const type of [
-    RequestType.CS_211_MEDICAL_CERTIFICATE,
-    RequestType.REGULAR_MEDICAL_CERTIFICATE,
-    RequestType.MEDICAL_ALLOWANCE,
-    RequestType.EMERGENCY,
-    RequestType.FIRST_AID_KIT,
-  ]) {
-    if (requested.has(type) && visit.status === VisitStatus.COMPLETED) labels.push(requestTypeLabels[type]);
-  }
-
-  return labels;
-}
-
 function toVisitWorkflow(
-  visit: PatientWorkflowRecord["visits"][number]
+  visit: PatientWorkflowRecord["visits"][number],
 ): PatientVisitWorkflow {
   const servicesReceived = getAvailedServiceLabels(visit).join(", ");
 
@@ -667,6 +653,20 @@ function toVisitWorkflow(
     diagnosis: visit.diagnosis ?? "",
     treatmentPlan: visit.treatmentPlan ?? "",
     progressNotes: visit.progressNotes ?? "",
+    physicalExam: visit.physicalExam ?? "",
+    updatedAt: visit.updatedAt.toISOString(),
+    intakeNotes: visit.intakeNotes ?? "",
+    readyForDoctorAt: visit.readyForDoctorAt?.toISOString() ?? null,
+    diagnosisNotes: visit.diagnosisNotes ?? "",
+    diagnosesStructured: visit.diagnosesStructured,
+    diagnoses: visit.diagnoses.map(d => ({ diseaseId: d.diseaseId, diseaseName: d.diseaseName, status: d.status })),
+    doctorLockedFields: Array.isArray(visit.doctorLockedFields)
+      ? visit.doctorLockedFields.filter(
+          (v): v is string => typeof v === "string",
+        )
+      : [],
+    progressNotesDoneAt: visit.progressNotesDoneAt?.toISOString() ?? null,
+    treatmentDoneAt: visit.treatmentDoneAt?.toISOString() ?? null,
     nurseOnDuty: visit.nurseOnDuty ?? "",
     requests: visit.requests.map((request) => ({
       id: request.id,
@@ -715,6 +715,8 @@ function toVisitWorkflow(
     satisfactionSurvey: visit.satisfactionSurvey ? {
       id: visit.satisfactionSurvey.id,
       clientType: visit.satisfactionSurvey.clientType ?? "",
+      customerType: visit.satisfactionSurvey.customerType ?? "",
+      agencyName: visit.satisfactionSurvey.agencyName ?? "",
       surveyDate: visit.satisfactionSurvey.surveyDate ? formatDateKey(visit.satisfactionSurvey.surveyDate) : "",
       officeVisited: visit.satisfactionSurvey.officeVisited ?? "",
       regionOfResidence: visit.satisfactionSurvey.regionOfResidence ?? "",
@@ -770,6 +772,7 @@ async function listPatients(where?: Prisma.PatientWhereInput) {
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: {
       visits: {
+        where: { deletedAt: null },
         orderBy: {
           timeIn: "desc",
         },
@@ -787,7 +790,7 @@ export async function getPatientTableRows(
   page = 1,
   pageSize = 25,
   search?: string,
-  options?: PatientTableFilters
+  options?: PatientTableFilters,
 ): Promise<PatientListResult> {
   let where = getPatientSearchWhere(search);
   if (/^TC\d{6}-\d{4,}$/i.test(search?.trim() ?? "")) {
@@ -808,6 +811,7 @@ export async function getPatientTableRows(
       take: safePageSize,
       include: {
         visits: {
+          where: { deletedAt: null },
           orderBy: {
             timeIn: "desc",
           },
@@ -867,7 +871,7 @@ export async function getPatientFilterOptions(): Promise<PatientFilterOptions> {
 export async function getTodaysPatientTableRows(
   page = 1,
   pageSize = 25,
-  search?: string
+  search?: string,
 ): Promise<PatientListResult> {
   const { start, end } = getDayRange();
   const searchWhere = getPatientSearchWhere(search);
@@ -880,6 +884,7 @@ export async function getTodaysPatientTableRows(
     },
   } satisfies Prisma.VisitWhereInput;
   const visibleVisitWhere = {
+    deletedAt: null,
     OR: [
       {
         timeIn: {
@@ -952,8 +957,9 @@ async function getQueueRowsByVisitWhere(
   page: number,
   pageSize: number,
   search?: string,
-  isCarriedOverQueue = false
+  isCarriedOverQueue = false,
 ): Promise<PatientListResult> {
+  visitWhere = { ...visitWhere, deletedAt: null };
   const searchWhere = getPatientSearchWhere(search);
   const where = {
     ...(searchWhere ?? {}),
@@ -1046,10 +1052,11 @@ export async function getTodaysPatientQueueSections(
 export async function getVaccinationPatientTableRows(
   page = 1,
   pageSize = 25,
-  search?: string
+  search?: string,
 ): Promise<PatientListResult> {
   const searchWhere = getPatientSearchWhere(search);
   const vaccinationVisitWhere = {
+    deletedAt: null,
     OR: [
       {
         requests: {
@@ -1108,10 +1115,11 @@ export async function getVaccinationPatientTableRows(
 export async function getFollowUpPatientTableRows(
   page = 1,
   pageSize = 25,
-  search?: string
+  search?: string,
 ): Promise<PatientListResult> {
   const searchWhere = getPatientSearchWhere(search);
   const followUpVisitWhere = {
+    deletedAt: null,
     followUps: {
       some: {
         status: "SCHEDULED",
@@ -1153,11 +1161,14 @@ export async function getFollowUpPatientTableRows(
   return paginateRows(patients.map(toFollowUpPatientTableRow), page, pageSize);
 }
 
-export async function getPatientProfile(id: string): Promise<PatientProfileData | null> {
+export async function getPatientProfile(
+  id: string,
+): Promise<PatientProfileData | null> {
   const patient = await prisma.patient.findUnique({
     where: { id },
     include: {
       visits: {
+        where: { deletedAt: null },
         orderBy: {
           timeIn: "desc",
         },
@@ -1180,18 +1191,22 @@ export async function getPatientProfile(id: string): Promise<PatientProfileData 
   };
 }
 
-export async function getPatientWorkflowProfile(id: string): Promise<PatientWorkflowProfile | null> {
+export async function getPatientWorkflowProfile(
+  id: string,
+): Promise<PatientWorkflowProfile | null> {
   const user = await getCurrentUser();
   if (!user) return null;
   const patient = await prisma.patient.findFirst({
     where: { id, clinicId: user.clinicId },
     include: {
       visits: {
+        where: { deletedAt: null },
         orderBy: {
           timeIn: "desc",
         },
         include: {
           requests: true,
+          diagnoses: true,
           medicines: {
             orderBy: {
               createdAt: "desc",
@@ -1236,13 +1251,21 @@ export async function getPatientWorkflowProfile(id: string): Promise<PatientWork
 
   return {
     ...baseProfile,
-    patientNumber: await getPatientCodeForDisplay(patient.id, patient.createdAt) ?? "Not assigned",
+    patientNumber:
+      (await getPatientCodeForDisplay(patient.id, patient.createdAt)) ??
+      "Not assigned",
     latestVisit: visitHistory[0] ?? null,
     visitHistory,
   };
 }
 
-export async function getInventoryLedgerData(search?: string, month?: string, expiryFilter = "all", sort = "name_asc", categoryFilter = "MEDICINE"): Promise<InventoryLedgerData> {
+export async function getInventoryLedgerData(
+  search?: string,
+  month?: string,
+  expiryFilter = "all",
+  sort = "name_asc",
+  categoryFilter = "MEDICINE",
+): Promise<InventoryLedgerData> {
   const normalizedSearch = search?.trim();
   const { start, end, key, label } = getMonthRange(month);
   const now = new Date();
@@ -1295,22 +1318,69 @@ export async function getInventoryLedgerData(search?: string, month?: string, ex
       const deriveBoxesFromUnits = legacyBatch && item.pcsPerBox && item.boxStock === 0 && !item.movements.some(movement => movement.boxQuantityChange !== 0);
       return {
         movements: [...item.movements].reverse().slice(0, 20).map(movement => ({ id: movement.id, quantity: movement.quantityChange, boxQuantity: movement.boxQuantityChange, reason: movement.reason, date: formatDateTime(movement.createdAt) })),
-        id: item.id, item: item.name, itemCode: item.itemCode ?? "—", itemDescription: item.itemDescription ?? "—", dosage: item.dosage ?? "—", brandName: item.brandName ?? "—",
+        id: item.id,
+        item: item.name,
+        itemCode: item.itemCode ?? "—",
+        itemDescription: item.itemDescription ?? "—",
+        dosage: item.dosage ?? "—",
+        brandName: item.brandName ?? "—",
         classification: item.classification ?? inventoryCategoryLabels[item.category],
-        remarks: item.remarks ?? "—", location: item.location ?? "—",
-        category: inventoryCategoryLabels[item.category], pcsPerBox: item.pcsPerBox?.toString() ?? "—",
+        remarks: item.remarks ?? "—",
+        location: item.location ?? "—",
+        category: inventoryCategoryLabels[item.category],
+        pcsPerBox: item.pcsPerBox?.toString() ?? "—",
         expirationDate: item.expirationDate ? formatDisplayDate(item.expirationDate) : "—",
         expirationDateValue: item.expirationDate ? formatDateKey(item.expirationDate) : "",
-        expiryStatus: !item.expirationDate ? "No expiry" as const : item.expirationDate < now ? "Expired" as const : item.expirationDate <= addMonths(now, 1) ? "Within 1 month" as const : item.expirationDate <= addMonths(now, 3) ? "Within 3 months" as const : item.expirationDate <= addMonths(now, 6) ? "Within 6 months" as const : "Safe" as const,
-        stock: item.stock, boxStock: item.boxStock, physicalCount, functionalCount, functionalStatus, unit: item.unit, reorder: item.reorderLevel,
-        status: item.stock <= 0 && item.boxStock <= 0 ? "Out of stock" as const : item.stock <= item.reorderLevel && item.boxStock <= 0 ? "Low stock" as const : "Healthy" as const,
-        beginningStock: Math.max(0, beginningStock), received, dispensed, endingStock: Math.max(0, endingStock), netMovement: received - dispensed,
-        createdAt: formatDisplayDate(item.createdAt), beginningBoxes: deriveBoxesFromUnits ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox!)) : String(Math.max(0, endingBoxStock - boxReceived + boxDeducted)),
-        beginningPieces: String(Math.max(0, beginningStock)), monthIn: String(received), monthInBoxes: String(boxReceived), monthOutPieces: String(dispensed), monthOutBoxes: String(boxDeducted),
-        remainingPieces: String(Math.max(0, endingStock)), remainingBoxes: deriveBoxesFromUnits ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox!)) : String(Math.max(0, endingBoxStock)),
+        expiryStatus: !item.expirationDate
+          ? ("No expiry" as const)
+          : item.expirationDate < now
+            ? ("Expired" as const)
+            : item.expirationDate <= addMonths(now, 1)
+              ? ("Within 1 month" as const)
+              : item.expirationDate <= addMonths(now, 3)
+                ? ("Within 3 months" as const)
+                : item.expirationDate <= addMonths(now, 6)
+                  ? ("Within 6 months" as const)
+                  : ("Safe" as const),
+        stock: item.stock,
+        boxStock: item.boxStock,
+        physicalCount,
+        functionalCount,
+        functionalStatus,
+        unit: item.unit,
+        reorder: item.reorderLevel,
+        status:
+          item.stock <= 0 && item.boxStock <= 0
+            ? ("Out of stock" as const)
+            : item.stock <= item.reorderLevel && item.boxStock <= 0
+              ? ("Low stock" as const)
+              : ("Healthy" as const),
+        beginningStock: Math.max(0, beginningStock),
+        received,
+        dispensed,
+        endingStock: Math.max(0, endingStock),
+        netMovement: received - dispensed,
+        createdAt: formatDisplayDate(item.createdAt),
+        beginningBoxes: deriveBoxesFromUnits
+          ? String(Math.floor(Math.max(0, beginningStock) / item.pcsPerBox!))
+          : String(Math.max(0, endingBoxStock - boxReceived + boxDeducted)),
+        beginningPieces: String(Math.max(0, beginningStock)),
+        monthIn: String(received),
+        monthInBoxes: String(boxReceived),
+        monthOutPieces: String(dispensed),
+        monthOutBoxes: String(boxDeducted),
+        remainingPieces: String(Math.max(0, endingStock)),
+        remainingBoxes: deriveBoxesFromUnits
+          ? String(Math.floor(Math.max(0, endingStock) / item.pcsPerBox!))
+          : String(Math.max(0, endingBoxStock)),
       };
     }),
-    selectedMonth: key, selectedMonthLabel: label, monthOptions: getInventoryMonthOptions(start), expiryFilter, sort, category: categoryFilter,
+    selectedMonth: key,
+    selectedMonthLabel: label,
+    monthOptions: getInventoryMonthOptions(start),
+    expiryFilter,
+    sort,
+    category: categoryFilter,
     expiryAlerts: {
       expired: alertItems.filter((item) => item.expirationDate && item.expirationDate < now).length,
       withinOne: alertItems.filter((item) => item.expirationDate && item.expirationDate >= now && item.expirationDate <= addMonths(now, 1)).length,
@@ -1398,11 +1468,17 @@ export async function getMedicineReportData(period: MedicineReportPeriod = "MONT
   };
 }
 
-export async function getSupplyFrequencyReportData(clinicId: string, period: MedicineReportPeriod = "MONTHLY", category = "all"): Promise<SupplyFrequencyReportData> {
+export async function getSupplyFrequencyReportData(
+  clinicId: string,
+  period: MedicineReportPeriod = "MONTHLY",
+  category = "all",
+): Promise<SupplyFrequencyReportData> {
   const { start, end } = getMedicineReportRange(period);
   const allowedCategories: InventoryCategory[] = [InventoryCategory.MEDICINE, InventoryCategory.SUPPLY, InventoryCategory.OFFICE_SUPPLY, InventoryCategory.EQUIPMENT, InventoryCategory.AMBULANCE_SUPPLY];
-  const categoryFilter = allowedCategories.includes(category as InventoryCategory)
-    ? category as InventoryCategory
+  const categoryFilter = allowedCategories.includes(
+    category as InventoryCategory,
+  )
+    ? (category as InventoryCategory)
     : null;
   const itemWhere: Prisma.InventoryItemWhereInput = {
     clinicId,

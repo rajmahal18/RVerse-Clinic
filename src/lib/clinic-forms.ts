@@ -1,3 +1,4 @@
+import { printChiefComplaint } from "@/lib/visit-fields";
 import { Prisma, RequestType } from "@prisma/client";
 import {
   formatLongDate,
@@ -47,6 +48,8 @@ type PatientWithFormData = Prisma.PatientGetPayload<{
 }>;
 
 const requestTypeLabels: Record<RequestType, string> = {
+  BP_CHECKING: "BP Checking",
+  RBS_CHECKING: "RBS Checking",
   CONSULTATION: "Medical Consultation",
   MEDICINES: "Provision of Medicine",
   CS_211_MEDICAL_CERTIFICATE: "CS 211 Medical Certificate",
@@ -133,7 +136,11 @@ function medicineLine(medicine: PatientWithFormData["visits"][number]["medicines
   return [medicine.itemName, medicine.frequency, medicine.duration].map(clean).filter(Boolean).join(" - ");
 }
 
-export async function getClinicFormData(patientId: string, visitId?: string, includePatientFormCode = false) {
+export async function getClinicFormData(
+  patientId: string,
+  visitId?: string,
+  includePatientFormCode = false,
+) {
   const user = await getCurrentUser();
   if (!user) return null;
   const patient = await prisma.patient.findFirst({
@@ -141,6 +148,7 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
     include: {
       clinic: true,
       visits: {
+        where: { deletedAt: null },
         orderBy: { timeIn: "desc" },
         include: {
           requests: true,
@@ -222,6 +230,7 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
       allergy: clean(patient.allergy),
       medicalHistory: clean(patient.medicalHistory),
       primaryContact: clean(patient.primaryContact),
+      primaryContactNo: clean(patient.primaryContactNo),
     },
     clinic: {
       name: clean(patient.clinic.name) || "The Clinic",
@@ -235,13 +244,14 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
           shortDate: formatShortDate(selectedVisit.timeIn),
           timeIn: formatTime(selectedVisit.timeIn),
           timeOut: formatTime(selectedVisit.timeOut),
-          chiefComplaint: clean(selectedVisit.chiefComplaint),
+          chiefComplaint: printChiefComplaint(selectedVisit.chiefComplaint),
           bloodPressure: clean(selectedVisit.bloodPressure),
           rbs: clean(selectedVisit.rbs),
           temperature: clean(selectedVisit.temperature),
           pulseRate: clean(selectedVisit.pulseRate),
           respiratoryRate: clean(selectedVisit.respiratoryRate),
           diagnosis: clean(selectedVisit.diagnosis),
+          physicalExam: clean(selectedVisit.physicalExam),
           treatmentPlan: clean(selectedVisit.treatmentPlan),
           progressNotes: clean(selectedVisit.progressNotes),
           allergy: clean(patient.allergy),
@@ -266,7 +276,7 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
     latestVisit: completedOrLatestVisit
       ? {
           date: formatDate(completedOrLatestVisit.timeIn),
-          reason: clean(completedOrLatestVisit.chiefComplaint),
+          reason: printChiefComplaint(completedOrLatestVisit.chiefComplaint),
           medicalHistory: clean(completedOrLatestVisit.progressNotes),
           medicines: completedOrLatestVisit.medicines.map(medicineLine).filter(Boolean),
         }
@@ -278,7 +288,7 @@ export async function getClinicFormData(patientId: string, visitId?: string, inc
         date: formatShortDate(visit.timeIn),
         status: visit.status.replaceAll("_", " ").toLowerCase(),
         timeIn: formatTime(visit.timeIn),
-        chiefComplaint: clean(visit.chiefComplaint),
+        chiefComplaint: printChiefComplaint(visit.chiefComplaint),
         bloodPressure: clean(visit.bloodPressure),
         rbs: clean(visit.rbs),
         temperature: clean(visit.temperature),

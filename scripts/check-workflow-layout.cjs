@@ -9,7 +9,17 @@ const { chromium } = require("playwright-core");
 const longName = "Long medicine and patient name ".repeat(8);
 const summary = { date: "2026-10-07", rows: Array.from({ length: 35 }, (_, index) => ({ patientId: `patient-${index}`, patientNumber: `P-${index}`, name: longName, time: "10:00 AM", services: "Medical consultation, provision of medicine", status: "completed", diagnosis: "Test diagnosis" })) };
 let noticeState = 0;
-const notices = [{ id: "stock", title: "Low stock", detail: Array.from({ length: 40 }, () => `${longName}: 2 pcs (threshold 5)`).join("\n") }];
+const notices = [
+  {
+    id: "stock",
+    title: "Low stock",
+    at: new Date().toISOString(),
+    detail: Array.from(
+      { length: 40 },
+      () => `${longName}: 2 pcs (threshold 5)`,
+    ).join("\n"),
+  },
+];
 const mocks = {
   "next/link": ({ children, ...props }) => React.createElement("a", props, children),
   "next/navigation": { redirect: () => { throw new Error("Unexpected redirect"); }, notFound: () => { throw new Error("Unexpected notFound"); } },
@@ -23,15 +33,26 @@ const mocks = {
 function load(filename, notificationHooks = false) {
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
-  new Function("require", "module", "exports", code)(name => {
-    if (notificationHooks && name === "react") return { ...React, useEffect() {}, useState: () => [[notices, true, notices[0], 1][noticeState++], () => {}] };
-    if (Object.hasOwn(mocks, name)) return mocks[name];
-    if (name.startsWith("@/")) {
-      const base = path.join("src", name.slice(2));
-      return load(fs.existsSync(`${base}.tsx`) ? `${base}.tsx` : `${base}.ts`);
-    }
-    return require(name);
-  }, module, module.exports);
+  new Function("require", "module", "exports", code)(
+    (name) => {
+      if (notificationHooks && name === "react")
+        return {
+          ...React,
+          useEffect() {},
+          useState: () => [[notices, true, [], "all"][noticeState++], () => {}],
+        };
+      if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (name.startsWith("@/")) {
+        const base = path.join("src", name.slice(2));
+        return load(
+          fs.existsSync(`${base}.tsx`) ? `${base}.tsx` : `${base}.ts`,
+        );
+      }
+      return require(name);
+    },
+    module,
+    module.exports,
+  );
   return module.exports;
 }
 async function main() {

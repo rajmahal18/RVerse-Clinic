@@ -43,7 +43,14 @@ export default async function TodaysPatientsPage({
 }) {
   const resolvedSearchParams = await searchParams;
   const currentUser = await getCurrentUser();
-  const canCancelVisits = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR_NURSE;
+  const canCancelVisits = (
+    [
+      UserRole.ADMIN,
+      UserRole.DOCTOR,
+      UserRole.NURSE,
+      UserRole.DOCTOR_NURSE,
+    ] as UserRole[]
+  ).includes(currentUser?.role as UserRole);
   const previousPage = Number(resolvedSearchParams?.prevPage ?? "1");
   const todayPage = Number(resolvedSearchParams?.todayPage ?? "1");
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";

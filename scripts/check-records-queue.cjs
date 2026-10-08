@@ -72,7 +72,7 @@ async function main() {
   const form = new FormData();
   form.set("patientId", "patient-a");
   form.set("requestTypes", "CONSULTATION");
-  for (const role of ["RECORDS", "ADMIN", "DOCTOR_NURSE"]) {
+  for (const role of ["RECORDS", "ADMIN", "DOCTOR", "NURSE", "DOCTOR_NURSE"]) {
     user = { id: "user-a", name: "Sample Staff", role, clinicId: "clinic-a" };
     creates.length = 0;
     await assert.rejects(actions.createVisitAction(form), (error) => {
@@ -81,7 +81,7 @@ async function main() {
     });
     assert.equal(creates.length, 1);
     assert.equal(creates[0].data.status, "QUEUED");
-    assert.equal(creates[0].data.nurseOnDuty, role === "RECORDS" ? null : user.name);
+    assert.equal(creates[0].data.nurseOnDuty, ["RECORDS", "ADMIN", "DOCTOR"].includes(role) ? null : user.name);
   }
   for (const role of ["PHARMACIST", "SUPPLY_OFFICER"]) {
     user.role = role;

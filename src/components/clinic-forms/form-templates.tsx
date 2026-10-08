@@ -31,13 +31,21 @@ function OfficialHeader() {
   );
 }
 
-function Footer({ revision, data }: { revision: string; data: ClinicFormData }) {
+function Footer({
+  revision,
+  data,
+}: {
+  revision: string;
+  data: ClinicFormData;
+}) {
   return (
     <div className="clinic-official-footer">
       <p className="clinic-validity">(NOT VALID WITHOUT OFFICIAL STAMP/SEAL)</p>
       <p className="clinic-revision">{revision}</p>
       <div className="clinic-footer-rule" />
-      <p>{data.clinic.address} | {data.clinic.email}</p>
+      <p>
+        {data.clinic.address} | {data.clinic.email}
+      </p>
     </div>
   );
 }
@@ -54,7 +62,9 @@ function Signatory({ name, position, className = "" }: { name: string; position:
 function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
   const covidVaccines = data.vaccinations.filter((record) => record.vaccine.toLowerCase().includes("covid")).slice(0, 4);
   const otherVaccines = data.vaccinations.filter((record) => !record.vaccine.toLowerCase().includes("covid")).slice(0, 8);
-  const medicineLines = data.latestVisit?.medicines.length ? data.latestVisit.medicines : data.selectedVisit?.medicines ?? [];
+  const medicineLines = data.latestVisit?.medicines.length
+    ? data.latestVisit.medicines
+    : (data.selectedVisit?.medicines ?? []);
 
   return (
     <div className="clinic-form-page employee-form-page">
@@ -68,18 +78,64 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
           <col className="employee-small-value-col" />
         </colgroup>
         <tbody>
-          <tr><th colSpan={6} className="employee-main-title">EMPLOYEE&apos;S INFORMATION</th></tr>
-          <tr className="employee-name-row"><td className="label">Name:</td><td colSpan={5}>{data.patient.fullName}</td></tr>
-          <tr><td className="label">Date of Birth:</td><td>{data.patient.birthDate}</td><td className="label">Age:</td><td>{data.patient.age}</td><td className="label">Gender:</td><td>{data.patient.gender}</td></tr>
-          <tr><td className="label">Contact number</td><td>{data.patient.contact}</td><td className="label">Religion:</td><td /><td className="label">Tribe:</td><td /></tr>
-          <tr className="employee-address-row"><td className="label">Address:</td><td colSpan={5}>{data.patient.address}</td></tr>
-          <tr><td className="label">Email:</td><td colSpan={5} /></tr>
-          <tr><td className="label">Office/Division:</td><td colSpan={5}>{data.patient.officeDivision}</td></tr>
-          <tr><td className="label">Designation:</td><td colSpan={5}>{data.patient.designation}</td></tr>
-          <tr><th colSpan={6} className="employee-subtitle">Primary Contact</th></tr>
-          <tr><td className="label">Name:</td><td colSpan={5}>{data.patient.primaryContact}</td></tr>
-          <tr><td className="label">Relationship:</td><td colSpan={5} /></tr>
-          <tr><td className="label">Contact Number:</td><td colSpan={5}>{data.patient.contact}</td></tr>
+          <tr>
+            <th colSpan={6} className="employee-main-title">
+              EMPLOYEE&apos;S INFORMATION
+            </th>
+          </tr>
+          <tr className="employee-name-row">
+            <td className="label">Name:</td>
+            <td colSpan={5}>{data.patient.fullName}</td>
+          </tr>
+          <tr>
+            <td className="label">Date of Birth:</td>
+            <td>{data.patient.birthDate}</td>
+            <td className="label">Age:</td>
+            <td>{data.patient.age}</td>
+            <td className="label">Gender:</td>
+            <td>{data.patient.gender}</td>
+          </tr>
+          <tr>
+            <td className="label">Contact number</td>
+            <td>{data.patient.contact}</td>
+            <td className="label">Religion:</td>
+            <td />
+            <td className="label">Tribe:</td>
+            <td />
+          </tr>
+          <tr className="employee-address-row">
+            <td className="label">Address:</td>
+            <td colSpan={5}>{data.patient.address}</td>
+          </tr>
+          <tr>
+            <td className="label">Email:</td>
+            <td colSpan={5} />
+          </tr>
+          <tr>
+            <td className="label">Office/Division:</td>
+            <td colSpan={5}>{data.patient.officeDivision}</td>
+          </tr>
+          <tr>
+            <td className="label">Designation:</td>
+            <td colSpan={5}>{data.patient.designation}</td>
+          </tr>
+          <tr>
+            <th colSpan={6} className="employee-subtitle">
+              Primary Contact
+            </th>
+          </tr>
+          <tr>
+            <td className="label">Name:</td>
+            <td colSpan={5}>{data.patient.primaryContact}</td>
+          </tr>
+          <tr>
+            <td className="label">Relationship:</td>
+            <td colSpan={5} />
+          </tr>
+          <tr>
+            <td className="label">Contact Number:</td>
+            <td colSpan={5}>{data.patient.primaryContactNo}</td>
+          </tr>
         </tbody>
       </table>
 
@@ -87,29 +143,48 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
       <div className="employee-medical-grid">
         <div className="employee-left">
           <div className="employee-measure-row">
-            <div><b>Height:</b> {data.patient.height}</div>
-            <div><b>Weight:</b> {data.patient.weight}</div>
+            <div>
+              <b>Height:</b> {data.patient.height}
+            </div>
+            <div>
+              <b>Weight:</b> {data.patient.weight}
+            </div>
           </div>
           <table className="employee-vaccine-table">
             <tbody>
               <tr>
-                <td className="vaccine-strip" rowSpan={13}>V<br />A<br />C<br />C<br />I<br />N<br />E<br /><br />R<br />E<br />C<br />E<br />I<br />V<br />E<br />D</td>
+                <td className="vaccine-strip" rowSpan={13}>
+                  V<br />A<br />C<br />C<br />I<br />N<br />E<br />
+                  <br />R<br />E<br />C<br />E<br />I<br />V<br />E<br />D
+                </td>
                 <th>Name of Vaccine</th>
                 <th>Dose</th>
                 <th>Date</th>
               </tr>
               {covidDoseLabels.map((dose, index) => (
                 <tr key={dose}>
-                  {index === 0 ? <td className="covid-cell" rowSpan={4}>COVID 19</td> : null}
+                  {index === 0 ? (
+                    <td className="covid-cell" rowSpan={4}>
+                      COVID 19
+                    </td>
+                  ) : null}
                   <td className="center">{dose}</td>
                   <td>{covidVaccines[index]?.date ?? ""}</td>
                 </tr>
               ))}
               {Array.from({ length: 8 }, (_, index) => (
                 <tr key={index}>
-                  {index === 0 ? <td className="others-cell" rowSpan={8}>*Others</td> : null}
+                  {index === 0 ? (
+                    <td className="others-cell" rowSpan={8}>
+                      *Others
+                    </td>
+                  ) : null}
                   <td>{otherVaccines[index]?.dose ?? ""}</td>
-                  <td>{otherVaccines[index] ? `${otherVaccines[index].vaccine} ${otherVaccines[index].date}` : ""}</td>
+                  <td>
+                    {otherVaccines[index]
+                      ? `${otherVaccines[index].vaccine} ${otherVaccines[index].date}`
+                      : ""}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -120,11 +195,17 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
             <p>Foods/Insects Etc.:</p>
           </div>
           <div className="employee-box-title">Maintenance Medicine/ Current Medication</div>
-          <div className="employee-medication-box">{medicineLines.map((line) => <p key={line}>{line}</p>)}</div>
+          <div className="employee-medication-box">
+            {medicineLines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
         </div>
         <div className="employee-right">
           <div className="employee-box-title">Medical History</div>
-          <div className="employee-history-box">{data.patient.medicalHistory || data.latestVisit?.medicalHistory}</div>
+          <div className="employee-history-box">
+            {data.patient.medicalHistory || data.latestVisit?.medicalHistory}
+          </div>
           <div className="employee-box-title">Additional Medical Info</div>
           <div className="employee-additional-box">
             <p>Physicians Name:</p>
@@ -152,10 +233,18 @@ function AssessmentMonitoringSheet({ data }: { data: ClinicFormData }) {
         <p>THE CLINIC</p>
       </div>
       <div className="assessment-info-row">
-        <span>Name: <b>{data.patient.fullName}</b></span>
-        <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
-        <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
-        <span>Allergies: <b>{data.patient.allergy}</b></span>
+        <span>
+          Name: <b>{data.patient.fullName}</b>
+        </span>
+        <span>
+          Age/Sex: <b>{data.patient.ageSex}</b>
+        </span>
+        <span>
+          Date of Birth: <b>{data.patient.shortBirthDate}</b>
+        </span>
+        <span>
+          Allergies: <b>{data.patient.allergy}</b>
+        </span>
       </div>
       <h1>ASSESSMENT MONITORING SHEET</h1>
       <table className="assessment-table">
@@ -191,37 +280,83 @@ function MedicineLogForm({ data }: { data: ClinicFormData }) {
   const rowsPerPage = 30;
   const pageCount = Math.max(1, Math.ceil(data.medicineLog.length / rowsPerPage));
 
-  return <ResponsivePaper>
-    {Array.from({ length: pageCount }, (_, pageIndex) => (
-      <div className="clinic-form-page medicine-log-page" key={pageIndex}>
-        <div className="medicine-log-header">
-          <p>OFFICE OF THE CHIEF MINISTER- BARMM</p>
-          <p>THE CLINIC</p>
+  return (
+    <ResponsivePaper>
+      {Array.from({ length: pageCount }, (_, pageIndex) => (
+        <div className="clinic-form-page medicine-log-page" key={pageIndex}>
+          <div className="medicine-log-header">
+            <p>OFFICE OF THE CHIEF MINISTER- BARMM</p>
+            <p>THE CLINIC</p>
+          </div>
+          <div className="medicine-log-patient">
+            <span>
+              Name: <b>{data.patient.fullName}</b>
+            </span>
+            <span>
+              Age/Sex: <b>{data.patient.ageSex}</b>
+            </span>
+            <span>
+              Date of Birth: <b>{data.patient.shortBirthDate}</b>
+            </span>
+            <span>
+              Allergies: <b>{data.patient.allergy}</b>
+            </span>
+          </div>
+          <table className="patient-medicine-log-table">
+            <colgroup>
+              {[10, 11, 35, 8, 12, 13, 11].map((width, index) => (
+                <col key={index} style={{ width: `${width}%` }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                <th colSpan={7} className="medicine-log-title">
+                  MEDICINE LOG
+                </th>
+              </tr>
+              <tr>
+                <th>Date</th>
+                <th>
+                  Time
+                  <br />
+                  Requested
+                </th>
+                <th>
+                  Item
+                  <br />
+                  (Indicate Dosage)
+                </th>
+                <th>Qty</th>
+                <th>Released by:</th>
+                <th>Received by:</th>
+                <th>
+                  Time
+                  <br />
+                  Received
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: rowsPerPage }, (_, index) => {
+                const row = data.medicineLog[pageIndex * rowsPerPage + index];
+                return (
+                  <tr key={row?.id ?? index}>
+                    <td>{row?.date}</td>
+                    <td>{row?.timeRequested}</td>
+                    <td className="medicine-log-item">{row?.item}</td>
+                    <td>{row?.quantity}</td>
+                    <td>{row?.releasedBy}</td>
+                    <td>{row?.receivedBy}</td>
+                    <td>{row?.timeReceived}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-        <div className="medicine-log-patient">
-          <span>Name: <b>{data.patient.fullName}</b></span>
-          <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
-          <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
-          <span>Allergies: <b>{data.patient.allergy}</b></span>
-        </div>
-        <table className="patient-medicine-log-table">
-          <colgroup>{[10, 11, 35, 8, 12, 13, 11].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup>
-          <thead>
-            <tr><th colSpan={7} className="medicine-log-title">MEDICINE LOG</th></tr>
-            <tr><th>Date</th><th>Time<br />Requested</th><th>Item<br />(Indicate Dosage)</th><th>Qty</th><th>Released by:</th><th>Received by:</th><th>Time<br />Received</th></tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: rowsPerPage }, (_, index) => {
-              const row = data.medicineLog[pageIndex * rowsPerPage + index];
-              return <tr key={row?.id ?? index}>
-                <td>{row?.date}</td><td>{row?.timeRequested}</td><td className="medicine-log-item">{row?.item}</td><td>{row?.quantity}</td><td>{row?.releasedBy}</td><td>{row?.receivedBy}</td><td>{row?.timeReceived}</td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
-      </div>
-    ))}
-  </ResponsivePaper>;
+      ))}
+    </ResponsivePaper>
+  );
 }
 
 function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
@@ -232,11 +367,19 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
     <div className="clinic-form-page daily-summary-page">
       <h1>DAILY PATIENT SUMMARY</h1>
       <div className="daily-summary-patient-lines">
-        <p><span>Name:</span> <b>{data.patient.fullName}</b></p>
+        <p>
+          <span>Name:</span> <b>{data.patient.fullName}</b>
+        </p>
         <div>
-          <p><span>Date of Birth:</span> <b>{data.patient.shortBirthDate}</b></p>
-          <p><span>Age:</span> <b>{data.patient.age}</b></p>
-          <p><span>Gender:</span> <b>{data.patient.gender}</b></p>
+          <p>
+            <span>Date of Birth:</span> <b>{data.patient.shortBirthDate}</b>
+          </p>
+          <p>
+            <span>Age:</span> <b>{data.patient.age}</b>
+          </p>
+          <p>
+            <span>Gender:</span> <b>{data.patient.gender}</b>
+          </p>
         </div>
       </div>
 
@@ -257,7 +400,23 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
       <section className="daily-summary-section">
         <h2>ASSESSMENT MONITORING SHEET</h2>
         <table className="daily-summary-table assessment-table compact">
-          <thead><tr>{["Date", "Time In", "Chief Complaint", "BP", "RBS", "Temp", "Services Received", "Time Out", "NOD"].map((header) => <th key={header}>{header}</th>)}</tr></thead>
+          <thead>
+            <tr>
+              {[
+                "Date",
+                "Time In",
+                "Chief Complaint",
+                "BP",
+                "RBS",
+                "Temp",
+                "Services Received",
+                "Time Out",
+                "NOD",
+              ].map((header) => (
+                <th key={header}>{header}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             <tr>
               <td>{visit?.shortDate}</td>
@@ -277,7 +436,12 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
       <section className="daily-summary-section">
         <h2>DOCTORS ORDER SHEET</h2>
         <table className="daily-summary-table doctors-order-compact">
-          <thead><tr><th>Progress Notes / Care Plan</th><th>Doctors Order</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Progress Notes / Care Plan</th>
+              <th>Doctors Order</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
               <td>{visit?.progressNotes}</td>
@@ -291,7 +455,19 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
         <h2>MEDICINE LOG</h2>
         <table className="daily-summary-table medicine-log-table">
           <thead>
-            <tr>{["Date", "Time Requested", "Item (Indicate Dosage)", "Qty", "Released by", "Received by", "Time Received"].map((header) => <th key={header}>{header}</th>)}</tr>
+            <tr>
+              {[
+                "Date",
+                "Time Requested",
+                "Item (Indicate Dosage)",
+                "Qty",
+                "Released by",
+                "Received by",
+                "Time Received",
+              ].map((header) => (
+                <th key={header}>{header}</th>
+              ))}
+            </tr>
           </thead>
           <tbody>
             {medicineRows.map((row, index) => (
@@ -315,8 +491,14 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
       </section>
 
       <div className="daily-summary-signatures">
-        <div><span>Signature of the Patient</span><p>Date and Time</p></div>
-        <div><span>Signature of the Nurse</span><p>Date and Time</p></div>
+        <div>
+          <span>Signature of the Patient</span>
+          <p>Date and Time</p>
+        </div>
+        <div>
+          <span>Signature of the Nurse</span>
+          <p>Date and Time</p>
+        </div>
       </div>
     </div>
   );
@@ -333,20 +515,36 @@ function MedicalCertificate({ data }: { data: ClinicFormData }) {
       <div className="certificate-fields">
         <FieldLine label="Name:">{data.patient.fullName}</FieldLine>
         <div className="clinic-form-row">
-          <FieldLine label="Age:" className="short">{data.patient.age}</FieldLine>
-          <FieldLine label="Sex:" className="short">{data.patient.gender}</FieldLine>
-          <FieldLine label="Civil Status:" className="wide">{data.patient.civilStatus}</FieldLine>
+          <FieldLine label="Age:" className="short">
+            {data.patient.age}
+          </FieldLine>
+          <FieldLine label="Sex:" className="short">
+            {data.patient.gender}
+          </FieldLine>
+          <FieldLine label="Civil Status:" className="wide">
+            {data.patient.civilStatus}
+          </FieldLine>
         </div>
         <FieldLine label="Address:">{data.patient.address}</FieldLine>
-        <FieldLine label="Date of Consultation:" className="date-line">{visit?.date}</FieldLine>
+        <FieldLine label="Date of Consultation:" className="date-line">
+          {visit?.date}
+        </FieldLine>
       </div>
       <p className="box-label">Diagnosis/Findings:</p>
-      <div className="certificate-box diagnosis-box">{visit?.diagnosis}</div>
+      <div className="certificate-box diagnosis-box">
+        {[visit?.diagnosis, visit?.physicalExam].filter(Boolean).join("\n")}
+      </div>
       <p className="box-label">Remarks</p>
       <div className="certificate-box remarks-box">{visit?.treatmentPlan}</div>
       <p className="certificate-purpose">This certification is being issued upon his/her request for whatever PURPOSE/LEGAL INTENT it may serve him/her best.</p>
-      <p className="issuance-line">Issued this <b>{data.issued.ordinalDay}</b> day of <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.</p>
-      <Signatory name={data.signatory.physicianName} position={data.signatory.physicianPosition} />
+      <p className="issuance-line">
+        Issued this <b>{data.issued.ordinalDay}</b> day of{" "}
+        <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.
+      </p>
+      <Signatory
+        name={data.signatory.physicianName}
+        position={data.signatory.physicianPosition}
+      />
       <Footer revision={data.signatory.certificateRevision} data={data} />
     </div>
   );
@@ -362,42 +560,91 @@ function ReferralForm({ data }: { data: ClinicFormData }) {
       <h1 className="clinic-document-title">REFERRAL FORM</h1>
       <div className="referral-fields">
         <div className="clinic-form-row">
-          <FieldLine label="Date of Consultation:" className="wide">{visit?.date}</FieldLine>
-          <FieldLine label="Time:" className="short">{visit?.timeIn}</FieldLine>
+          <FieldLine label="Date of Consultation:" className="wide">
+            {visit?.date}
+          </FieldLine>
+          <FieldLine label="Time:" className="short">
+            {visit?.timeIn}
+          </FieldLine>
         </div>
         <div className="clinic-form-row">
-          <FieldLine label="Name:" className="wide">{data.patient.fullName}</FieldLine>
-          <FieldLine label="Date of Birth:" className="medium">{data.patient.shortBirthDate}</FieldLine>
+          <FieldLine label="Name:" className="wide">
+            {data.patient.fullName}
+          </FieldLine>
+          <FieldLine label="Date of Birth:" className="medium">
+            {data.patient.shortBirthDate}
+          </FieldLine>
         </div>
         <div className="clinic-form-row">
-          <FieldLine label="Age:" className="short">{data.patient.age}</FieldLine>
-          <FieldLine label="Sex:" className="short">{data.patient.gender}</FieldLine>
-          <FieldLine label="Civil Status:" className="wide">{data.patient.civilStatus}</FieldLine>
+          <FieldLine label="Age:" className="short">
+            {data.patient.age}
+          </FieldLine>
+          <FieldLine label="Sex:" className="short">
+            {data.patient.gender}
+          </FieldLine>
+          <FieldLine label="Civil Status:" className="wide">
+            {data.patient.civilStatus}
+          </FieldLine>
         </div>
         <FieldLine label="Address:">{data.patient.address}</FieldLine>
       </div>
       <table className="vital-signs-table">
         <tbody>
-          <tr><th colSpan={8}>Vital Signs</th></tr>
           <tr>
-            <td><b>Temp:</b></td><td>{visit?.temperature}</td>
-            <td><b>Blood Pressure:</b></td><td>{visit?.bloodPressure}</td>
-            <td><b>RR:</b></td><td>{visit?.respiratoryRate}</td>
-            <td><b>O2Sat:</b></td><td />
+            <th colSpan={8}>Vital Signs</th>
           </tr>
           <tr>
-            <td><b>PR:</b></td><td>{visit?.pulseRate}</td>
-            <td><b>Height:</b></td><td>{data.patient.height}</td>
-            <td><b>Weight:</b></td><td>{data.patient.weight}</td>
+            <td>
+              <b>Temp:</b>
+            </td>
+            <td>{visit?.temperature}</td>
+            <td>
+              <b>Blood Pressure:</b>
+            </td>
+            <td>{visit?.bloodPressure}</td>
+            <td>
+              <b>RR:</b>
+            </td>
+            <td>{visit?.respiratoryRate}</td>
+            <td>
+              <b>O2Sat:</b>
+            </td>
+            <td />
+          </tr>
+          <tr>
+            <td>
+              <b>PR:</b>
+            </td>
+            <td>{visit?.pulseRate}</td>
+            <td>
+              <b>Height:</b>
+            </td>
+            <td>{data.patient.height}</td>
+            <td>
+              <b>Weight:</b>
+            </td>
+            <td>{data.patient.weight}</td>
             <td colSpan={2} />
           </tr>
         </tbody>
       </table>
       <div className="referral-narratives">
-        <section><h2>Chief Complaint</h2><p>{visit?.chiefComplaint}</p></section>
-        <section><h2>Medical History</h2><p>{value(referral?.medicalHistory) || visit?.progressNotes}</p></section>
-        <section><h2>Reason for Referral</h2><p>{value(referral?.reasonForReferral)}</p></section>
-        <section><h2>Remarks</h2><p>{value(referral?.remarks) || visit?.treatmentPlan}</p></section>
+        <section>
+          <h2>Chief Complaint</h2>
+          <p>{visit?.chiefComplaint}</p>
+        </section>
+        <section>
+          <h2>Medical History</h2>
+          <p>{value(referral?.medicalHistory) || visit?.progressNotes}</p>
+        </section>
+        <section>
+          <h2>Reason for Referral</h2>
+          <p>{value(referral?.reasonForReferral)}</p>
+        </section>
+        <section>
+          <h2>Remarks</h2>
+          <p>{value(referral?.reasonForReferral)}</p>
+        </section>
       </div>
       <Signatory name={data.signatory.nurseName} position={data.signatory.nursePosition} className="referral-nurse" />
       <Signatory name={data.signatory.physicianName} position={data.signatory.physicianPosition} className="referral-physician" />
@@ -412,12 +659,44 @@ function MedicalAllowanceForm({ data }: { data: ClinicFormData }) {
       <OfficialHeader />
       <h1 className="allowance-title">CERTIFICATION FOR THE GRANT OF<br />MEDICAL ALLOWANCE</h1>
       <div className="allowance-body">
-        <div className="allowance-employee-line"><span>This is to certify that</span><span className="allowance-underline">{data.patient.fullName.toUpperCase()}</span></div>
-        <div className="allowance-identity-row"><div><b>{data.patient.designation}</b><i>Position/Title</i></div><div><b>{data.patient.officeDivision}</b><i>Office/Division</i></div></div>
+        <div className="allowance-employee-line">
+          <span>This is to certify that</span>
+          <span className="allowance-underline">
+            {data.patient.fullName.toUpperCase()}
+          </span>
+        </div>
+        <div className="allowance-identity-row">
+          <div>
+            <b>{data.patient.designation}</b>
+            <i>Position/Title</i>
+          </div>
+          <div>
+            <b>{data.patient.officeDivision}</b>
+            <i>Office/Division</i>
+          </div>
+        </div>
         <p>based on the review and validation of this office, the submitted documents were found to be complete and authentic consisting of official receipts and supporting medical documents with a total amount equal or exceeding to Seven Thousand Pesos (P7,000.00).</p>
         <p>This certification is issued pursuant to Memorandum Order No. 0381. Series of 2025, &quot;Supplemental Guidelines on the Grant of Medical Allowance to Eligible Employees of the Office of the Chief Minister - BARMM.&quot; to endorse the said employee as <b>CLEARED</b> for the Medical Allowance liquidation to the FMS-Accounting and AMS-HRMD.</p>
-        <p className="allowance-issued">Issued this <b>{data.issued.ordinalDay}</b> day of <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.</p>
-        <div className="allowance-signature-block"><div className="allowance-signature-row"><span>Reviewed and Validated by:</span><Signatory name={data.signatory.nurseName} position={data.signatory.nursePosition} /></div><div className="allowance-signature-row"><span>Certified by:</span><Signatory name={data.signatory.physicianName} position={data.signatory.physicianPosition} /></div></div>
+        <p className="allowance-issued">
+          Issued this <b>{data.issued.ordinalDay}</b> day of{" "}
+          <b>{data.issued.month}</b> <b>{data.issued.year}</b> at Cotabato City.
+        </p>
+        <div className="allowance-signature-block">
+          <div className="allowance-signature-row">
+            <span>Reviewed and Validated by:</span>
+            <Signatory
+              name={data.signatory.nurseName}
+              position={data.signatory.nursePosition}
+            />
+          </div>
+          <div className="allowance-signature-row">
+            <span>Certified by:</span>
+            <Signatory
+              name={data.signatory.physicianName}
+              position={data.signatory.physicianPosition}
+            />
+          </div>
+        </div>
       </div>
       <Footer revision={data.patientFormCode} data={data} />
     </div>
@@ -452,21 +731,40 @@ function DoctorsOrderForm({ data }: { data: ClinicFormData }) {
         <p>THE CLINIC</p>
       </div>
       <div className="doctors-order-patient">
-        <span>Name: <b>{data.patient.fullName}</b></span>
-        <span>Age/Sex: <b>{data.patient.ageSex}</b></span>
-        <span>Date of Birth: <b>{data.patient.shortBirthDate}</b></span>
-        <span>Allergies: <b>{data.patient.allergy}</b></span>
+        <span>
+          Name: <b>{data.patient.fullName}</b>
+        </span>
+        <span>
+          Age/Sex: <b>{data.patient.ageSex}</b>
+        </span>
+        <span>
+          Date of Birth: <b>{data.patient.shortBirthDate}</b>
+        </span>
+        <span>
+          Allergies: <b>{data.patient.allergy}</b>
+        </span>
       </div>
       <h1>DOCTORS ORDER SHEET</h1>
       <table className="doctors-order-table">
         <thead>
-          <tr><th>Progress Notes/Care Plan</th><th>Doctors Order</th></tr>
+          <tr>
+            <th>Progress Notes/Care Plan</th>
+            <th>Doctors Order</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row}>
-              <td>{row === 0 ? progressLines.map((line) => <p key={line}>{line}</p>) : null}</td>
-              <td>{row === 0 ? orderLines.map((line) => <p key={line}>{line}</p>) : null}</td>
+              <td>
+                {row === 0
+                  ? progressLines.map((line) => <p key={line}>{line}</p>)
+                  : null}
+              </td>
+              <td>
+                {row === 0
+                  ? orderLines.map((line) => <p key={line}>{line}</p>)
+                  : null}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -500,25 +798,124 @@ function ClientSatisfactionSurveyForm({ data }: { data: ClinicFormData }) {
     cc2: ["1. Easy to see", "2. Somewhat easy to see", "3. Difficult to see", "4. Not visible at all", "5. Not Applicable"],
     cc3: ["1. Helped very much", "2. Somewhat helped", "3. Did not help", "4. Not Applicable"],
   };
-  return <>
-    <div className="clinic-form-page csm-page">
-      <OfficialHeader />
-      <div className="csm-approval">(On-Site Version)<br /><b>CLIENT SATISFACTION FORM</b></div>
-      <h1>HELP US SERVE YOU BETTER!</h1>
-      <p className="csm-intro">This CLIENT SATISFACTION MEASUREMENT (CSM) tracks the customer experience of government offices. Your feedback on your recently concluded transaction will help this office provide a better service. Personal information shared will be kept confidential and you always have the option to not answer this form.</p>
-      <div className="csm-respondent-grid">
-        <span>Client type: <b>{survey?.clientType || ""}</b></span><span>Date: <b>{survey?.surveyDate ? formatLongDate(survey.surveyDate) : visit?.shortDate || ""}</b></span><span>Sex: <b>{survey?.respondentSex || ""}</b></span><span>Age: <b>{survey?.respondentAge || ""}</b></span><span>Region of residence: <b>{survey?.regionOfResidence || ""}</b></span><span>Office visited/transacted with: <b>{survey?.officeVisited || "The Clinic"}</b></span><span>Service Availed: <b>{survey?.serviceAvailed || visit?.services || ""}</b></span>
+  return (
+    <>
+      <div className="clinic-form-page csm-page">
+        <OfficialHeader />
+        <div className="csm-approval">
+          (On-Site Version)
+          <br />
+          <b>CLIENT SATISFACTION FORM</b>
+        </div>
+        <h1>HELP US SERVE YOU BETTER!</h1>
+        <p className="csm-intro">
+          This CLIENT SATISFACTION MEASUREMENT (CSM) tracks the customer
+          experience of government offices. Your feedback on your recently
+          concluded transaction will help this office provide a better service.
+          Personal information shared will be kept confidential and you always
+          have the option to not answer this form.
+        </p>
+        <div className="csm-respondent-grid">
+          <span>
+            Client type: <b>{survey?.clientType || ""}</b>
+          </span>
+          <span>
+            Date:{" "}
+            <b>
+              {survey?.surveyDate
+                ? formatLongDate(survey.surveyDate)
+                : visit?.shortDate || ""}
+            </b>
+          </span>
+          <span>
+            Sex: <b>{survey?.respondentSex || ""}</b>
+          </span>
+          <span>
+            Age: <b>{survey?.respondentAge || ""}</b>
+          </span>
+          <span>
+            Region of residence: <b>{survey?.regionOfResidence || ""}</b>
+          </span>
+          <span>
+            Office visited/transacted with:{" "}
+            <b>{survey?.officeVisited || "The Clinic"}</b>
+          </span>
+          <span>
+            Service Availed:{" "}
+            <b>{survey?.serviceAvailed || visit?.services || ""}</b>
+          </span>
+        </div>
+        <p className="csm-instructions">
+          <b>INSTRUCTIONS:</b> Please place a Check mark (✓) in the designated
+          box that corresponds to your answer on the Citizen&apos;s Charter (CC)
+          questions. The Citizen&apos;s Charter is an official document that
+          reflects the services of a government agency/office including its
+          requirements, fees, and processing times among others.
+        </p>
+        {(["cc1", "cc2", "cc3"] as const).map((key) => (
+          <section className="csm-question" key={key}>
+            <h2>
+              {key.toUpperCase()}{" "}
+              {key === "cc1"
+                ? "Which of the following best describes your awareness of a CC?"
+                : key === "cc2"
+                  ? "If aware of CC, would you say that the CC of this office was ...?"
+                  : "If aware of CC, how much did the CC help you in your transaction?"}
+            </h2>
+            {ccOptions[key].map((option) => (
+              <p key={option}>
+                <CsmCheckbox selected={survey?.[key]} label={option} /> {option}
+              </p>
+            ))}
+          </section>
+        ))}
       </div>
-      <p className="csm-instructions"><b>INSTRUCTIONS:</b> Please place a Check mark (✓) in the designated box that corresponds to your answer on the Citizen&apos;s Charter (CC) questions. The Citizen&apos;s Charter is an official document that reflects the services of a government agency/office including its requirements, fees, and processing times among others.</p>
-      {(["cc1", "cc2", "cc3"] as const).map((key) => <section className="csm-question" key={key}><h2>{key.toUpperCase()} {key === "cc1" ? "Which of the following best describes your awareness of a CC?" : key === "cc2" ? "If aware of CC, would you say that the CC of this office was ...?" : "If aware of CC, how much did the CC help you in your transaction?"}</h2>{ccOptions[key].map((option) => <p key={option}><CsmCheckbox selected={survey?.[key]} label={option} /> {option}</p>)}</section>)}
-    </div>
-    <div className="clinic-form-page csm-page csm-page-two">
-      <p className="csm-instructions"><b>INSTRUCTIONS:</b> For SQD 0-8, please put a check mark (✓) on the column that best corresponds to your answer.</p>
-      <table className="csm-sqd-table"><thead><tr><th>Dimension</th>{csmScale.map((scale) => <th key={scale}>{scale}</th>)}</tr></thead><tbody>{csmQuestions.map(([key, question]) => <tr key={key}><td><b>{key.toUpperCase()}.</b> {question}</td>{csmScale.map((scale) => <td key={scale}><CsmCheckbox selected={String(survey?.[key as keyof typeof survey] ?? "")} label={scale} /></td>)}</tr>)}</tbody></table>
-      <p className="csm-suggestion-label">Suggestions on how we can further improve our services (optional):</p><div className="csm-lines">{survey?.suggestions}</div>
-      <p className="csm-email">Email address (optional): <b>{survey?.email}</b></p><p className="csm-thanks">THANK YOU!</p><Footer revision="OCM.OCOS.F.01.EN Rev.0" data={data} />
-    </div>
-  </>;
+      <div className="clinic-form-page csm-page csm-page-two">
+        <p className="csm-instructions">
+          <b>INSTRUCTIONS:</b> For SQD 0-8, please put a check mark (✓) on the
+          column that best corresponds to your answer.
+        </p>
+        <table className="csm-sqd-table">
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              {csmScale.map((scale) => (
+                <th key={scale}>{scale}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {csmQuestions.map(([key, question]) => (
+              <tr key={key}>
+                <td>
+                  <b>{key.toUpperCase()}.</b> {question}
+                </td>
+                {csmScale.map((scale) => (
+                  <td key={scale}>
+                    <CsmCheckbox
+                      selected={String(
+                        survey?.[key as keyof typeof survey] ?? "",
+                      )}
+                      label={scale}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="csm-suggestion-label">
+          Suggestions on how we can further improve our services (optional):
+        </p>
+        <div className="csm-lines">{survey?.suggestions}</div>
+        <p className="csm-email">
+          Email address (optional): <b>{survey?.email}</b>
+        </p>
+        <p className="csm-thanks">THANK YOU!</p>
+        <Footer revision="OCM.OCOS.F.01.EN Rev.0" data={data} />
+      </div>
+    </>
+  );
 }
 
 export function ClinicFormTemplate({ form, data }: { form: ClinicFormSlug; data: ClinicFormData }) {

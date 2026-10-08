@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { CheckCircle2, CircleOff, X } from "lucide-react";
-import { toggleUserStatusAction, updateUserDisplayNameAction } from "@/app/actions/workflow";
+import {
+  toggleUserStatusAction,
+  updateUserRoleAction,
+  updateUserDisplayNameAction,
+} from "@/app/actions/workflow";
 import type { ClinicSettingsData } from "@/lib/patient-view";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +15,19 @@ import { Button } from "@/components/ui/button";
 type AccountUser = ClinicSettingsData["users"][number];
 
 function roleLabel(role: string) {
-  return role === "DOCTOR_NURSE" ? "Doctor / Nurse" : role === "PHARMACIST" ? "Pharmacist" : role === "SUPPLY_OFFICER" ? "Supply Officer" : role === "RECORDS" ? "Records" : "Admin";
+  return role === "DOCTOR"
+    ? "Doctor"
+    : role === "NURSE"
+      ? "Nurse"
+      : role === "DOCTOR_NURSE"
+        ? "Clinical staff (assign role)"
+        : role === "PHARMACIST"
+          ? "Pharmacist"
+          : role === "SUPPLY_OFFICER"
+            ? "Supply Officer"
+            : role === "RECORDS"
+              ? "Records"
+              : "Admin";
 }
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -22,9 +38,19 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
-function ToggleAccountForm({ user, compact = false }: { user: AccountUser; compact?: boolean }) {
+function ToggleAccountForm({
+  user,
+  compact = false,
+}: {
+  user: AccountUser;
+  compact?: boolean;
+}) {
   return (
-    <form action={toggleUserStatusAction}>
+    <form
+      action={toggleUserStatusAction}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
       <CsrfField />
       <input type="hidden" name="redirectTo" value="/accounts" />
       <input type="hidden" name="userId" value={user.id} />
@@ -63,14 +89,22 @@ export function AccountList({ users }: { users: AccountUser[] }) {
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate font-black text-slate-900">{user.name}</p>
-                {user.displayName ? <p className="truncate text-sm font-semibold text-teal-700">{user.displayName}</p> : null}
+                <p className="truncate font-black text-slate-900">
+                  {user.name}
+                </p>
+                {user.displayName ? (
+                  <p className="truncate text-sm font-semibold text-teal-700">
+                    {user.displayName}
+                  </p>
+                ) : null}
                 <p className="truncate text-sm text-slate-500">{user.email}</p>
               </div>
               <StatusBadge active={user.isActive} />
             </div>
             <p className="mt-3 text-xs font-bold uppercase tracking-wide text-slate-400">Role</p>
-            <p className="text-sm font-semibold text-slate-700">{roleLabel(user.role)}</p>
+            <p className="text-sm font-semibold text-slate-700">
+              {roleLabel(user.role)}
+            </p>
           </button>
         ))}
         {users.length === 0 ? (
@@ -91,12 +125,30 @@ export function AccountList({ users }: { users: AccountUser[] }) {
           </thead>
           <tbody className="divide-y">
             {users.map((user) => (
-              <tr key={user.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-bold text-slate-900">{user.name}</td>
-                <td className="px-4 py-3 font-semibold text-slate-700">{user.displayName || "-"}</td>
+              <tr
+                key={user.id}
+                tabIndex={0}
+                aria-label={`Open ${user.name} account`}
+                onClick={() => setSelectedUserId(user.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedUserId(user.id);
+                  }
+                }}
+                className="cursor-pointer hover:bg-slate-50 focus-visible:bg-teal-50"
+              >
+                <td className="px-4 py-3 font-bold text-slate-900">
+                  {user.name}
+                </td>
+                <td className="px-4 py-3 font-semibold text-slate-700">
+                  {user.displayName || "-"}
+                </td>
                 <td className="px-4 py-3 text-slate-600">{user.email}</td>
                 <td className="px-4 py-3">
-                  <Badge className="bg-slate-100 text-slate-700">{roleLabel(user.role)}</Badge>
+                  <Badge className="bg-slate-100 text-slate-700">
+                    {roleLabel(user.role)}
+                  </Badge>
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge active={user.isActive} />
@@ -129,17 +181,58 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             <div className="flex items-start justify-between gap-3 border-b px-4 py-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 id="account-details-title" className="truncate text-lg font-black text-slate-900">{selectedUser.name}</h2>
+                  <h2 id="account-details-title" className="truncate text-lg font-black text-slate-900">
+                    {selectedUser.name}
+                  </h2>
                   <StatusBadge active={selectedUser.isActive} />
                 </div>
-                <p className="mt-0.5 truncate text-sm text-slate-500">{selectedUser.email}</p>
-                <p className="mt-1 text-xs font-semibold text-slate-600">{roleLabel(selectedUser.role)}</p>
+                <p className="mt-0.5 truncate text-sm text-slate-500">
+                  {selectedUser.email}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">
+                  {roleLabel(selectedUser.role)}
+                </p>
               </div>
               <Button type="button" variant="ghost" size="icon" onClick={() => setSelectedUserId(null)} aria-label="Close account details">
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="p-4">
+            <div className="max-h-[60dvh] space-y-4 overflow-y-auto p-4">
+              <form
+                action={updateUserRoleAction}
+                className="flex flex-wrap items-end gap-3"
+              >
+                <CsrfField />
+                <input type="hidden" name="userId" value={selectedUser.id} />
+                <label className="grid flex-1 gap-1 text-sm font-semibold">
+                  Role
+                  <select
+                    name="role"
+                    defaultValue={
+                      selectedUser.role === "DOCTOR_NURSE"
+                        ? "NURSE"
+                        : selectedUser.role
+                    }
+                    className="h-10 rounded-lg border px-3"
+                  >
+                    {[
+                      "ADMIN",
+                      "DOCTOR",
+                      "NURSE",
+                      "PHARMACIST",
+                      "SUPPLY_OFFICER",
+                      "RECORDS",
+                    ].map((role) => (
+                      <option key={role} value={role}>
+                        {roleLabel(role)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button type="submit" variant="outline">
+                  Save role
+                </Button>
+              </form>
               <form action={updateUserDisplayNameAction} className="overflow-hidden rounded-xl border">
                 <CsrfField />
                 <input type="hidden" name="redirectTo" value="/accounts" />

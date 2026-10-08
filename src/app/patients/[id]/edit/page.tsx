@@ -38,6 +38,10 @@ export default async function EditPatientPage({
         values={{
           patientId: patient.id,
           primaryContact: patient.primaryContact === "Not provided" ? "" : patient.primaryContact,
+          primaryContactNo:
+            patient.primaryContactNo === "Not provided"
+              ? ""
+              : patient.primaryContactNo,
           medicalHistory: patient.medicalHistory === "Not provided" ? "" : patient.medicalHistory,
           vaccineHistory: patient.vaccineHistory === "Not provided" ? "" : patient.vaccineHistory,
           allergy: patient.allergy === "Not provided" ? "" : patient.allergy,

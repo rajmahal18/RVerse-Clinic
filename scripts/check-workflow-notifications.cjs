@@ -53,7 +53,16 @@ async function main() {
   const adjustment = { id: "deduction", createdAt: new Date("2026-10-07T00:00:00Z"), quantityChange: -4, boxQuantityChange: -2, reason: "Manual adjustment", physicalCount: null, functionalCount: null };
   const itemBase = { category: "MEDICINE", name: "Test medicine", stock: 46, pcsPerBox: 10, reorderLevel: 5, unit: "pcs", createdAt: opening.createdAt, expirationDate: null, physicalCount: null, functionalCount: null };
   const ledgerItems = [{ ...itemBase, id: "boxed", boxStock: 1, movements: [opening, adjustment] }, { ...itemBase, id: "unit-only", boxStock: 0, movements: [{ ...opening, boxQuantityChange: 0 }, { ...adjustment, boxQuantityChange: 0 }] }];
-  const view = load("src/lib/patient-view.ts", { "@/lib/date-time": date, "@/lib/prisma": { prisma: { inventoryItem: { findMany: async query => query.include ? ledgerItems : [] } } } });
+  const view = load("src/lib/patient-view.ts", {
+    "@/lib/date-time": date,
+    "@/lib/prisma": {
+      prisma: {
+        inventoryItem: {
+          findMany: async (query) => (query.include ? ledgerItems : []),
+        },
+      },
+    },
+  });
   const ledger = await view.getInventoryLedgerData(undefined, "2026-10");
   assert.equal(ledger.rows[0].beginningBoxes, "3");
   assert.equal(ledger.rows[0].monthOutBoxes, "2");
@@ -124,18 +133,61 @@ async function main() {
     referral: { findMany: query("referral", []) },
     medicineRequest: { findMany: query("release", [{ id: "release-a", releasedAt: now, itemName: "Medicine A", quantity: 1, visit: { patient } }]) },
     activityLog: { findMany: query("summary", [{ id: "summary-a", description: "Ready", createdAt: now }]) },
-    visit: { findMany: async args => query(args.where.status === "COMPLETED" ? "completed" : "queue", [{ id: "visit-a", patientId: patient.id, patient, timeIn: now, timeOut: now, createdAt: now }])(args) },
+    visit: {
+      findMany: async (args) =>
+        query(
+          args.where.readyForDoctorAt ? "intakeReady" : args.where.status === "COMPLETED"
+            ? "completed"
+            : args.where.status === "QUEUED"
+              ? "queue"
+              : "doctorDone",
+          [
+            {
+              id: "visit-a",
+              patientId: patient.id,
+              patient,
+              timeIn: now,
+              timeOut: now,
+              createdAt: now,
+              readyForDoctorAt: args.where.readyForDoctorAt ? now : null,
+            },
+          ],
+        )(args),
+    },
   };
   const api = load("src/app/api/notifications/route.ts", { "@/lib/prisma": { prisma: apiPrisma }, "@/lib/auth": { getCurrentUser: async () => user }, "@/lib/date-time": date, "next/server": { NextResponse: { json: (body, options) => ({ body, options }) } } });
-  for (const role of ["DOCTOR_NURSE", "PHARMACIST", "SUPPLY_OFFICER", "RECORDS", "ADMIN"]) {
+  for (const role of [
+    "DOCTOR",
+    "NURSE",
+    "DOCTOR_NURSE",
+    "PHARMACIST",
+    "SUPPLY_OFFICER",
+    "RECORDS",
+    "ADMIN",
+  ]) {
     user.role = role;
     calls.length = 0;
     const response = await api.GET();
     assert.ok(response.body.notifications.some(notice => notice.id.startsWith("low-stock:")));
-    assert.equal(calls.includes("release"), role === "DOCTOR_NURSE" || role === "ADMIN");
-    assert.equal(calls.includes("schedule"), role === "DOCTOR_NURSE" || role === "ADMIN");
-    assert.equal(calls.includes("queue"), role === "DOCTOR_NURSE" || role === "ADMIN");
+    assert.equal(
+      calls.includes("release"),
+      ["DOCTOR", "NURSE", "DOCTOR_NURSE", "ADMIN"].includes(role),
+    );
+    assert.equal(
+      calls.includes("schedule"),
+      ["DOCTOR", "NURSE", "DOCTOR_NURSE", "ADMIN"].includes(role),
+    );
+    assert.equal(
+      calls.includes("queue"),
+      ["NURSE", "DOCTOR_NURSE", "ADMIN"].includes(role),
+    );
     assert.equal(calls.includes("summary"), role === "RECORDS" || role === "ADMIN");
+    assert.equal(
+      calls.includes("doctorDone"),
+      ["ADMIN", "NURSE", "DOCTOR_NURSE"].includes(role),
+    );
+    assert.equal(calls.includes("intakeReady"), ["ADMIN", "DOCTOR"].includes(role));
+    if (role === "DOCTOR") assert.ok(response.body.notifications.some(n => n.id.startsWith("intake-ready:") && n.href.includes("section=progressNotes")));
     assert.equal(calls.includes("completed"), role === "RECORDS" || role === "ADMIN");
     if (role === "RECORDS") assert.ok(response.body.notifications.some(notice => notice.href === "/patients/patient-a/forms/daily-patient-summary?visitId=visit-a"));
     if (role === "RECORDS") assert.ok(response.body.notifications.some(notice => notice.href === "/reports/daily-summary?submission=summary-a"));

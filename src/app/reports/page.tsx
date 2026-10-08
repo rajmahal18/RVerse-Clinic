@@ -6,6 +6,13 @@ import { getCurrentUser } from "@/lib/auth";
 
 const reportGroups = [
   {
+    title: "Monthly Reports",
+    description: "Accomplishment, patient service breakdowns, turnaround, and client satisfaction.",
+    icon: BarChart3,
+    tone: "bg-cyan-50 text-cyan-700",
+    href: "/reports/monthly",
+  },
+  {
     title: "Daily Patient Summary",
     description: "Submit completed daily visits to records and print saved summaries.",
     icon: ClipboardList,
@@ -35,7 +42,13 @@ const reportGroups = [
 
 export default async function ReportsPage() {
   const user = await getCurrentUser();
-  const visibleReports = reportGroups.filter(report => report.href !== "/reports/daily-summary" || ["ADMIN", "DOCTOR_NURSE", "RECORDS"].includes(user?.role ?? ""));
+  const visibleReports = reportGroups.filter(
+    (report) =>
+      !["/reports/daily-summary", "/reports/monthly"].includes(report.href ?? "") ||
+      ["ADMIN", "DOCTOR", "NURSE", "DOCTOR_NURSE", "RECORDS"].includes(
+        user?.role ?? "",
+      ),
+  );
   return (
     <AppShell>
       <PageHeader title="Reports" />
@@ -59,12 +72,22 @@ export default async function ReportsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-black text-slate-900">{report.title}</h4>
-                    {!report.href ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-500">Not available yet</span> : null}
+                    <h4 className="font-black text-slate-900">
+                      {report.title}
+                    </h4>
+                    {!report.href ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                        Not available yet
+                      </span>
+                    ) : null}
                   </div>
-                  <p className="mt-1.5 text-sm leading-6 text-slate-500">{report.description}</p>
+                  <p className="mt-1.5 text-sm leading-6 text-slate-500">
+                    {report.description}
+                  </p>
                 </div>
-                {report.href ? <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary" /> : null}
+                {report.href ? (
+                  <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-primary" />
+                ) : null}
               </>
             );
 
