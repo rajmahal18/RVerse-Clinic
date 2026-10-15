@@ -1,5 +1,8 @@
 # LAN Backup and Recovery
 
+For the production Linux procedure, protected credentials, service operation,
+and recovery limitations, use [OCM VM deployment](ocm-deployment.md).
+
 ## Backup Schedule
 
 Run a PostgreSQL backup at least once per clinic day. Keep one copy on the clinic server and one copy on external or offline storage.
@@ -8,7 +11,7 @@ Run a PostgreSQL backup at least once per clinic day. Keep one copy on the clini
 npm run backup
 ```
 
-Backups are written to `backups/` as timestamped `.dump` files. The script keeps the latest 14 backups by default.
+Backups are written to `backups/` as timestamped `.dump` files. The script keeps the latest 14 completed backups by default. Failed or empty dumps do not prune existing backups or report success. Check the process exit status and alert on failure; test restorability separately.
 
 ## Requirements
 
@@ -22,10 +25,13 @@ Backups are written to `backups/` as timestamped `.dump` files. The script keeps
 Test restore before turnover and after major deployment changes. Use a separate test database first.
 
 ```powershell
-pg_restore --clean --if-exists --no-owner --no-privileges --dbname "<TEST_DATABASE_URL>" "backups/clinic-system-YYYYMMDD-HHMMSS.dump"
+pg_restore --exit-on-error --no-owner --no-privileges --dbname "<EMPTY_TEST_DATABASE_NAME>" "<verified-backup.dump>"
 ```
 
 Do not run restore against the live clinic database unless the clinic has approved downtime and the selected backup file has been verified.
+Provide host/user/password through a protected libpq environment or pgpass file,
+not credential-bearing command arguments. The target must be a separate empty
+test database; database provisioning remains an administrator action.
 
 ## Operating Rules
 

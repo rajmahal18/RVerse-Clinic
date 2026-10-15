@@ -1,0 +1,23 @@
+[Unit]
+Description=OCM Clinic application
+After=network.target
+
+[Service]
+Type=simple
+User=ocm-clinic
+Group=ocm-clinic
+WorkingDirectory=/opt/ocm-clinic/current
+Environment=NODE_ENV=production
+Environment=HOME=/var/lib/ocm-clinic
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ocm-clinic/current/.next /var/lib/ocm-clinic
+
+[Install]
+WantedBy=multi-user.target

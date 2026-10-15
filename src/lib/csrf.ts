@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { headers } from "next/headers";
 import { CSRF_COOKIE_NAME, CSRF_FIELD_NAME } from "@/lib/csrf-constants";
-import { AUTH_COOKIE_SECURE } from "@/lib/security-config";
+import { AUTH_COOKIE_SECURE, TRUST_PROXY_HEADERS } from "@/lib/security-config";
 
 function isSameOriginRequest(originOrReferer: string | null, host: string | null, protocol: string) {
   if (!originOrReferer || !host) {
@@ -26,8 +26,14 @@ export async function assertValidCsrfToken(formData: FormData) {
     return;
   }
 
-  const protocol = headerStore.get("x-forwarded-proto")?.split(",")[0]?.trim() || "http";
-  const host = headerStore.get("x-forwarded-host")?.split(",")[0]?.trim() || headerStore.get("host");
+  const protocol =
+    (TRUST_PROXY_HEADERS
+      ? headerStore.get("x-forwarded-proto")?.split(",")[0]?.trim()
+      : null) || (AUTH_COOKIE_SECURE ? "https" : "http");
+  const host =
+    (TRUST_PROXY_HEADERS
+      ? headerStore.get("x-forwarded-host")?.split(",")[0]?.trim()
+      : null) || headerStore.get("host");
   const origin = headerStore.get("origin");
   const referer = headerStore.get("referer");
 

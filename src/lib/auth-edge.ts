@@ -1,8 +1,5 @@
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
-
-function getAuthSecret() {
-  return process.env.AUTH_SECRET || process.env.DATABASE_URL || "clinic-system-layout-dev-secret";
-}
+import { getAuthSecret } from "@/lib/security-config";
 
 function base64UrlToBytes(value: string) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "crypto";
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
-import { AUTH_COOKIE_SECURE } from "@/lib/security-config";
+import { AUTH_COOKIE_SECURE, getAuthSecret } from "@/lib/security-config";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_DAYS = 7;
@@ -13,10 +13,6 @@ type SessionPayload = {
   sessionVersion: number;
   exp: number;
 };
-
-function getAuthSecret() {
-  return process.env.AUTH_SECRET || process.env.DATABASE_URL || "clinic-system-layout-dev-secret";
-}
 
 function encodePayload(payload: SessionPayload) {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");

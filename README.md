@@ -1,5 +1,11 @@
 # Clinic System Layout Prototype
 
+For current self-hosted production preparation, use
+[OCM VM deployment](docs/ocm-deployment.md). The prototype scope statements below
+are historical; the current application includes database-backed workflows,
+authentication, role checks, and activity logging. Production acceptance still
+requires infrastructure, security/privacy review, and staging validation.
+
 Modern layout-first clinic records and inventory system. Built as a self-hostable web app that can run as a website or LAN/intranet application.
 
 ## Stack

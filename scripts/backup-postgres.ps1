@@ -1,6 +1,7 @@
 param(
   [string]$EnvFile = ".env",
   [string]$OutputDir = "backups",
+  [ValidateRange(1, 3650)]
   [int]$Keep = 14
 )
 
@@ -33,6 +34,9 @@ if (-not $databaseUrl) {
 if (-not $databaseUrl) {
   throw "DATABASE_URL was not found in the environment or $EnvFile."
 }
+# Prisma-only query options are not accepted by PostgreSQL client tools.
+$databaseUrl = $databaseUrl -replace '([?&])(schema|connection_limit|pool_timeout|pgbouncer|sslaccept)=[^&]*', '$1'
+$databaseUrl = $databaseUrl -replace '\?&+', '?' -replace '&{2,}', '&' -replace '[?&]$', ''
 
 $pgDump = Get-Command pg_dump -ErrorAction SilentlyContinue
 if (-not $pgDump) {
@@ -43,10 +47,25 @@ if (-not (Test-Path -LiteralPath $OutputDir)) {
   New-Item -ItemType Directory -Path $OutputDir | Out-Null
 }
 
-$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$timestamp = Get-Date -Format "yyyyMMdd-HHmmss-fffffff"
 $backupPath = Join-Path $OutputDir "clinic-system-$timestamp.dump"
+$partialPath = "$backupPath.partial"
 
-& $pgDump.Source --format=custom --no-owner --no-privileges --file=$backupPath $databaseUrl
+# Avoid credentials in the process command line and suppress raw tool diagnostics.
+$previousDatabase = $env:PGDATABASE
+try {
+  $env:PGDATABASE = $databaseUrl
+  & $pgDump.Source --no-password --format=custom --no-owner --no-privileges --file=$partialPath 2>$null
+  if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $partialPath) -or (Get-Item -LiteralPath $partialPath).Length -eq 0) {
+    throw "Backup generation failed. Previous backups were retained. Check database access, client compatibility, and storage permissions."
+  }
+  Move-Item -LiteralPath $partialPath -Destination $backupPath
+} catch {
+  if (Test-Path -LiteralPath $partialPath) { Remove-Item -LiteralPath $partialPath -Force }
+  throw "Backup generation failed. Previous backups were retained. Check database access, client compatibility, and storage permissions."
+} finally {
+  $env:PGDATABASE = $previousDatabase
+}
 
 Get-ChildItem -LiteralPath $OutputDir -Filter "clinic-system-*.dump" |
   Sort-Object LastWriteTime -Descending |
