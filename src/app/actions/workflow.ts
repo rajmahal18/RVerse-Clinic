@@ -1,4 +1,8 @@
 "use server";
+import { manageRecordAction } from "@/app/actions/record-management";
+import { requireAvailableServices, requireServiceForVisit } from "@/lib/service-settings";
+import { getAvailedServiceLabels } from "@/lib/clinic-services";
+import { parseVaccineHistory } from "@/lib/patient-medical-info";
 
 import {
   InventoryCategory,
@@ -28,6 +32,7 @@ import {
   visitFields,
   vitalFields,
   requireVital,
+  validVital,
 } from "@/lib/visit-fields";
 
 const MAIN_CLINIC_ID = "main-clinic";
@@ -434,6 +439,7 @@ export async function createPatientAction(formData: FormData) {
           primaryContactNo: optionalString(formData, "primaryContactNo"),
           medicalHistory: optionalString(formData, "medicalHistory"),
           vaccineHistory: optionalString(formData, "vaccineHistory"),
+          ...(formData.has("vaccineHistoryEntries") ? { vaccineHistoryEntries: parseVaccineHistory(formData.get("vaccineHistoryEntries")) } : {}),
           allergy: optionalString(formData, "allergy"),
           maintenance: optionalString(formData, "maintenance"),
           additionalMedicalInformation: optionalString(
@@ -495,6 +501,7 @@ export async function updatePatientAction(formData: FormData) {
         primaryContactNo: optionalString(formData, "primaryContactNo"),
         medicalHistory: optionalString(formData, "medicalHistory"),
         vaccineHistory: optionalString(formData, "vaccineHistory"),
+          vaccineHistoryEntries: JSON.stringify(formData.has("vaccineHistoryEntries") ? parseVaccineHistory(formData.get("vaccineHistoryEntries")) : currentPatient.vaccineHistoryEntries),
         allergy: optionalString(formData, "allergy"),
         maintenance: optionalString(formData, "maintenance"),
         additionalMedicalInformation: optionalString(
@@ -519,6 +526,7 @@ export async function updatePatientAction(formData: FormData) {
         primaryContactNo: currentPatient.primaryContactNo,
         medicalHistory: currentPatient.medicalHistory,
         vaccineHistory: currentPatient.vaccineHistory,
+        vaccineHistoryEntries: JSON.stringify(currentPatient.vaccineHistoryEntries),
         allergy: currentPatient.allergy,
         maintenance: currentPatient.maintenance,
         additionalMedicalInformation:
@@ -546,6 +554,7 @@ export async function updatePatientAction(formData: FormData) {
           primaryContactNo: nextValues.primaryContactNo,
           medicalHistory: nextValues.medicalHistory,
           vaccineHistory: nextValues.vaccineHistory,
+          ...(formData.has("vaccineHistoryEntries") ? { vaccineHistoryEntries: parseVaccineHistory(formData.get("vaccineHistoryEntries")) } : {}),
           allergy: nextValues.allergy,
           maintenance: nextValues.maintenance,
           additionalMedicalInformation: nextValues.additionalMedicalInformation,
@@ -599,6 +608,8 @@ export async function createVisitAction(formData: FormData) {
       if (!requestTypes.length) {
         throw new Error("Select at least one service requested.");
       }
+      await requireAvailableServices(user.clinicId, requestTypes);
+      if (requestTypes.includes(RequestType.REFERRAL) && !optionalString(formData,"referralReason")) throw new Error("Enter the reason for referral.");
       const existingOpenVisit = await prisma.visit.findFirst({
         where: {
           patientId,
@@ -619,6 +630,7 @@ export async function createVisitAction(formData: FormData) {
           timeIn: new Date(),
           status: VisitStatus.QUEUED,
           nurseOnDuty,
+          referralReason: optionalString(formData,"referralReason"),
           requests: {
             create: requestTypes.map((type) => ({ type })),
           },
@@ -676,8 +688,18 @@ export async function startVisitAction(formData: FormData) {
         ]),
       );
       requireVital(vitals);
+      if (
+        !(
+          optionalString(formData, "chiefComplaint") ?? current.chiefComplaint
+        )?.trim()
+      )
+        throw new Error(
+          "Select the chief complaint before starting the visit.",
+        );
       const nurseOnDuty =
-        user.role === UserRole.DOCTOR || user.role === UserRole.ADMIN ? current.nurseOnDuty : user.name;
+        user.role === UserRole.DOCTOR || user.role === UserRole.ADMIN
+          ? current.nurseOnDuty
+          : user.name;
       const visit = await prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
         const fresh = await ensureOpenVisitForPatient(tx, patientId, visitId, {
@@ -687,6 +709,10 @@ export async function startVisitAction(formData: FormData) {
           throw new Error("This visit has already been started.");
         const fields = buildVisitFields(formData, user.role, fresh);
         requireVital({ ...fresh, ...fields });
+        if (!String(fields.chiefComplaint ?? fresh.chiefComplaint ?? "").trim())
+          throw new Error(
+            "Select the chief complaint before starting the visit.",
+          );
         return tx.visit.update({
           where: { id: visitId },
           data: {
@@ -774,7 +800,9 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
         ? statusValue
         : VisitStatus.QUEUED;
       const nurseOnDuty =
-        user.role === UserRole.DOCTOR || user.role === UserRole.ADMIN ? before.nurseOnDuty : user.name;
+        user.role === UserRole.DOCTOR || user.role === UserRole.ADMIN
+          ? before.nurseOnDuty
+          : user.name;
       if (status === VisitStatus.FOR_FOLLOW_UP)
         await requireNoPendingMedicineDecision(prisma, visitId);
       if (status === VisitStatus.COMPLETED)
@@ -788,30 +816,83 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
           visitId,
           { allowQueued: true },
         );
+        const previousServices = await tx.visitRequest.findMany({ where: { visitId }, select: { type: true } });
+        if (formData.has("visitVersion") && requiredString(formData, "visitVersion") !== current.updatedAt.toISOString()) {
+          throw new Error("This visit changed while you were editing. Refresh and review the latest record before saving.");
+        }
+        await requireAvailableServices(user.clinicId, requestTypes, previousServices.map(r => r.type));
+        if (previousServices.some(r => !requestTypes.includes(r.type))) throw new Error("Use Admin Record Management to remove a recorded service with a reason.");
         const fields = buildVisitFields(formData, user.role, current);
         const diagnosis = await syncVisitDiagnoses(tx, user, visitId, formData);
-        if (diagnosis !== undefined) { fields.diagnosis = diagnosis; fields.diagnosesStructured = true; }
+        if (diagnosis !== undefined) {
+          fields.diagnosis = diagnosis;
+          fields.diagnosesStructured = true;
+        }
         if (
           current.status === VisitStatus.QUEUED &&
           status !== VisitStatus.QUEUED &&
           status !== VisitStatus.CANCELLED
-        )
+        ) {
           requireVital({ ...current, ...fields });
+          if (
+            !String(
+              fields.chiefComplaint ?? current.chiefComplaint ?? "",
+            ).trim()
+          )
+            throw new Error(
+              "Select the chief complaint before starting the visit.",
+            );
+        }
         const section = optionalString(formData, "completionSection");
         if (section) {
-          if (current.status === VisitStatus.QUEUED) throw new Error("Start the visit before marking a doctor section done.");
-          if (user.role !== UserRole.ADMIN && user.role !== UserRole.DOCTOR) throw new Error("Only doctors can mark clinical sections done.");
-          if (section !== "progressNotes" && section !== "treatmentPlan") throw new Error("Invalid section.");
-          if (!String(formData.get(section) ?? current[section] ?? "").trim()) throw new Error("Enter the section details before marking it done.");
-          const doneField = section === "progressNotes" ? "progressNotesDoneAt" : "treatmentDoneAt";
-          fields[doneField] = fields[doneField] === null || !current[doneField] ? new Date() : current[doneField];
+          if (current.status === VisitStatus.QUEUED)
+            throw new Error(
+              "Start the visit before marking a doctor section done.",
+            );
+          if (user.role !== UserRole.ADMIN && user.role !== UserRole.DOCTOR)
+            throw new Error("Only doctors can mark clinical sections done.");
+          if (section !== "progressNotes" && section !== "treatmentPlan")
+            throw new Error("Invalid section.");
+          if (!String(formData.get(section) ?? current[section] ?? "").trim())
+            throw new Error(
+              "Enter the section details before marking it done.",
+            );
+          const doneField =
+            section === "progressNotes"
+              ? "progressNotesDoneAt"
+              : "treatmentDoneAt";
+          fields[doneField] =
+            fields[doneField] === null || !current[doneField]
+              ? new Date()
+              : current[doneField];
         }
         if (formData.get("intakeReady") === "true") {
-          if (status !== VisitStatus.IN_PROGRESS && status !== VisitStatus.FOR_FOLLOW_UP) throw new Error("Select an active visit status before notifying the doctor.");
-          if (![UserRole.ADMIN, UserRole.NURSE, UserRole.DOCTOR_NURSE].includes(user.role as "ADMIN" | "NURSE" | "DOCTOR_NURSE")) throw new Error("Only nursing staff can notify the doctor.");
+          if (
+            status !== VisitStatus.IN_PROGRESS &&
+            status !== VisitStatus.FOR_FOLLOW_UP
+          )
+            throw new Error(
+              "Select an active visit status before notifying the doctor.",
+            );
+          if (
+            ![UserRole.ADMIN, UserRole.NURSE, UserRole.DOCTOR_NURSE].includes(
+              user.role as "ADMIN" | "NURSE" | "DOCTOR_NURSE",
+            )
+          )
+            throw new Error("Only nursing staff can notify the doctor.");
           requireVital({ ...current, ...fields });
-          if (!String(fields.chiefComplaint ?? current.chiefComplaint ?? "").trim()) throw new Error("Enter the chief complaint before notifying the doctor.");
-          fields.readyForDoctorAt = fields.readyForDoctorAt === null || !current.readyForDoctorAt ? new Date() : current.readyForDoctorAt;
+          if (
+            !String(
+              fields.chiefComplaint ?? current.chiefComplaint ?? "",
+            ).trim()
+          )
+            throw new Error(
+              "Enter the chief complaint before notifying the doctor.",
+            );
+          fields.readyForDoctorAt =
+            fields.readyForDoctorAt === null || !current.readyForDoctorAt
+              ? new Date()
+              : current.readyForDoctorAt;
         }
         const updatedVisit = await tx.visit.update({
           where: { id: visitId },
@@ -843,14 +924,11 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
         const missingTypes = requestTypes.filter(
           (type) => !existingTypes.has(type),
         );
-        if (missingTypes.length) {
-          await tx.visitRequest.createMany({
-            data: missingTypes.map((type) => ({ visitId, type })),
-          });
-        }
+        for (const type of missingTypes) await tx.visitRequest.upsert({ where: { visitId_type: { visitId, type } }, update: { deletedAt: null }, create: { visitId, type } });
 
         await tx.formDraft.updateMany({
-          where: { userId: user.id, visitId, key: "visit" }, data: { values: {} },
+          where: { userId: user.id, visitId, key: "visit" },
+          data: { values: {} },
         });
         return updatedVisit;
       });
@@ -1057,11 +1135,14 @@ export async function deleteAppointmentAction(formData: FormData) {
     "Delete appointment",
     async () => {
       const user = await requireRole([UserRole.ADMIN]);
+      const reason = requiredString(formData,"reason");
+      if (formData.get("acknowledge") !== "true") throw new Error("Confirm the appointment deletion first.");
       const current = await prisma.$transaction(async tx => {
         await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
         const visit = await getVisitForPatient(tx, patientId, visitId);
         if (visit.status !== VisitStatus.QUEUED && visit.status !== VisitStatus.CANCELLED) throw new Error("Only queued or cancelled appointments can be deleted. Clinical visits must remain in patient history.");
-        await tx.visit.update({ where: { id: visitId }, data: { deletedAt: new Date(), status: VisitStatus.CANCELLED } });
+        await tx.visit.update({ where: { id: visitId }, data: { deletedAt: new Date() } });
+        await tx.activityLog.create({ data: { clinicId:user.clinicId,userId:user.id,module:"Record Management",action:"Archive / void record",entityType:"Visit",entityId:visitId,description:`Deleted appointment: ${reason}`,metadata:JSON.parse(JSON.stringify({reason,before:visit})) } });
         return visit;
       });
       await writeActivityLog({
@@ -1153,10 +1234,17 @@ export async function updateVisitStatusAction(formData: FormData) {
         currentVisit.status === VisitStatus.QUEUED &&
         status !== VisitStatus.QUEUED &&
         status !== VisitStatus.CANCELLED
-      )
+      ) {
         requireVital(currentVisit);
+        if (!currentVisit.chiefComplaint?.trim())
+          throw new Error(
+            "Save the chief complaint before starting the visit.",
+          );
+      }
       const nurseOnDuty =
-        status === VisitStatus.IN_PROGRESS && user.role !== UserRole.DOCTOR && user.role !== UserRole.ADMIN
+        status === VisitStatus.IN_PROGRESS &&
+        user.role !== UserRole.DOCTOR &&
+        user.role !== UserRole.ADMIN
           ? user.name
           : currentVisit.nurseOnDuty;
 
@@ -1369,63 +1457,106 @@ export async function createInventoryItemAction(formData: FormData) {
 export async function requestMedicineAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  await runAction(formData, `/patients/${patientId}`, "Medicines", "Request medicine", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
-    const visit = await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
-    const inventoryItemId = requiredString(formData, "inventoryItemId");
-    const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
-    if (!inventoryItem) throw new Error("Selected medicine batch was not found.");
-    if (inventoryItem.clinicId !== visit.patient.clinicId || inventoryItem.category !== InventoryCategory.MEDICINE) {
-      throw new Error("Selected medicine batch was not found.");
-    }
-    const itemName = inventoryItem.name;
-    const quantity = Number(formData.get("quantity") ?? 0);
-    const schedule = parseMedicineSchedule(formData);
-
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new Error("Quantity must be a positive whole number.");
-    }
-
-    const medicineRequest = await prisma.$transaction(async (tx) => {
-      const createdRequest = await tx.medicineRequest.create({
-        data: {
-          visitId,
-          inventoryItemId,
-          requestedByUserId: user.id,
-          itemName,
-          quantity,
-          frequency: schedule.frequency,
-          duration: schedule.duration,
-          remarks: optionalString(formData, "remarks"),
-          status: "REQUESTED",
-        },
-        include: {
-          visit: {
-            include: {
-              patient: true,
+  await runAction(
+    formData,
+    `/patients/${patientId}`,
+    "Medicines",
+    "Request medicine",
+    async () => {
+      const user = await requireRole([
+        UserRole.ADMIN,
+        UserRole.DOCTOR,
+        UserRole.NURSE,
+        UserRole.DOCTOR_NURSE,
+      ]);
+      const visit = await ensureOpenVisitForPatient(
+        prisma,
+        patientId,
+        visitId,
+        { allowQueued: false },
+      );
+      await requireServiceForVisit(user.clinicId, visitId, RequestType.MEDICINES);
+      const lineKeys = [
+        ...new Set(
+          [...formData.keys()]
+            .filter((key) => /^line:\d+:inventoryItemId$/.test(key))
+            .map((key) => key.split(":")[1]),
+        ),
+      ];
+      if (lineKeys.length > 30)
+        throw new Error("Request up to 30 medicines at a time.");
+      const lines = lineKeys.length
+        ? lineKeys.map((key) => {
+            const line = new FormData();
+            for (const [name, value] of formData.entries())
+              if (name.startsWith(`line:${key}:`))
+                line.set(name.slice(`line:${key}:`.length), value);
+            return line;
+          })
+        : [formData];
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
+        await ensureOpenVisitForPatient(tx, patientId, visitId);
+        for (const line of lines) {
+          const inventoryItemId = requiredString(line, "inventoryItemId");
+          const item = await tx.inventoryItem.findUnique({
+            where: { id: inventoryItemId },
+          });
+          if (
+            !item ||
+            item.clinicId !== visit.patient.clinicId ||
+            item.category !== InventoryCategory.MEDICINE ||
+            !item.isRequestable ||
+            item.stock <= 0 ||
+            (item.expirationDate &&
+              formatDateKey(item.expirationDate) < formatDateKey(new Date()))
+          )
+            throw new Error(
+              "A selected batch is hidden, expired, or unavailable. Refresh the medicine list.",
+            );
+          const quantity = Number(line.get("quantity"));
+          if (!Number.isInteger(quantity) || quantity <= 0)
+            throw new Error("Quantity must be a positive whole number.");
+          const schedule = parseMedicineSchedule(line);
+          const request = await tx.medicineRequest.create({
+            data: {
+              visitId,
+              inventoryItemId,
+              requestedByUserId: user.id,
+              itemName: item.name,
+              quantity,
+              frequency: schedule.frequency,
+              duration: schedule.duration,
+              remarks: optionalString(line, "remarks"),
+              status: "REQUESTED",
             },
-          },
-        },
+          });
+          await tx.activityLog.create({
+            data: {
+              clinicId: user.clinicId,
+              userId: user.id,
+              module: "Medicines",
+              action: "Request medicine",
+              entityType: "MedicineRequest",
+              entityId: request.id,
+              description: `Requested ${quantity} ${item.name}.`,
+              metadata: { visitId, inventoryItemId, quantity },
+            },
+          });
+        }
+        await tx.visitRequest.upsert({
+          where: { visitId_type: { visitId, type: RequestType.MEDICINES } },
+          update: { deletedAt: null },
+          create: { visitId, type: RequestType.MEDICINES },
+        });
+        await tx.formDraft.updateMany({
+          where: { userId: user.id, visitId, key: "medicine" },
+          data: { values: {} },
+        });
       });
-
-      await tx.visitRequest.upsert({
-        where: { visitId_type: { visitId, type: RequestType.MEDICINES } },
-        update: {},
-        create: { visitId, type: RequestType.MEDICINES },
-      });
-
-      return createdRequest;
-    });
-
-    await writeActivityLog({
-      clinicId: medicineRequest.visit?.patient.clinicId,
-      module: "Medicines",
-      action: "Request medicine",
-      entityType: "MedicineRequest",
-      entityId: medicineRequest.id,
-      description: `Requested ${quantity} ${itemName} for ${medicineRequest.visit?.patient.lastName}, ${medicineRequest.visit?.patient.firstName}.`,
-    });
-  }, { type: "Visit", id: visitId });
+    },
+    { type: "Visit", id: visitId },
+  );
 
   revalidatePath("/inventory");
   revalidatePath(`/patients/${patientId}`);
@@ -1433,40 +1564,65 @@ export async function requestMedicineAction(formData: FormData) {
 }
 
 export async function createItemRequestAction(formData: FormData) {
-  await runAction(formData, "/item-requests?view=my", "Medicines", "Request inventory item", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
-    const inventoryItemId = requiredString(formData, "inventoryItemId");
-    const inventoryItem = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
-    if (!inventoryItem) throw new Error("Selected inventory item was not found.");
-    if (inventoryItem.clinicId !== user.clinicId) {
-      throw new Error("Selected inventory item was not found.");
-    }
-    const quantity = Number(formData.get("quantity") ?? 0);
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new Error("Quantity must be a positive whole number.");
-    }
+  await runAction(
+    formData,
+    "/item-requests?view=my",
+    "Medicines",
+    "Request inventory item",
+    async () => {
+      const user = await requireRole([
+        UserRole.ADMIN,
+        UserRole.DOCTOR,
+        UserRole.NURSE,
+        UserRole.DOCTOR_NURSE,
+        UserRole.PHARMACIST,
+        UserRole.SUPPLY_OFFICER,
+      ]);
+      const inventoryItemId = requiredString(formData, "inventoryItemId");
+      const inventoryItem = await prisma.inventoryItem.findUnique({
+        where: { id: inventoryItemId },
+      });
+      if (!inventoryItem)
+        throw new Error("Selected inventory item was not found.");
+      if (
+        inventoryItem.category === InventoryCategory.MEDICINE &&
+        (!inventoryItem.isRequestable ||
+          inventoryItem.stock <= 0 ||
+          (inventoryItem.expirationDate &&
+            formatDateKey(inventoryItem.expirationDate) <
+              formatDateKey(new Date())))
+      )
+        throw new Error("This medicine batch is unavailable for new requests.");
+      if (inventoryItem.clinicId !== user.clinicId) {
+        throw new Error("Selected inventory item was not found.");
+      }
+      const quantity = Number(formData.get("quantity") ?? 0);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        throw new Error("Quantity must be a positive whole number.");
+      }
 
-    const request = await prisma.medicineRequest.create({
-      data: {
-        inventoryItemId,
-        requestedByUserId: user.id,
-        itemName: inventoryItem.name,
-        quantity,
-        remarks: optionalString(formData, "remarks"),
-        status: "REQUESTED",
-      },
-    });
+      const request = await prisma.medicineRequest.create({
+        data: {
+          inventoryItemId,
+          requestedByUserId: user.id,
+          itemName: inventoryItem.name,
+          quantity,
+          remarks: optionalString(formData, "remarks"),
+          status: "REQUESTED",
+        },
+      });
 
-    await writeActivityLog({
-      clinicId: inventoryItem.clinicId,
-      userId: user.id,
-      module: "Medicines",
-      action: "Request inventory item",
-      entityType: "MedicineRequest",
-      entityId: request.id,
-      description: `Requested ${quantity} ${inventoryCategoryLabel(inventoryItem.category).toLowerCase()} item ${inventoryItem.name}.`,
-    });
-  });
+      await writeActivityLog({
+        clinicId: inventoryItem.clinicId,
+        userId: user.id,
+        module: "Medicines",
+        action: "Request inventory item",
+        entityType: "MedicineRequest",
+        entityId: request.id,
+        description: `Requested ${quantity} ${inventoryCategoryLabel(inventoryItem.category).toLowerCase()} item ${inventoryItem.name}.`,
+      });
+    },
+  );
 
   revalidatePath("/item-requests");
   redirect("/item-requests?view=my");
@@ -1727,6 +1883,8 @@ export async function scheduleReferralAction(formData: FormData) {
   await runAction(formData, `/patients/${patientId}`, "Referrals", "Schedule referral", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const serviceUser = await getCurrentUser();
+    await requireServiceForVisit(serviceUser!.clinicId, visitId, RequestType.REFERRAL);
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
 
     const referral = await prisma.$transaction(async (tx) => {
@@ -1784,11 +1942,13 @@ export async function requestVaccineAction(formData: FormData) {
   await runAction(formData, `/patients/${patientId}`, "Vaccination", "Request vaccine", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const serviceUser = await getCurrentUser();
+    await requireServiceForVisit(serviceUser!.clinicId, visitId, RequestType.VACCINATION);
     const vaccine = requiredString(formData, "vaccine");
     const remarks = optionalString(formData, "remarks");
     await prisma.visitRequest.upsert({
       where: { visitId_type: { visitId, type: RequestType.VACCINATION } },
-      update: { requestedItem: vaccine, remarks },
+      update: { requestedItem: vaccine, remarks, deletedAt: null },
       create: { visitId, type: RequestType.VACCINATION, requestedItem: vaccine, remarks },
     });
   }, { type: "Visit", id: visitId });
@@ -1804,6 +1964,8 @@ export async function addVaccinationRecordAction(formData: FormData) {
   await runAction(formData, `/patients/${patientId}`, "Vaccination", "Add vaccination record", async () => {
     await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
     await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
+    const serviceUser = await getCurrentUser();
+    await requireServiceForVisit(serviceUser!.clinicId, visitId, RequestType.VACCINATION);
     const vaccine = requiredString(formData, "vaccine");
     const doseSelection = optionalString(formData, "dose");
     const dose = doseSelection === "Other" ? requiredString(formData, "doseOther") : doseSelection;
@@ -1816,6 +1978,7 @@ export async function addVaccinationRecordAction(formData: FormData) {
           vaccine,
           dose,
           givenBy: optionalString(formData, "givenBy"),
+          administeredAt: optionalString(formData,"administeredAt") ? parseDate(requiredString(formData,"administeredAt")) : new Date(),
           nextDose: nextDoseValue ? parseDate(nextDoseValue) : null,
           remarks: optionalString(formData, "remarks"),
         },
@@ -1835,14 +1998,7 @@ export async function addVaccinationRecordAction(formData: FormData) {
         },
       });
 
-      if (!existingVaccinationRequest) {
-        await tx.visitRequest.create({
-          data: {
-            visitId,
-            type: RequestType.VACCINATION,
-          },
-        });
-      }
+      if (!existingVaccinationRequest) await tx.visitRequest.upsert({ where: { visitId_type: { visitId, type: RequestType.VACCINATION } }, update: { deletedAt: null }, create: { visitId, type: RequestType.VACCINATION } });
 
       return vaccinationRecord;
     });
@@ -1990,6 +2146,8 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
       if (isClosedVisitStatus(visit.status))
         throw new Error("This visit is already closed.");
       await requireNoPendingMedicineDecision(prisma, visitId);
+      const serviceVisit = await prisma.visit.findUniqueOrThrow({ where: { id: visitId }, include: { requests: true, medicines: true, vaccinations: true, referrals: true, followUps: true } });
+      const automaticServices = getAvailedServiceLabels({ ...serviceVisit, status: VisitStatus.COMPLETED }).join(", ");
       const existingSurvey = await prisma.clientSatisfactionSurvey.findUnique({
         where: { visitId },
       });
@@ -2061,7 +2219,7 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
           surveyDate,
           officeVisited,
           regionOfResidence: merged("regionOfResidence"),
-          serviceAvailed: merged("serviceAvailed"),
+          serviceAvailed: automaticServices,
           respondentSex,
           respondentAge,
           cc1: merged("cc1"),
@@ -2087,7 +2245,7 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
           surveyDate,
           officeVisited,
           regionOfResidence: merged("regionOfResidence"),
-          serviceAvailed: merged("serviceAvailed"),
+          serviceAvailed: automaticServices,
           respondentSex,
           respondentAge,
           cc1: merged("cc1"),
@@ -2122,13 +2280,8 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
 }
 
 export async function deleteInventoryItemAction(formData: FormData) {
-  const itemId = requiredString(formData, "itemId");
-  await runAction(formData, "/inventory", "Inventory", "Delete item", async () => {
-    const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
-    const deleted = await prisma.inventoryItem.deleteMany({ where: { id: itemId, clinicId: user.clinicId } });
-    if (deleted.count !== 1) throw new Error("Inventory item not found.");
-  }, { type: "InventoryItem", id: itemId });
-  revalidatePath("/inventory"); redirect("/inventory");
+  formData.set("kind", "InventoryItem"); formData.set("recordId", requiredString(formData,"itemId")); formData.set("returnTo","/inventory");
+  return manageRecordAction(formData);
 }
 
 export async function resolveItemRequestAction(formData: FormData) {
@@ -2463,4 +2616,436 @@ export async function logoutAction(formData: FormData) {
   });
   await clearAuthCookie();
   redirect("/login");
+}
+
+export async function addChiefComplaintAction(formData: FormData) {
+  await runAction(
+    formData,
+    "/settings?tab=complaints",
+    "Settings",
+    "Add chief complaint",
+    async () => {
+      const user = await requireRole([UserRole.ADMIN]);
+      const name = requiredString(formData, "name");
+      if (name.length > 180 || name.includes(";"))
+        throw new Error("Use up to 180 characters without semicolons.");
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.chiefComplaintCatalog.findFirst({
+          where: {
+            clinicId: user.clinicId,
+            name: { equals: name, mode: "insensitive" },
+          },
+        });
+        if (existing) throw new Error("This chief complaint already exists.");
+        const item = await tx.chiefComplaintCatalog.create({
+          data: { clinicId: user.clinicId, name },
+        });
+        await tx.activityLog.create({
+          data: {
+            clinicId: user.clinicId,
+            userId: user.id,
+            module: "Settings",
+            action: "Add chief complaint",
+            entityType: "ChiefComplaintCatalog",
+            entityId: item.id,
+            description: `Added chief complaint: ${name}.`,
+          },
+        });
+      });
+    },
+  );
+  revalidatePath("/settings");
+  revalidatePath("/patients", "layout");
+  redirect("/settings?tab=complaints");
+}
+
+export async function setMedicineVisibilityAction(formData: FormData) {
+  await runAction(
+    formData,
+    "/inventory",
+    "Inventory",
+    "Change medicine availability",
+    async () => {
+      const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST]);
+      const id = requiredString(formData, "itemId");
+      const isRequestable = formData.get("isRequestable") === "true";
+      await prisma.$transaction(async (tx) => {
+        const before = await tx.inventoryItem.findFirst({
+          where: {
+            id,
+            clinicId: user.clinicId,
+            category: InventoryCategory.MEDICINE,
+          },
+        });
+        if (!before) throw new Error("Medicine batch not found.");
+        await tx.inventoryItem.update({
+          where: { id },
+          data: { isRequestable },
+        });
+        await tx.activityLog.create({
+          data: {
+            clinicId: user.clinicId,
+            userId: user.id,
+            module: "Inventory",
+            action: "Change medicine availability",
+            entityType: "InventoryItem",
+            entityId: id,
+            description: `${isRequestable ? "Allowed" : "Hidden"} medicine batch ${before.name} ${before.brandName ?? ""}.`,
+            metadata: { before: before.isRequestable, after: isRequestable },
+          },
+        });
+      });
+    },
+  );
+  revalidatePath("/inventory");
+  revalidatePath("/patients", "layout");
+  revalidatePath("/item-requests");
+  redirect("/inventory");
+}
+
+export async function correctCompletedVisitAction(formData: FormData) {
+  const patientId = requiredString(formData, "patientId");
+  const visitId = requiredString(formData, "visitId");
+  await runAction(
+    formData,
+    `/patients/${patientId}`,
+    "Patient Records",
+    "Correct completed visit",
+    async () => {
+      const user = await requireRole([UserRole.ADMIN]);
+      const reason = requiredString(formData, "correctionReason");
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
+          const before = await getVisitForPatient(tx, patientId, visitId);
+          if (before.status !== VisitStatus.COMPLETED)
+            throw new Error("Only completed visits can be corrected here.");
+          if (
+            requiredString(formData, "version") !==
+            before.updatedAt.toISOString()
+          )
+            throw new Error(
+              "This visit changed while you were editing. Refresh and review the latest record.",
+            );
+          const fields = buildVisitFields(formData, user.role, before);
+          const diagnosis = await syncVisitDiagnoses(
+            tx,
+            user,
+            visitId,
+            formData,
+          );
+          if (diagnosis !== undefined) {
+            fields.diagnosis = diagnosis;
+            fields.diagnosesStructured = true;
+          }
+          for (const key of vitalFields)
+            if (fields[key] && !validVital(key, String(fields[key])))
+              throw new Error(`Enter a valid ${key}.`);
+          if (formData.has("nurseOnDuty"))
+            fields.nurseOnDuty = optionalString(formData, "nurseOnDuty");
+          const after = await tx.visit.update({
+            where: { id: visitId },
+            data: {
+              ...fields,
+              readyForDoctorAt: before.readyForDoctorAt,
+              progressNotesDoneAt: before.progressNotesDoneAt,
+              treatmentDoneAt: before.treatmentDoneAt,
+            },
+          });
+          const changes: Record<string, unknown> = {};
+          for (const field of [...visitFields, "nurseOnDuty"] as const)
+            if (before[field] !== after[field])
+              changes[field] = { before: before[field], after: after[field] };
+          const previousServices = await tx.visitRequest.findMany({
+            where: { visitId },
+          });
+          const services = selectedRequestTypes(formData);
+      if (previousServices.some(r => !services.includes(r.type))) throw new Error("Use Admin Record Management to remove a recorded service with a reason.");
+          if (!services.length)
+            throw new Error("Select at least one service requested.");
+          const linked = await tx.visitRequest.findMany({
+            where: {
+              visitId,
+              OR: [
+                {
+                  type: RequestType.MEDICINES,
+                  visit: { medicines: { some: {} } },
+                },
+                {
+                  type: RequestType.VACCINATION,
+                  visit: { vaccinations: { some: {} } },
+                },
+                {
+                  type: RequestType.REFERRAL,
+                  visit: { referrals: { some: {} } },
+                },
+              ],
+            },
+          });
+          const retained = [
+            ...new Set([...services, ...linked.map((r) => r.type)]),
+          ];
+          await tx.visitRequest.deleteMany({
+            where: { visitId, type: { notIn: retained } },
+          });
+          for (const type of retained)
+            await tx.visitRequest.upsert({
+              where: { visitId_type: { visitId, type } },
+              update: { deletedAt: null },
+              create: { visitId, type },
+            });
+          changes.services = {
+            before: previousServices.map((r) => r.type),
+            after: retained,
+          };
+          const medicines = await tx.medicineRequest.findMany({
+            where: { visitId },
+          });
+          for (const medicine of medicines) {
+            const prefix = `medicine:${medicine.id}:`;
+            if (!formData.has(prefix + "quantity")) continue;
+            const quantity = Number(formData.get(prefix + "quantity"));
+            if (!Number.isInteger(quantity) || quantity <= 0)
+              throw new Error(
+                "Medicine quantity must be a positive whole number.",
+              );
+            const data = {
+              quantity,
+              frequency: optionalString(formData, prefix + "frequency"),
+              duration: optionalString(formData, prefix + "duration"),
+              remarks: optionalString(formData, prefix + "remarks"),
+              receivedBy: optionalString(formData, prefix + "receivedBy"),
+              releasedBy: optionalString(formData, prefix + "releasedBy"),
+            };
+            const difference = quantity - medicine.quantity;
+            if (
+              difference &&
+              ["RELEASED", "RECEIVED"].includes(medicine.status)
+            ) {
+              if (!medicine.inventoryItemId)
+                throw new Error(
+                  "This medicine has no linked stock batch. Correct its stock linkage before changing the issued quantity.",
+                );
+              const stock = await tx.inventoryItem.updateMany({
+                where: {
+                  id: medicine.inventoryItemId,
+                  clinicId: user.clinicId,
+                  ...(difference > 0 ? { stock: { gte: difference } } : {}),
+                },
+                data: { stock: { decrement: difference } },
+              });
+              if (!stock.count)
+                throw new Error(
+                  "Insufficient stock for the corrected issued quantity.",
+                );
+              await tx.inventoryMovement.create({
+                data: {
+                  inventoryItemId: medicine.inventoryItemId,
+                  medicineRequestId: medicine.id,
+                  quantityChange: -difference,
+                  reason: `Admin correction: ${reason}`,
+                },
+              });
+            }
+            const updated = await tx.medicineRequest.update({
+              where: { id: medicine.id },
+              data,
+            });
+            changes[`medicine:${medicine.id}`] = {
+              before: medicine,
+              after: updated,
+            };
+          }
+          const labs = await tx.labResult.findMany({
+            where: { visitId },
+            include: { values: true },
+          });
+          for (const lab of labs) {
+            const prefix = `lab:${lab.id}:`;
+            if (!formData.has(prefix + "laboratoryHospital")) continue;
+            await tx.labResult.update({
+              where: { id: lab.id },
+              data: {
+                laboratoryHospital: optionalString(
+                  formData,
+                  prefix + "laboratoryHospital",
+                ),
+                ...(formData.has(prefix + "dateReceived")
+                  ? {
+                      dateReceived: optionalString(
+                        formData,
+                        prefix + "dateReceived",
+                      )
+                        ? parseDate(
+                            requiredString(formData, prefix + "dateReceived"),
+                          )
+                        : null,
+                    }
+                  : {}),
+                ...(formData.has(prefix + "dateReleased")
+                  ? {
+                      dateReleased: optionalString(
+                        formData,
+                        prefix + "dateReleased",
+                      )
+                        ? parseDate(
+                            requiredString(formData, prefix + "dateReleased"),
+                          )
+                        : null,
+                    }
+                  : {}),
+              },
+            });
+            for (const key of getLabFieldKeys(lab.type)) {
+              if (!formData.has(prefix + key)) continue;
+              const value = optionalString(formData, prefix + key);
+              if (value)
+                await tx.labResultValue.upsert({
+                  where: {
+                    labResultId_fieldKey: {
+                      labResultId: lab.id,
+                      fieldKey: key,
+                    },
+                  },
+                  update: { result: value },
+                  create: { labResultId: lab.id, fieldKey: key, result: value },
+                });
+              else
+                await tx.labResultValue.deleteMany({
+                  where: { labResultId: lab.id, fieldKey: key },
+                });
+            }
+            changes[`lab:${lab.id}`] = {
+              before: lab,
+              after: await tx.labResult.findUnique({
+                where: { id: lab.id },
+                include: { values: true },
+              }),
+            };
+          }
+          for (const record of await tx.vaccinationRecord.findMany({
+            where: { visitId },
+          })) {
+            const prefix = `vaccine:${record.id}:`;
+            if (!formData.has(prefix + "vaccine")) continue;
+            const data = {
+              vaccine: requiredString(formData, prefix + "vaccine"),
+              dose: optionalString(formData, prefix + "dose"),
+              givenBy: optionalString(formData, prefix + "givenBy"),
+              ...(formData.has(prefix + "administeredAt") ? { administeredAt: optionalString(formData,prefix + "administeredAt") ? parseDate(requiredString(formData,prefix + "administeredAt")) : null } : {}),
+              remarks: optionalString(formData, prefix + "remarks"),
+            };
+            changes[`vaccine:${record.id}`] = {
+              before: record,
+              after: await tx.vaccinationRecord.update({
+                where: { id: record.id },
+                data,
+              }),
+            };
+          }
+          for (const record of await tx.referral.findMany({
+            where: { visitId },
+          })) {
+            const prefix = `referral:${record.id}:`;
+            if (!formData.has(prefix + "referredTo")) continue;
+            const data = {
+              referredTo: optionalString(formData, prefix + "referredTo"),
+              reasonForReferral: optionalString(
+                formData,
+                prefix + "reasonForReferral",
+              ),
+              medicalHistory: optionalString(
+                formData,
+                prefix + "medicalHistory",
+              ),
+              remarks: optionalString(formData, prefix + "remarks"),
+            };
+            changes[`referral:${record.id}`] = {
+              before: record,
+              after: await tx.referral.update({
+                where: { id: record.id },
+                data,
+              }),
+            };
+          }
+          const survey = await tx.clientSatisfactionSurvey.findUnique({
+            where: { visitId },
+          });
+          if (survey) {
+            const data: Prisma.ClientSatisfactionSurveyUpdateInput = {};
+            const textFields = [
+              "clientType",
+              "customerType",
+              "agencyName",
+              "officeVisited",
+              "regionOfResidence",
+
+              "respondentSex",
+              "cc1",
+              "cc2",
+              "cc3",
+              "sqd0",
+              "sqd1",
+              "sqd2",
+              "sqd3",
+              "sqd4",
+              "sqd5",
+              "sqd6",
+              "sqd7",
+              "sqd8",
+              "suggestions",
+              "email",
+            ] as const;
+            for (const key of textFields)
+              if (formData.has(`survey:${key}`))
+                data[key] = optionalString(formData, `survey:${key}`);
+            if (formData.has("survey:respondentAge")) {
+              const age = optionalString(formData, "survey:respondentAge");
+              if (
+                age &&
+                (!Number.isInteger(Number(age)) ||
+                  Number(age) < 0 ||
+                  Number(age) > 130)
+              )
+                throw new Error("Enter a valid respondent age.");
+              data.respondentAge = age ? Number(age) : null;
+            }
+            if (formData.has("survey:surveyDate"))
+              data.surveyDate = optionalString(formData, "survey:surveyDate")
+                ? parseDate(requiredString(formData, "survey:surveyDate"))
+                : null;
+            const serviceVisit = await tx.visit.findUniqueOrThrow({ where: { id: visitId }, include: { requests: true, medicines: true, vaccinations: true, referrals: true, followUps: true } });
+            data.serviceAvailed = getAvailedServiceLabels(serviceVisit).join(", ");
+            changes.survey = {
+              before: survey,
+              after: await tx.clientSatisfactionSurvey.update({
+                where: { visitId },
+                data,
+              }),
+            };
+          }
+          // The audit entry is committed with the correction: if logging fails, no correction is saved.
+          await tx.activityLog.create({
+            data: {
+              clinicId: user.clinicId,
+              userId: user.id,
+              module: "Patient Records",
+              action: "Correct completed visit",
+              entityType: "Visit",
+              entityId: visitId,
+              description: `Corrected completed visit: ${reason}`,
+              metadata: JSON.parse(JSON.stringify({ reason, changes })),
+            },
+          });
+        },
+        { timeout: 20000 },
+      );
+    },
+    { type: "Visit", id: visitId },
+  );
+  revalidatePath(`/patients/${patientId}`);
+  revalidatePath("/inventory");
+  revalidatePath("/reports", "layout");
+  revalidatePath("/todays-patients");
+  redirect(`/patients/${patientId}?visitId=${visitId}`);
 }

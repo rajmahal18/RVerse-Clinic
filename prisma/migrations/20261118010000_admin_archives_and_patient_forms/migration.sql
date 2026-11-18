@@ -1,0 +1,14 @@
+ALTER TABLE "User" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Patient" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "VisitRequest" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "MedicineRequest" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "LabResult" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Referral" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "VaccinationRecord" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "FollowUp" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "InventoryItem" ADD COLUMN "deletedAt" TIMESTAMP(3);
+ALTER TABLE "Patient" ADD COLUMN "vaccineHistoryEntries" JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE "Visit" ADD COLUMN "referralReason" TEXT;
+ALTER TABLE "VaccinationRecord" ADD COLUMN "administeredAt" TIMESTAMP(3);
+CREATE TABLE "ClinicServiceSetting" ("id" TEXT NOT NULL, "clinicId" TEXT NOT NULL, "type" "RequestType" NOT NULL, "isActive" BOOLEAN NOT NULL DEFAULT true, CONSTRAINT "ClinicServiceSetting_pkey" PRIMARY KEY ("id"), CONSTRAINT "ClinicServiceSetting_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE CASCADE ON UPDATE CASCADE);
+CREATE UNIQUE INDEX "ClinicServiceSetting_clinicId_type_key" ON "ClinicServiceSetting"("clinicId", "type");

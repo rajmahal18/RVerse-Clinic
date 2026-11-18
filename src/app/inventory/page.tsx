@@ -1,3 +1,4 @@
+import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import { InventoryCategory } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
@@ -25,21 +26,46 @@ function categorySupportsExpiry(category: string) {
 export default async function InventoryPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string; month?: string; expiry?: string; sort?: string; category?: string; error?: string; message?: string }>;
+  searchParams?: Promise<{
+    q?: string;
+    month?: string;
+    expiry?: string;
+    sort?: string;
+    category?: string;
+    error?: string;
+    message?: string;
+  }>;
 }) {
+  const user = await getCurrentUser();
   const resolvedSearchParams = await searchParams;
   const searchQuery = resolvedSearchParams?.q?.trim() ?? "";
   const selectedMonth = resolvedSearchParams?.month?.trim() ?? "";
   const requestedSort = resolvedSearchParams?.sort?.trim() ?? "name_asc";
-  const selectedCategory = inventoryCategories.some((category) => category.value === resolvedSearchParams?.category)
-    ? resolvedSearchParams?.category ?? InventoryCategory.MEDICINE
+  const selectedCategory = inventoryCategories.some(
+    (category) => category.value === resolvedSearchParams?.category,
+  )
+    ? (resolvedSearchParams?.category ?? InventoryCategory.MEDICINE)
     : InventoryCategory.MEDICINE;
-  const expiryFilter = categorySupportsExpiry(selectedCategory) ? resolvedSearchParams?.expiry?.trim() ?? "all" : "all";
-  const medicineLike = selectedCategory === InventoryCategory.MEDICINE || selectedCategory === InventoryCategory.VACCINE;
-  const sort = (!categorySupportsExpiry(selectedCategory) && requestedSort.startsWith("expiry_")) || (!medicineLike && ["brand_asc", "classification_asc"].includes(requestedSort))
-    ? "name_asc"
-    : requestedSort;
-  const ledger = await getInventoryLedgerData(searchQuery, selectedMonth, expiryFilter, sort, selectedCategory);
+  const expiryFilter = categorySupportsExpiry(selectedCategory)
+    ? (resolvedSearchParams?.expiry?.trim() ?? "all")
+    : "all";
+  const medicineLike =
+    selectedCategory === InventoryCategory.MEDICINE ||
+    selectedCategory === InventoryCategory.VACCINE;
+  const sort =
+    (!categorySupportsExpiry(selectedCategory) &&
+      requestedSort.startsWith("expiry_")) ||
+    (!medicineLike &&
+      ["brand_asc", "classification_asc"].includes(requestedSort))
+      ? "name_asc"
+      : requestedSort;
+  const ledger = await getInventoryLedgerData(
+    searchQuery,
+    selectedMonth,
+    expiryFilter,
+    sort,
+    selectedCategory,
+  );
 
   return (
     <AppShell>
@@ -51,16 +77,29 @@ export default async function InventoryPage({
               action="/inventory"
               initialQuery={searchQuery}
               placeholder="Search item"
-              preserveParams={{ month: selectedMonth, expiry: expiryFilter, sort, category: selectedCategory }}
+              preserveParams={{
+                month: selectedMonth,
+                expiry: expiryFilter,
+                sort,
+                category: selectedCategory,
+              }}
             />
             <AddInventoryItemModal action={createInventoryItemAction} />
           </>
         }
       />
-      <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
-      <nav className="mb-4 flex max-w-full gap-1 overflow-x-auto border-b" aria-label="Inventory categories">
+      <ActionAlert
+        error={resolvedSearchParams?.error}
+        message={resolvedSearchParams?.message}
+      />
+      <nav
+        className="mb-4 flex max-w-full gap-1 overflow-x-auto border-b"
+        aria-label="Inventory categories"
+      >
         {inventoryCategories.map((category) => {
-          const nextExpiry = categorySupportsExpiry(category.value) ? expiryFilter : "all";
+          const nextExpiry = categorySupportsExpiry(category.value)
+            ? expiryFilter
+            : "all";
           const href = `/inventory?${new URLSearchParams({
             ...(searchQuery ? { q: searchQuery } : {}),
             ...(selectedMonth ? { month: selectedMonth } : {}),
@@ -84,7 +123,13 @@ export default async function InventoryPage({
           );
         })}
       </nav>
-      <InventoryTable ledger={ledger} searchQuery={searchQuery} />
+      <InventoryTable canDelete={user?.role === "ADMIN"}
+        canManageAvailability={
+          user?.role === "ADMIN" || user?.role === "PHARMACIST"
+        }
+        ledger={ledger}
+        searchQuery={searchQuery}
+      />
     </AppShell>
   );
 }

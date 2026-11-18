@@ -1,4 +1,5 @@
 "use client";
+import { RecordAction } from "@/components/admin/record-action";
 
 import { useMemo, useState } from "react";
 import { CheckCircle2, CircleOff, X } from "lucide-react";
@@ -257,6 +258,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
             </div>
             <div className="border-t bg-white p-4">
               <ToggleAccountForm user={selectedUser} compact />
+              <div className="mt-3"><RecordAction kind="User" recordId={selectedUser.id} label={selectedUser.name} summary="Sign-in access and existing sessions will end. The account name, previous entries, and audit logs remain linked to the original account. Your own account and the last active admin cannot be deleted." returnTo="/accounts" /></div>
             </div>
           </div>
         </div>

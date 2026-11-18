@@ -1,3 +1,5 @@
+import { MaintenanceField, VaccineHistoryFields } from "./medical-history-fields";
+import type { VaccineHistoryEntry } from "@/lib/patient-medical-info";
 import { PatientGender } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { MeasurementFields } from "@/components/patients/measurement-fields";
@@ -22,6 +24,7 @@ type PatientFormValues = {
   primaryContactNo?: string;
   medicalHistory?: string;
   vaccineHistory?: string;
+  vaccineHistoryEntries?: VaccineHistoryEntry[];
   allergy?: string;
   maintenance?: string;
   additionalMedicalInformation?: string;
@@ -140,8 +143,8 @@ export function PatientForm({
           values?.primaryContactNo,
         ],
         ["allergy", "Allergy", values?.allergy],
-        ["maintenance", "Maintenance", values?.maintenance],
-        ["vaccineHistory", "Vaccine History", values?.vaccineHistory],
+
+
         ["medicalHistory", "Medical History", values?.medicalHistory],
         ["additionalMedicalInformation", "Additional Medical Information", values?.additionalMedicalInformation],
       ].map(([name, label, fieldValue]) => (
@@ -151,6 +154,8 @@ export function PatientForm({
         </label>
       ))}
 
+      <MaintenanceField initialValue={values?.maintenance} />
+      <VaccineHistoryFields initialEntries={values?.vaccineHistoryEntries} legacyHistory={values?.vaccineHistory} />
       <div className="flex justify-end border-t pt-4 md:col-span-2">
         <Button type="submit">{submitLabel}</Button>
       </div>

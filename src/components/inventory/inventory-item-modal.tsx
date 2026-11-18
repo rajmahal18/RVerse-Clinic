@@ -1,8 +1,10 @@
 "use client";
+import { RecordAction } from "@/components/admin/record-action";
+import { setMedicineVisibilityAction } from "@/app/actions/workflow";
 
 import type { InventoryTableRow } from "@/lib/patient-view";
-import { AlertTriangle, PackagePlus, PencilLine, Trash2, X } from "lucide-react";
-import { addInventoryQuantityAction, deductInventoryQuantityAction, deleteInventoryItemAction, updateInventoryItemAction } from "@/app/actions/workflow";
+import { AlertTriangle, PackagePlus, PencilLine, X } from "lucide-react";
+import { addInventoryQuantityAction, deductInventoryQuantityAction, updateInventoryItemAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
 import { Button } from "@/components/ui/button";
 
@@ -12,28 +14,91 @@ function stockTone(status: string) {
   return "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200";
 }
 
-export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow; onClose: () => void }) {
-  const medicineLike = item.category === "Medicine" || item.category === "Vaccine";
+export function InventoryItemModal({
+  item,
+  onClose,
+  canManageAvailability = false,
+  canDelete = false,
+}: {
+  canManageAvailability?: boolean;
+  canDelete?: boolean;
+  item: InventoryTableRow;
+  onClose: () => void;
+}) {
+  const medicineLike =
+    item.category === "Medicine" || item.category === "Vaccine";
   const supportsExpiry = medicineLike || item.category === "Medical Supplies";
-  const equipmentLike = item.category === "Medical Equipment" || item.category === "Ambulance Supplies";
+  const equipmentLike =
+    item.category === "Medical Equipment" ||
+    item.category === "Ambulance Supplies";
   const editableFields = [
-    ...(!medicineLike ? [["itemCode", "Item code", item.itemCode === "—" ? "" : item.itemCode]] : []),
-    ["name", medicineLike ? (item.category === "Vaccine" ? "Vaccine name" : "Generic name") : "Item name", item.item],
+    ...(!medicineLike
+      ? [["itemCode", "Item code", item.itemCode === "—" ? "" : item.itemCode]]
+      : []),
+    [
+      "name",
+      medicineLike
+        ? item.category === "Vaccine"
+          ? "Vaccine name"
+          : "Generic name"
+        : "Item name",
+      item.item,
+    ],
     ...(medicineLike
       ? [
-          ["dosage", "Dosage", item.dosage === "—" || item.dosage === "-" ? "" : item.dosage],
-          ["brandName", "Brand", item.brandName === "—" || item.brandName === "-" ? "" : item.brandName],
+          [
+            "dosage",
+            "Dosage",
+            item.dosage === "—" || item.dosage === "-" ? "" : item.dosage,
+          ],
+          [
+            "brandName",
+            "Brand",
+            item.brandName === "—" || item.brandName === "-"
+              ? ""
+              : item.brandName,
+          ],
           ["classification", "Classification", item.classification],
         ]
-      : item.category === "Medical Supplies" || item.category === "Medical Equipment" ? [["brandName", "Brand", item.brandName === "—" ? "" : item.brandName]] : []),
-    ...(item.category === "Office Supplies" ? [["itemDescription", "Item description", item.itemDescription === "—" ? "" : item.itemDescription]] : []),
-    ...(!medicineLike ? [["location", "Location", item.location === "—" ? "" : item.location], ["remarks", "Remarks", item.remarks === "—" ? "" : item.remarks]] : []),
+      : item.category === "Medical Supplies" ||
+          item.category === "Medical Equipment"
+        ? [["brandName", "Brand", item.brandName === "—" ? "" : item.brandName]]
+        : []),
+    ...(item.category === "Office Supplies"
+      ? [
+          [
+            "itemDescription",
+            "Item description",
+            item.itemDescription === "—" ? "" : item.itemDescription,
+          ],
+        ]
+      : []),
+    ...(!medicineLike
+      ? [
+          ["location", "Location", item.location === "—" ? "" : item.location],
+          ["remarks", "Remarks", item.remarks === "—" ? "" : item.remarks],
+        ]
+      : []),
     ["unit", "Stock unit", item.unit],
-    ...(!equipmentLike ? [["pcsPerBox", "Qty per box", item.pcsPerBox === "—" || item.pcsPerBox === "-" ? "" : item.pcsPerBox], ["reorderLevel", "Low-stock threshold", String(item.reorder)]] : []),
+    ...(!equipmentLike
+      ? [
+          [
+            "pcsPerBox",
+            "Qty per box",
+            item.pcsPerBox === "—" || item.pcsPerBox === "-"
+              ? ""
+              : item.pcsPerBox,
+          ],
+          ["reorderLevel", "Low-stock threshold", String(item.reorder)],
+        ]
+      : []),
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
@@ -44,22 +109,60 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
         <div className="flex items-start justify-between gap-4 border-b px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 id="inventory-item-title" className="truncate text-lg font-black text-slate-900">{item.item}</h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">{item.category}</span>
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}>{equipmentLike ? item.functionalStatus : item.status}</span>
+              <h2
+                id="inventory-item-title"
+                className="truncate text-lg font-black text-slate-900"
+              >
+                {item.item}
+              </h2>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                {item.category}
+              </span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-black ${stockTone(equipmentLike && item.functionalStatus === "NF" ? "Out of stock" : item.status)}`}
+              >
+                {equipmentLike ? item.functionalStatus : item.status}
+              </span>
             </div>
             <p className="mt-1 text-sm text-slate-500">
               {medicineLike
-                ? [item.dosage, item.brandName, supportsExpiry ? `Expires ${item.expirationDate}` : ""].filter((part) => part && part !== "—" && part !== "-").join(" / ")
-                : [item.unit, item.pcsPerBox !== "—" ? `${item.pcsPerBox} pcs/box` : "", supportsExpiry && item.expirationDate !== "—" ? `Expires ${item.expirationDate}` : ""].filter(Boolean).join(" / ")}
+                ? [
+                    item.dosage,
+                    item.brandName,
+                    supportsExpiry ? `Expires ${item.expirationDate}` : "",
+                  ]
+                    .filter((part) => part && part !== "—" && part !== "-")
+                    .join(" / ")
+                : [
+                    item.unit,
+                    item.pcsPerBox !== "—" ? `${item.pcsPerBox} pcs/box` : "",
+                    supportsExpiry && item.expirationDate !== "—"
+                      ? `Expires ${item.expirationDate}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" / ")}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <div className="hidden text-right sm:block">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Current stock</p>
-              <p className="text-base font-black text-slate-900">{item.stock} <span className="text-xs font-semibold text-slate-500">{item.unit}</span></p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                Current stock
+              </p>
+              <p className="text-base font-black text-slate-900">
+                {item.stock}{" "}
+                <span className="text-xs font-semibold text-slate-500">
+                  {item.unit}
+                </span>
+              </p>
             </div>
-            <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close inventory item">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              aria-label="Close inventory item"
+            >
               <X className="h-5 w-5" />
             </Button>
           </div>
@@ -69,101 +172,266 @@ export function InventoryItemModal({ item, onClose }: { item: InventoryTableRow;
           {item.status !== "Healthy" ? (
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{item.status === "Out of stock" ? "This item is currently out of stock." : `Stock is at or below the reorder threshold of ${item.reorder} ${item.unit}.`}</span>
+              <span>
+                {item.status === "Out of stock"
+                  ? "This item is currently out of stock."
+                  : `Stock is at or below the reorder threshold of ${item.reorder} ${item.unit}.`}
+              </span>
             </div>
           ) : null}
 
+          {canManageAvailability && item.category === "Medicine" && (
+            <section className="rounded-lg border p-3">
+              <h3 className="font-bold">Patient medicine requests</h3>
+              <p className="my-2 text-sm">
+                {item.isRequestable
+                  ? "This batch is allowed in new requests."
+                  : "This batch is hidden from new requests."}{" "}
+                Allow the batch with the nearest expiration first. Existing
+                requests and history are retained.
+              </p>
+              <form action={setMedicineVisibilityAction}>
+                <CsrfField />
+                <input type="hidden" name="itemId" value={item.id} />
+                <input
+                  type="hidden"
+                  name="isRequestable"
+                  value={String(!item.isRequestable)}
+                />
+                <Button type="submit" variant="outline">
+                  {item.isRequestable
+                    ? "Hide batch from requests"
+                    : "Allow batch in requests"}
+                </Button>
+              </form>
+            </section>
+          )}
           <section className="overflow-hidden rounded-xl border">
             <div className="flex items-center gap-2 border-b bg-emerald-50/60 px-3 py-2.5">
               <PackagePlus className="h-4 w-4 text-emerald-700" />
               <div>
                 <h3 className="text-sm font-black text-slate-900">Add stock</h3>
-                <p className="text-xs text-slate-500 sm:hidden">Current: {item.stock} {item.unit}</p>
+                <p className="text-xs text-slate-500 sm:hidden">
+                  Current: {item.stock} {item.unit}
+                </p>
               </div>
             </div>
-            <form action={addInventoryQuantityAction} className="grid gap-3 p-3 sm:grid-cols-2 sm:items-end">
+            <form
+              action={addInventoryQuantityAction}
+              className="grid gap-3 p-3 sm:grid-cols-2 sm:items-end"
+            >
               <CsrfField />
               <input type="hidden" name="itemId" value={item.id} />
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Quantity
-                <input name="quantity" type="number" min="1" step="1" required className="h-10 rounded-xl border bg-white px-3 font-normal" />
+                <input
+                  name="quantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  className="h-10 rounded-xl border bg-white px-3 font-normal"
+                />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Box quantity
-                <input name="boxQuantity" type="number" min="0" step="1" defaultValue="0" className="h-10 rounded-xl border bg-white px-3 font-normal" />
+                <input
+                  name="boxQuantity"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue="0"
+                  className="h-10 rounded-xl border bg-white px-3 font-normal"
+                />
               </label>
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
                 Entry type
-                <select name="stockEntryType" defaultValue="RECEIVED" className="h-10 rounded-xl border bg-white px-3 font-normal">
+                <select
+                  name="stockEntryType"
+                  defaultValue="RECEIVED"
+                  className="h-10 rounded-xl border bg-white px-3 font-normal"
+                >
                   <option value="RECEIVED">New stock received</option>
-                  <option value="ENCODED_EXISTING">Existing stock encoded</option>
+                  <option value="ENCODED_EXISTING">
+                    Existing stock encoded
+                  </option>
                 </select>
               </label>
-              <Button className="sm:col-span-2 sm:justify-self-end"><PackagePlus className="h-4 w-4" /> Add</Button>
+              <Button className="sm:col-span-2 sm:justify-self-end">
+                <PackagePlus className="h-4 w-4" /> Add
+              </Button>
             </form>
           </section>
 
-          {!equipmentLike ? <section className="mt-5 border-t pt-4">
-            <h3 className="text-sm font-bold text-slate-900">Deduct stock</h3>
-            <p className="mt-1 text-xs text-slate-500">For damaged, expired, lost, or corrected stock. Medicine releases already deduct automatically.</p>
-            <form action={deductInventoryQuantityAction} className="mt-3 grid gap-3 sm:grid-cols-2">
-              <CsrfField /><input type="hidden" name="itemId" value={item.id} />
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">Unit quantity<input name="quantity" type="number" min="0" max={item.stock} step="1" defaultValue="0" required className="h-10 rounded-xl border px-3 font-normal" /></label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700">Box quantity<input name="boxQuantity" type="number" min="0" max={item.boxStock} step="1" defaultValue="0" className="h-10 rounded-xl border px-3 font-normal" /></label>
-              <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">Reason<textarea name="reason" required maxLength={500} placeholder="e.g. Expired stock removed" className="min-h-20 rounded-xl border px-3 py-2 font-normal" /></label>
-              <Button type="submit" variant="outline" disabled={item.stock <= 0 && item.boxStock <= 0} className="text-rose-700 sm:col-span-2 sm:justify-self-end">Record deduction</Button>
-            </form>
-          </section> : null}
+          {!equipmentLike ? (
+            <section className="mt-5 border-t pt-4">
+              <h3 className="text-sm font-bold text-slate-900">Deduct stock</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                For damaged, expired, lost, or corrected stock. Medicine
+                releases already deduct automatically.
+              </p>
+              <form
+                action={deductInventoryQuantityAction}
+                className="mt-3 grid gap-3 sm:grid-cols-2"
+              >
+                <CsrfField />
+                <input type="hidden" name="itemId" value={item.id} />
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                  Unit quantity
+                  <input
+                    name="quantity"
+                    type="number"
+                    min="0"
+                    max={item.stock}
+                    step="1"
+                    defaultValue="0"
+                    required
+                    className="h-10 rounded-xl border px-3 font-normal"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                  Box quantity
+                  <input
+                    name="boxQuantity"
+                    type="number"
+                    min="0"
+                    max={item.boxStock}
+                    step="1"
+                    defaultValue="0"
+                    className="h-10 rounded-xl border px-3 font-normal"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-semibold text-slate-700 sm:col-span-2">
+                  Reason
+                  <textarea
+                    name="reason"
+                    required
+                    maxLength={500}
+                    placeholder="e.g. Expired stock removed"
+                    className="min-h-20 rounded-xl border px-3 py-2 font-normal"
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={item.stock <= 0 && item.boxStock <= 0}
+                  className="text-rose-700 sm:col-span-2 sm:justify-self-end"
+                >
+                  Record deduction
+                </Button>
+              </form>
+            </section>
+          ) : null}
 
           <section className="mt-4 overflow-hidden rounded-xl border">
             <div className="flex items-center gap-2 border-b bg-slate-50 px-3 py-2.5">
               <PencilLine className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-black text-slate-900">Item details</h3>
+              <h3 className="text-sm font-black text-slate-900">
+                Item details
+              </h3>
             </div>
-            <form action={updateInventoryItemAction} className="grid gap-3 p-3 sm:grid-cols-2">
+            <form
+              action={updateInventoryItemAction}
+              className="grid gap-3 p-3 sm:grid-cols-2"
+            >
               <CsrfField />
               <input type="hidden" name="itemId" value={item.id} />
               {editableFields.map(([name, label, value]) => (
-                <label key={name} className="grid gap-1 text-sm font-semibold text-slate-700">
+                <label
+                  key={name}
+                  className="grid gap-1 text-sm font-semibold text-slate-700"
+                >
                   {label}
-                  <input name={name} defaultValue={value} className="h-10 rounded-xl border px-3 font-normal" />
+                  <input
+                    name={name}
+                    defaultValue={value}
+                    className="h-10 rounded-xl border px-3 font-normal"
+                  />
                 </label>
               ))}
               {supportsExpiry ? (
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                  Expiration date{!medicineLike ? <span className="font-normal text-slate-400"> (optional)</span> : null}
-                  <input name="expirationDate" type="date" defaultValue={item.expirationDateValue} className="h-10 rounded-xl border px-3 font-normal" />
+                  Expiration date
+                  {!medicineLike ? (
+                    <span className="font-normal text-slate-400">
+                      {" "}
+                      (optional)
+                    </span>
+                  ) : null}
+                  <input
+                    name="expirationDate"
+                    type="date"
+                    defaultValue={item.expirationDateValue}
+                    className="h-10 rounded-xl border px-3 font-normal"
+                  />
                 </label>
               ) : null}
-              {equipmentLike ? <>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">Physical count<input name="physicalCount" type="number" min="0" step="1" defaultValue={item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">Functional units<input name="functionalCount" type="number" min="0" step="1" defaultValue={item.functionalCount ?? item.physicalCount ?? item.stock} className="h-10 rounded-xl border px-3 font-normal" required /></label>
-                <p className="text-xs text-slate-500 sm:col-span-2">Working units cannot exceed the total units available.</p>
-              </> : null}
+              {equipmentLike ? (
+                <>
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                    Physical count
+                    <input
+                      name="physicalCount"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={item.physicalCount ?? item.stock}
+                      className="h-10 rounded-xl border px-3 font-normal"
+                      required
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                    Functional units
+                    <input
+                      name="functionalCount"
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={
+                        item.functionalCount ?? item.physicalCount ?? item.stock
+                      }
+                      className="h-10 rounded-xl border px-3 font-normal"
+                      required
+                    />
+                  </label>
+                  <p className="text-xs text-slate-500 sm:col-span-2">
+                    Working units cannot exceed the total units available.
+                  </p>
+                </>
+              ) : null}
               <div className="flex justify-end border-t pt-3 sm:col-span-2">
                 <Button type="submit">Save changes</Button>
               </div>
             </form>
           </section>
 
-          {item.movements?.length ? <details className="mt-5 border-t pt-4"><summary className="cursor-pointer text-sm font-bold text-slate-900">Recent stock movements</summary><div className="mt-2 divide-y">{item.movements.map(movement => <div key={movement.id} className="py-3 text-sm"><p className="font-semibold">{movement.quantity > 0 ? "+" : ""}{movement.quantity} {item.unit}{movement.boxQuantity ? ` / ${movement.boxQuantity > 0 ? "+" : ""}${movement.boxQuantity} boxes` : ""}</p><p className="whitespace-pre-wrap break-words text-slate-600">{movement.reason}</p><p className="mt-1 text-xs text-slate-500">{movement.date}</p></div>)}</div></details> : null}
-          <form
-            action={deleteInventoryItemAction}
-            className="mt-4 flex items-center justify-between gap-4 border-t pt-4"
-            onSubmit={(event) => {
-              if (!window.confirm("Delete this inventory batch? Its stock movement history will also be deleted.")) event.preventDefault();
-            }}
-          >
-            <CsrfField />
-            <input type="hidden" name="itemId" value={item.id} />
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-800">Delete inventory item</p>
-              <p className="text-xs text-slate-500">Its stock movement history will also be deleted.</p>
-            </div>
-            <Button type="submit" variant="outline" className="shrink-0 border-rose-200 text-rose-700 hover:bg-rose-50">
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          </form>
+          {item.movements?.length ? (
+            <details className="mt-5 border-t pt-4">
+              <summary className="cursor-pointer text-sm font-bold text-slate-900">
+                Recent stock movements
+              </summary>
+              <div className="mt-2 divide-y">
+                {item.movements.map((movement) => (
+                  <div key={movement.id} className="py-3 text-sm">
+                    <p className="font-semibold">
+                      {movement.quantity > 0 ? "+" : ""}
+                      {movement.quantity} {item.unit}
+                      {movement.boxQuantity
+                        ? ` / ${movement.boxQuantity > 0 ? "+" : ""}${movement.boxQuantity} boxes`
+                        : ""}
+                    </p>
+                    <p className="whitespace-pre-wrap break-words text-slate-600">
+                      {movement.reason}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {movement.date}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          {canDelete && <div className="mt-4 border-t pt-4"><RecordAction kind="InventoryItem" recordId={item.id} label={item.item} summary={`Current stock: ${item.stock} ${item.unit}. Pending requests: ${item.pendingRequestCount ?? 0}. This batch will disappear from normal inventory and new request options. Existing movements and linked requests are retained, including pending requests. Review pending requests in Item Requests before deleting.`} returnTo="/inventory" /></div>}
         </div>
       </div>
     </div>

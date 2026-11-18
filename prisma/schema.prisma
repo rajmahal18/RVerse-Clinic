@@ -82,9 +82,12 @@ model Clinic {
   activityLogs   ActivityLog[]
   vaccineCatalog VaccineCatalog[]
   diseaseCatalog DiseaseCatalog[]
+  chiefComplaints ChiefComplaintCatalog[]
+  serviceSettings ClinicServiceSetting[]
 }
 
 model User {
+  deletedAt DateTime?
   id           String   @id @default(cuid())
   clinicId     String
   name         String
@@ -145,6 +148,7 @@ model PatientFormNumber {
 }
 
 model Patient {
+  deletedAt DateTime?
   id          String        @id @default(cuid())
   patientNumber String      @unique
   clinicId    String
@@ -164,6 +168,7 @@ model Patient {
   primaryContactNo String?
   medicalHistory String?
   vaccineHistory String?
+  vaccineHistoryEntries Json @default("[]")
   allergy String?
   maintenance String?
   additionalMedicalInformation String?
@@ -182,6 +187,7 @@ model Visit {
   timeIn          DateTime
   timeOut         DateTime?
   chiefComplaint  String?
+  referralReason String?
   bloodPressure   String?
   rbs             String?
   temperature     String?
@@ -232,6 +238,7 @@ model FormDraft {
 }
 
 model VisitRequest {
+  deletedAt DateTime?
   id        String      @id @default(cuid())
   visitId   String
   type      RequestType
@@ -245,6 +252,7 @@ model VisitRequest {
 }
 
 model MedicineRequest {
+  deletedAt DateTime?
   id              String    @id @default(cuid())
   visitId         String?
   inventoryItemId String?
@@ -272,6 +280,7 @@ model MedicineRequest {
 }
 
 model LabResult {
+  deletedAt DateTime?
   id                 String        @id @default(cuid())
   visitId            String
   followUpId         String?
@@ -337,6 +346,7 @@ model ClientSatisfactionSurvey {
 }
 
 model Referral {
+  deletedAt DateTime?
   id                String   @id @default(cuid())
   visitId           String
   medicalHistory    String?
@@ -350,6 +360,8 @@ model Referral {
 }
 
 model VaccinationRecord {
+  administeredAt DateTime?
+  deletedAt DateTime?
   id        String    @id @default(cuid())
   visitId   String
   vaccine   String
@@ -403,6 +415,7 @@ enum FollowUpStatus {
 }
 
 model FollowUp {
+  deletedAt DateTime?
   id           String         @id @default(cuid())
   visitId      String
   scheduledFor DateTime
@@ -419,6 +432,7 @@ model FollowUp {
 }
 
 model InventoryItem {
+  deletedAt DateTime?
   id             String            @id @default(cuid())
   clinicId       String
   name           String
@@ -434,6 +448,7 @@ model InventoryItem {
   batchKey       String            @default(cuid())
   category       InventoryCategory
   stock          Int               @default(0)
+  isRequestable  Boolean           @default(true)
   boxStock       Int               @default(0)
   physicalCount  Int?
   functionalCount Int?
@@ -453,6 +468,14 @@ model InventoryItem {
   @@index([expirationDate])
 }
 
+model ChiefComplaintCatalog {
+  id String @id @default(cuid())
+  clinicId String
+  name String
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  @@unique([clinicId, name])
+}
+
 model InventoryMovement {
   id                String   @id @default(cuid())
   inventoryItemId   String
@@ -469,4 +492,13 @@ model InventoryMovement {
 
   @@index([inventoryItemId, createdAt])
   @@index([medicineRequestId])
+}
+
+model ClinicServiceSetting {
+  id String @id @default(cuid())
+  clinicId String
+  type RequestType
+  isActive Boolean @default(true)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  @@unique([clinicId, type])
 }

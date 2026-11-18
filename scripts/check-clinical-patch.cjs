@@ -83,10 +83,11 @@ async function main() {
           ? requests.filter((r) =>
               ["MEDICINES", "REFERRAL", "VACCINATION"].includes(r.type),
             )
-          : requests.filter((r) => where.type.in.includes(r.type)),
+          : requests.filter((r) => !where.type?.in || where.type.in.includes(r.type)),
       deleteMany: async ({ where }) => {
         requests = requests.filter((r) => where.type.notIn.includes(r.type));
       },
+      upsert: async ({create}) => { if (!requests.some(r => r.type === create.type)) requests.push(create); return create; },
       createMany: async ({ data }) => {
         requests.push(...data);
       },
@@ -96,6 +97,7 @@ async function main() {
         requests.push(data);
       },
     },
+    activityLog: { create: async ({data}) => { logs.push(data); return data; } },
     formDraft: {
       upsert: async ({ create }) => {
         draft = create;
@@ -160,6 +162,7 @@ async function main() {
         logs.push(log);
       },
     },
+    "@/lib/service-settings": { requireAvailableServices: async()=>{}, requireServiceForVisit: async()=>{} },
     "@/lib/visit-fields": fields,
     "@/lib/diagnoses": diagnosisLib,
     "@/lib/action-feedback": {
@@ -209,10 +212,10 @@ async function main() {
       patientId: "patient-a",
       visitId: "visit-a",
       status: "IN_PROGRESS",
-      requestTypes: "CONSULTATION",
+      requestTypes: requests.map(r => r.type),
       ...values,
     }))
-      data.set(key, value);
+      for (const item of Array.isArray(value) ? value : [value]) data.append(key,item);
     return data;
   }
   async function run(action, values, expectedError) {
@@ -246,8 +249,20 @@ async function main() {
     { bloodPressure: "invalid" },
     "valid blood pressure",
   );
-  await run(actions.startVisitAction, { bloodPressure: "120/80" });
+  await run(
+    actions.startVisitAction,
+    { bloodPressure: "120/80" },
+    "chief complaint",
+  );
+  assert.equal(visit.status, "QUEUED");
+  await run(actions.startVisitAction, {
+    bloodPressure: "120/80",
+    chiefComplaint: "Cough",
+  });
   assert.equal(visit.status, "IN_PROGRESS");
+  visit.updatedAt = new Date("2026-11-18T00:00:00Z");
+  await run(actions.updateVisitAction, {visitVersion:"outdated",bloodPressure:"130/80"}, "changed while you were editing");
+  assert.equal(visit.bloodPressure,"120/80");
   await run(
     actions.startVisitAction,
     { bloodPressure: "120/80" },
@@ -343,15 +358,15 @@ async function main() {
   });
   assert.equal(visit.bloodPressure, "120/80");
   assert.ok(logs.some((log) => log.metadata?.changes?.bloodPressure));
-  await run(actions.deleteAppointmentAction, {}, "Only queued or cancelled");
+  await run(actions.deleteAppointmentAction, {reason:"Duplicate",acknowledge:"true"}, "Only queued or cancelled");
   reset();
   user.role = "NURSE";
   await run(actions.deleteAppointmentAction, {}, "permission");
   assert.equal(visit.deletedAt, null);
   user.role = "ADMIN";
-  await run(actions.deleteAppointmentAction, {});
+  await run(actions.deleteAppointmentAction, {reason:"Duplicate",acknowledge:"true"});
   assert.ok(visit.deletedAt);
-  assert.equal(visit.status, "CANCELLED");
+  assert.equal(visit.status, "QUEUED");
   reset();
   visit.patient.clinicId = "clinic-b";
   await run(actions.startVisitAction, { bloodPressure: "120/80" }, "not found");
@@ -370,10 +385,10 @@ async function main() {
   await run(actions.markDoctorSectionDoneAction, {
     doctorSection: "progressNotes",
     progressNotes: "Doctor assessment",
-    requestTypes: "BP_CHECKING",
+    requestTypes: ["CONSULTATION", "BP_CHECKING"],
   });
   assert.ok(requests.some((r) => r.type === "BP_CHECKING"));
-  assert.ok(!requests.some((r) => r.type === "CONSULTATION"));
+  assert.ok(requests.some((r) => r.type === "CONSULTATION"));
   await run(actions.updateVisitAction, {
     diagnosisSelections: JSON.stringify([
       { diseaseId: "disease-a", status: "TO_CONSIDER" },

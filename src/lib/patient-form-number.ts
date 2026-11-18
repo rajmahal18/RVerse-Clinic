@@ -56,7 +56,7 @@ export async function findPatientByFormCode(code: string, clinicId: string) {
   const [patient] = await prisma.$queryRaw<{ id: string; createdAt: Date }[]>`
     SELECT p."id", p."createdAt" FROM "Patient" p
     JOIN "PatientFormNumber" n ON n."patientId" = p."id"
-    WHERE n."number" = ${number} AND p."clinicId" = ${clinicId}
+    WHERE n."number" = ${number} AND p."clinicId" = ${clinicId} AND p."deletedAt" IS NULL
   `;
   return patient && formatPatientFormCode(patient.createdAt, number) === normalized ? patient.id : null;
 }

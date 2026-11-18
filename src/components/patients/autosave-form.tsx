@@ -81,9 +81,14 @@ export function AutosaveForm({
         } catch {
           /* Server drafts work without browser storage. */
         }
+        if (draftKey === "survey") delete values.serviceAvailed;
+        if (draftKey === "visit" && values.requestTypes && result.removedRequestTypes?.length) {
+          values.requestTypes = values.requestTypes.filter(type => !result.removedRequestTypes.includes(type));
+        }
         if (draftKey === "visit")
           for (const field of [
             "chiefComplaint",
+            "referralReason",
             "bloodPressure",
             "temperature",
             "pulseRate",
@@ -112,6 +117,7 @@ export function AutosaveForm({
                 element instanceof HTMLSelectElement
               ) ||
               element.disabled ||
+              element.getAttribute("aria-disabled") === "true" ||
               !values[element.name]
             )
               continue;

@@ -37,6 +37,10 @@ function load(filename) {
 }
 
 async function main() {
+  patient.maintenance = "Maintenance A\nMaintenance B";
+  patient.vaccineHistoryEntries = [{vaccine:"COVID 19",dose:"Booster 1",date:"2026-11-18"},{vaccine:"HPV",dose:"2nd",date:"2026-10-01"}];
+  patient.visits.find(v => v.id === "past").referralReason = "Referral reason sample";
+  patient.visits.find(v => v.id === "past").diagnosisNotes = "Additional findings sample";
   patient.primaryContact = "Emergency contact";
   patient.primaryContactNo = "09992223333";
   patient.contactNo = "09171112222";
@@ -59,6 +63,13 @@ async function main() {
   assert.ok(!certificate.includes("LATEST diagnosis"));
   assert.equal(past.selectedVisit.chiefComplaint, "Custom complaint; Cough");
   const employee = renderToStaticMarkup(React.createElement(Template, { form: "employee-information", data: past }));
+  assert.ok(employee.includes("<li>Maintenance A</li>"));
+  assert.ok(employee.includes("Booster 1"));
+  assert.ok(employee.includes("2026-11-18"));
+  assert.ok(employee.includes("HPV"));
+  const referralHtml = renderToStaticMarkup(React.createElement(Template,{form:"referral-form",data:past}));
+  assert.match(referralHtml, /Reason for Referral<\/h2><p>Referral reason sample<\/p>/);
+  assert.match(referralHtml, /Remarks<\/h2><p>Additional findings sample<\/p>/);
   const primaryStart = employee.indexOf("Primary Contact");
   const primary = employee.slice(primaryStart, employee.indexOf("</table>", primaryStart));
   assert.ok(primary.includes("09992223333"));

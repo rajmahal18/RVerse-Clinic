@@ -1,3 +1,4 @@
+import { maintenanceLines } from "@/lib/patient-medical-info";
 import type { ClinicFormData, ClinicFormSlug } from "@/lib/clinic-forms";
 import { formatLongDate } from "@/lib/date-time";
 import { ResponsivePaper } from "@/components/clinic-forms/responsive-paper";
@@ -60,8 +61,10 @@ function Signatory({ name, position, className = "" }: { name: string; position:
 }
 
 function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
-  const covidVaccines = data.vaccinations.filter((record) => record.vaccine.toLowerCase().includes("covid")).slice(0, 4);
-  const otherVaccines = data.vaccinations.filter((record) => !record.vaccine.toLowerCase().includes("covid")).slice(0, 8);
+  const vaccineRows = data.vaccinations.length ? [...data.vaccinations] : [
+    {vaccine:"COVID 19",dose:"1",date:""},{vaccine:"COVID 19",dose:"2",date:""},{vaccine:"COVID 19",dose:"3",date:""},{vaccine:"COVID 19",dose:"Booster",date:""},{vaccine:"Flu",dose:"",date:""},{vaccine:"HPV",dose:"1st",date:""},{vaccine:"HPV",dose:"2nd",date:""},{vaccine:"HPV",dose:"3rd",date:""},{vaccine:"Pneumococcal",dose:"",date:""},{vaccine:"Others",dose:"",date:""}
+  ];
+  while (vaccineRows.length < 12) vaccineRows.push({ vaccine: "", dose: "", date: "" });
   const medicineLines = data.latestVisit?.medicines.length
     ? data.latestVisit.medicines
     : (data.selectedVisit?.medicines ?? []);
@@ -153,7 +156,7 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
           <table className="employee-vaccine-table">
             <tbody>
               <tr>
-                <td className="vaccine-strip" rowSpan={13}>
+                <td className="vaccine-strip" rowSpan={vaccineRows.length + 1}>
                   V<br />A<br />C<br />C<br />I<br />N<br />E<br />
                   <br />R<br />E<br />C<br />E<br />I<br />V<br />E<br />D
                 </td>
@@ -161,34 +164,10 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
                 <th>Dose</th>
                 <th>Date</th>
               </tr>
-              {covidDoseLabels.map((dose, index) => (
-                <tr key={dose}>
-                  {index === 0 ? (
-                    <td className="covid-cell" rowSpan={4}>
-                      COVID 19
-                    </td>
-                  ) : null}
-                  <td className="center">{dose}</td>
-                  <td>{covidVaccines[index]?.date ?? ""}</td>
-                </tr>
-              ))}
-              {Array.from({ length: 8 }, (_, index) => (
-                <tr key={index}>
-                  {index === 0 ? (
-                    <td className="others-cell" rowSpan={8}>
-                      *Others
-                    </td>
-                  ) : null}
-                  <td>{otherVaccines[index]?.dose ?? ""}</td>
-                  <td>
-                    {otherVaccines[index]
-                      ? `${otherVaccines[index].vaccine} ${otherVaccines[index].date}`
-                      : ""}
-                  </td>
-                </tr>
-              ))}
+              {vaccineRows.map((entry,index) => <tr key={index}><td>{entry.vaccine}</td><td className="center">{entry.dose}</td><td>{entry.date}</td></tr>)}
             </tbody>
           </table>
+          {data.patient.vaccineHistory && <p className="p-2 text-xs">Previous vaccine history: {data.patient.vaccineHistory}</p>}
           <div className="employee-box-title">Allergy History</div>
           <div className="employee-allergy-box">
             <p>Medicine/Drugs: {data.patient.allergy}</p>
@@ -196,9 +175,7 @@ function EmployeeInformationForm({ data }: { data: ClinicFormData }) {
           </div>
           <div className="employee-box-title">Maintenance Medicine/ Current Medication</div>
           <div className="employee-medication-box">
-            {medicineLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+            <ul className="list-disc pl-4">{(maintenanceLines(data.patient.maintenance).length ? maintenanceLines(data.patient.maintenance) : medicineLines).map((line,index) => <li key={index}>{line}</li>)}</ul>
           </div>
         </div>
         <div className="employee-right">
@@ -639,11 +616,11 @@ function ReferralForm({ data }: { data: ClinicFormData }) {
         </section>
         <section>
           <h2>Reason for Referral</h2>
-          <p>{value(referral?.reasonForReferral)}</p>
+          <p>{visit?.referralReason || value(referral?.reasonForReferral)}</p>
         </section>
         <section>
           <h2>Remarks</h2>
-          <p>{value(referral?.reasonForReferral)}</p>
+          <p>{visit?.diagnosisNotes}</p>
         </section>
       </div>
       <Signatory name={data.signatory.nurseName} position={data.signatory.nursePosition} className="referral-nurse" />
@@ -842,7 +819,7 @@ function ClientSatisfactionSurveyForm({ data }: { data: ClinicFormData }) {
           </span>
           <span>
             Service Availed:{" "}
-            <b>{survey?.serviceAvailed || visit?.services || ""}</b>
+            <b>{visit?.services ?? survey?.serviceAvailed ?? ""}</b>
           </span>
         </div>
         <p className="csm-instructions">

@@ -16,6 +16,7 @@ export const clinicalFields = [
 ] as const;
 export const visitFields = [
   "chiefComplaint",
+  "referralReason",
   "intakeNotes",
   ...vitalFields,
   ...clinicalFields,

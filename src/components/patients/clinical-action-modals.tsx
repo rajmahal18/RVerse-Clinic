@@ -5,7 +5,7 @@ import { useState } from "react";
 import { CalendarPlus, ClipboardPlus, Syringe, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CsrfField } from "@/components/security/csrf-field";
-import { MedicineScheduleFields } from "@/components/patients/medicine-schedule-fields";
+import { MedicineRequestLines } from "@/components/patients/medicine-request-lines";
 import { VaccinationFields } from "@/components/patients/vaccination-fields";
 import { formatDateKey } from "@/lib/date-time";
 
@@ -44,7 +44,17 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
   );
 }
 
-export function MedicineRequestModal({ action, patientId, visitId, inventoryOptions }: { action: Action; patientId: string; visitId: string; inventoryOptions: InventoryOption[] }) {
+export function MedicineRequestModal({
+  action,
+  patientId,
+  visitId,
+  inventoryOptions,
+}: {
+  action: Action;
+  patientId: string;
+  visitId: string;
+  inventoryOptions: InventoryOption[];
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -55,7 +65,8 @@ export function MedicineRequestModal({ action, patientId, visitId, inventoryOpti
       }
       {open ? (
         <Modal title="Medicine Request" onClose={() => setOpen(false)}>
-          <AutosaveForm visitId={visitId}
+          <AutosaveForm
+            visitId={visitId}
             draftKey="medicine"
             action={action}
             className="grid gap-3"
@@ -63,43 +74,7 @@ export function MedicineRequestModal({ action, patientId, visitId, inventoryOpti
             <CsrfField />
             <input type="hidden" name="patientId" value={patientId} />
             <input type="hidden" name="visitId" value={visitId} />
-            <label className="grid gap-1 text-sm font-semibold">
-              Medicine
-              <select
-                name="inventoryItemId"
-                required
-                className="h-10 rounded-xl border px-3 font-normal"
-              >
-                <option value="">Select medicine batch</option>
-                {inventoryOptions.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                    {item.dosage ? ` ${item.dosage}` : ""}
-                    {item.brandName ? ` / ${item.brandName}` : ""} / exp{" "}
-                    {item.expirationDate
-                      ? formatDateKey(item.expirationDate)
-                      : "N/A"}{" "}
-                    / stock {item.stock} {item.unit}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-semibold">
-              Quantity
-              <input
-                name="quantity"
-                type="number"
-                min="1"
-                required
-                className="h-10 rounded-xl border px-3 font-normal"
-              />
-            </label>
-            <MedicineScheduleFields />
-            <textarea
-              name="remarks"
-              className="min-h-20 rounded-xl border px-3 py-2 text-sm"
-              placeholder="Medicine request remarks"
-            />
+            <MedicineRequestLines options={inventoryOptions} />
             <Button type="submit">
               <ClipboardPlus className="h-4 w-4" /> Submit Request
             </Button>
@@ -110,7 +85,7 @@ export function MedicineRequestModal({ action, patientId, visitId, inventoryOpti
   );
 }
 
-export function ReferralScheduleModal({ action, patientId, visitId }: { action: Action; patientId: string; visitId: string }) {
+export function ReferralScheduleModal({ action, patientId, visitId, referralReason = "" }: { action: Action; patientId: string; visitId: string; referralReason?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -152,11 +127,11 @@ export function ReferralScheduleModal({ action, patientId, visitId }: { action: 
             <label className="grid gap-1 text-sm font-semibold">
               Reason for referral
               <textarea
-                name="reasonForReferral"
+                name="reasonForReferral" defaultValue={referralReason}
                 required
                 className="min-h-24 rounded-xl border px-3 py-2 font-normal"
                 placeholder="Describe why the patient needs referral"
-                defaultValue="For further evaluation and management"
+
               />
             </label>
             <textarea
@@ -243,6 +218,7 @@ export function VaccinationRecordModal({
               Save only after the vaccine has been administered.
             </p>
             <VaccinationFields vaccines={vaccines} />
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">Date given<input type="date" name="administeredAt" required defaultValue={formatDateKey(new Date())} className="h-11 w-full min-w-0 rounded-lg border px-3" /></label>
             <label className="grid gap-1 text-sm font-semibold">
               Given by
               <input

@@ -51,26 +51,41 @@ const complaints = [
   "Vertigo",
 ] as const;
 
-function parseInitial(value: string) {
-  const parts = value.split(";").map((item) => item.trim()).filter(Boolean);
-  const selected = parts.filter((item) => complaints.includes(item as (typeof complaints)[number]));
+function parseInitial(value: string, choices: readonly string[] = complaints) {
+  const parts = value
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const selected = parts.filter((item) => choices.includes(item));
   const otherEntry = parts.find((item) => item.startsWith("Other:"));
   const unstructured = parts.filter(
-    (item) => !complaints.includes(item as (typeof complaints)[number]) && !item.startsWith("Other:")
+    (item) => !choices.includes(item) && !item.startsWith("Other:"),
   );
-  return { selected, other: otherEntry?.slice(6).trim() || unstructured.join("; ") };
+  return {
+    selected,
+    other: otherEntry?.slice(6).trim() || unstructured.join("; "),
+  };
 }
 
 export function ChiefComplaintField({
   initialValue = "",
   disabled = false,
+  additionalOptions = [],
 }: {
   initialValue?: string;
   disabled?: boolean;
+  additionalOptions?: string[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
-  const initial = useMemo(() => parseInitial(initialValue), [initialValue]);
+  const choices = useMemo(
+    () => [...new Set([...complaints, ...additionalOptions])].sort(),
+    [additionalOptions],
+  );
+  const initial = useMemo(
+    () => parseInitial(initialValue, choices),
+    [initialValue, choices],
+  );
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>(initial.selected);
   const [otherSelected, setOtherSelected] = useState(Boolean(initial.other));
@@ -78,16 +93,24 @@ export function ChiefComplaintField({
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
 
-  const value = [...selected, ...(otherSelected && other.trim() ? [`Other: ${other.trim()}`] : [])].join("; ");
-  const visibleComplaints = complaints.filter((complaint) => complaint.toLowerCase().includes(search.toLowerCase()));
+  const value = [
+    ...selected,
+    ...(otherSelected && other.trim() ? [`Other: ${other.trim()}`] : []),
+  ].join("; ");
+  const visibleComplaints = choices.filter((complaint) =>
+    complaint.toLowerCase().includes(search.toLowerCase()),
+  );
 
-  useEffect(() => { const id = window.setTimeout(() => setSearch(searchDraft.trim()), 250); return () => window.clearTimeout(id); }, [searchDraft]);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSearch(searchDraft.trim()), 250);
+    return () => window.clearTimeout(id);
+  }, [searchDraft]);
   useEffect(() => {
     const form = ref.current?.closest("form");
     const restore = (event: Event) => {
       const data = (event as CustomEvent<Record<string, string[]>>).detail;
       if (!data.chiefComplaint) return;
-      const parsed = parseInitial(data.chiefComplaint[0]);
+      const parsed = parseInitial(data.chiefComplaint[0], choices);
       setSelected(parsed.selected);
       setOther(parsed.other);
       setOtherSelected(Boolean(parsed.other));
@@ -102,7 +125,11 @@ export function ChiefComplaintField({
   }, [value]);
 
   function toggle(complaint: string) {
-    setSelected((current) => current.includes(complaint) ? current.filter((item) => item !== complaint) : [...current, complaint]);
+    setSelected((current) =>
+      current.includes(complaint)
+        ? current.filter((item) => item !== complaint)
+        : [...current, complaint],
+    );
   }
 
   return (
@@ -113,7 +140,9 @@ export function ChiefComplaintField({
         value={value}
         disabled={disabled}
       />
-      <span className="text-sm font-semibold text-slate-700">Chief complaint</span>
+      <span className="text-sm font-semibold text-slate-700">
+        Chief complaint
+      </span>
       <button
         type="button"
         disabled={disabled}
@@ -127,7 +156,10 @@ export function ChiefComplaintField({
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 sm:items-center sm:p-4" onClick={() => setOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 p-0 sm:items-center sm:p-4"
+          onClick={() => setOpen(false)}
+        >
           <div
             role="dialog"
             aria-modal="true"
@@ -137,10 +169,23 @@ export function ChiefComplaintField({
           >
             <div className="flex items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
               <div>
-                <h2 id="chief-complaint-title" className="text-lg font-black text-slate-900">Chief Complaint</h2>
-                <p className="text-sm text-slate-500">Select all complaints that apply.</p>
+                <h2
+                  id="chief-complaint-title"
+                  className="text-lg font-black text-slate-900"
+                >
+                  Chief Complaint
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Select all complaints that apply.
+                </p>
               </div>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close complaints">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false)}
+                aria-label="Close complaints"
+              >
                 <X className="h-5 w-5" />
               </Button>
             </div>
@@ -159,31 +204,57 @@ export function ChiefComplaintField({
               </div>
               <div className="grid gap-1 sm:grid-cols-2">
                 {visibleComplaints.map((complaint) => (
-                  <label key={complaint} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                    <input type="checkbox" checked={selected.includes(complaint)} onChange={() => toggle(complaint)} className="h-5 w-5 shrink-0 rounded accent-primary" />
+                  <label
+                    key={complaint}
+                    className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(complaint)}
+                      onChange={() => toggle(complaint)}
+                      className="h-5 w-5 shrink-0 rounded accent-primary"
+                    />
                     {complaint}
                   </label>
                 ))}
               </div>
               {visibleComplaints.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-500">No complaints match “{search}”.</p>
+                <p className="py-8 text-center text-sm text-slate-500">
+                  No complaints match “{search}”.
+                </p>
               ) : null}
               <div className="mt-2 rounded-xl bg-slate-50 p-3">
                 <label className="flex min-h-10 cursor-pointer items-center gap-3 text-sm font-semibold text-slate-700">
-                  <input type="checkbox" checked={otherSelected} onChange={(event) => setOtherSelected(event.target.checked)} className="h-5 w-5 rounded accent-primary" />
+                  <input
+                    type="checkbox"
+                    checked={otherSelected}
+                    onChange={(event) => setOtherSelected(event.target.checked)}
+                    className="h-5 w-5 rounded accent-primary"
+                  />
                   Other
                 </label>
                 {otherSelected ? (
                   <label className="mt-2 grid gap-2 text-sm font-semibold text-slate-700">
                     Please specify
-                    <input value={other} onChange={(event) => setOther(event.target.value)} className="h-10 rounded-xl border bg-white px-3 font-normal" autoFocus />
+                    <input
+                      value={other}
+                      onChange={(event) => setOther(event.target.value)}
+                      className="h-10 rounded-xl border bg-white px-3 font-normal"
+                      autoFocus
+                    />
                   </label>
                 ) : null}
               </div>
             </div>
             <div className="border-t bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              <Button type="button" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={otherSelected && !other.trim()}>
-                Apply complaints ({selected.length + (otherSelected && other.trim() ? 1 : 0)})
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                onClick={() => setOpen(false)}
+                disabled={otherSelected && !other.trim()}
+              >
+                Apply complaints (
+                {selected.length + (otherSelected && other.trim() ? 1 : 0)})
               </Button>
             </div>
           </div>

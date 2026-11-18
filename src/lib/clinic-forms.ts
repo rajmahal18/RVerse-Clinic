@@ -1,3 +1,4 @@
+import { vaccineHistoryEntries } from "@/lib/patient-medical-info";
 import { printChiefComplaint } from "@/lib/visit-fields";
 import { Prisma, RequestType } from "@prisma/client";
 import {
@@ -229,6 +230,8 @@ export async function getClinicFormData(
       weight: patient.weightKg ? `${patient.weightKg.toFixed(1)} kg` : "",
       allergy: clean(patient.allergy),
       medicalHistory: clean(patient.medicalHistory),
+      maintenance: clean(patient.maintenance),
+      vaccineHistory: clean(patient.vaccineHistory),
       primaryContact: clean(patient.primaryContact),
       primaryContactNo: clean(patient.primaryContactNo),
     },
@@ -254,6 +257,8 @@ export async function getClinicFormData(
           physicalExam: clean(selectedVisit.physicalExam),
           treatmentPlan: clean(selectedVisit.treatmentPlan),
           progressNotes: clean(selectedVisit.progressNotes),
+          diagnosisNotes: clean(selectedVisit.diagnosisNotes),
+          referralReason: clean(selectedVisit.referralReason),
           allergy: clean(patient.allergy),
           satisfactionSurvey: selectedVisit.satisfactionSurvey,
           nurseOnDuty: formatStaffName(selectedVisit.nurseOnDuty),
@@ -297,14 +302,14 @@ export async function getClinicFormData(
         timeOut: formatTime(visit.timeOut),
         nurseOnDuty: formatStaffName(visit.nurseOnDuty),
       })),
-    vaccinations: patient.visits
+    vaccinations: [...vaccineHistoryEntries(patient.vaccineHistoryEntries), ...patient.visits
       .flatMap((visit) => visit.vaccinations.map((record) => ({ ...record, visitDate: visit.timeIn })))
       .sort((a, b) => a.visitDate.getTime() - b.visitDate.getTime())
       .map((record) => ({
         vaccine: clean(record.vaccine),
         dose: clean(record.dose),
-        date: formatShortDate(record.visitDate),
-      })),
+        date: formatShortDate(record.administeredAt ?? record.visitDate),
+      }))],
     issued: {
       date: formatDate(issueDate),
       ordinalDay: ordinalDay(issueDate),

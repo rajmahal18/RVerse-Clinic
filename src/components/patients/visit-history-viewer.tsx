@@ -56,7 +56,8 @@ export function VisitHistoryViewer({
     const id = new URLSearchParams(window.location.search).get("visitId");
     if (id && visits.some((visit) => visit.id === id)) setSelectedVisitId(id);
   }, [visits]);
-  const selectedVisit = visits.find((visit) => visit.id === selectedVisitId) ?? visits[0];
+  const selectedVisit =
+    visits.find((visit) => visit.id === selectedVisitId) ?? visits[0];
 
   if (!visits.length || !selectedVisit) {
     return (
@@ -71,7 +72,9 @@ export function VisitHistoryViewer({
       <section className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-soft">
         <div className="border-b bg-slate-50 px-3 py-2">
           <h3 className="text-sm font-black text-slate-900">Visit History</h3>
-          <p className="text-xs text-slate-500">Select a row to review the visit record.</p>
+          <p className="text-xs text-slate-500">
+            Select a row to review the visit record.
+          </p>
         </div>
 
         <div className="divide-y">
@@ -85,7 +88,7 @@ export function VisitHistoryViewer({
                 onClick={() => setSelectedVisitId(visit.id)}
                 className={cn(
                   "grid w-full gap-2 px-3 py-3 text-left transition hover:bg-slate-50",
-                  selected && "bg-teal-50 hover:bg-teal-50"
+                  selected && "bg-teal-50 hover:bg-teal-50",
                 )}
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
@@ -97,12 +100,19 @@ export function VisitHistoryViewer({
                       {visit.nurseOnDuty || "No assigned staff"}
                     </p>
                   </div>
-                  <Badge className={selected ? "shrink-0 bg-primary text-white" : "shrink-0 bg-slate-100 text-slate-700"}>
+                  <Badge
+                    className={
+                      selected
+                        ? "shrink-0 bg-primary text-white"
+                        : "shrink-0 bg-slate-100 text-slate-700"
+                    }
+                  >
                     {visit.status}
                   </Badge>
                 </div>
                 <p className="line-clamp-2 text-xs leading-5 text-slate-600">
-                  {visit.requests.map((request) => request.label).join(", ") || "No request recorded"}
+                  {visit.requests.map((request) => request.label).join(", ") ||
+                    "No request recorded"}
                 </p>
               </button>
             );
@@ -115,7 +125,10 @@ export function VisitHistoryViewer({
           <p className="text-sm font-semibold text-slate-700">
             {selectedVisit.timeIn}
           </p>
-          <Link href={`/patients/${patientId}/forms?visitId=${encodeURIComponent(selectedVisit.id)}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold text-primary hover:bg-teal-50">
+          <Link
+            href={`/patients/${patientId}/forms?visitId=${encodeURIComponent(selectedVisit.id)}`}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold text-primary hover:bg-teal-50"
+          >
             <ClipboardList className="h-4 w-4" /> Open visit forms
           </Link>
         </div>
@@ -135,16 +148,27 @@ export function VisitHistoryViewer({
             <DetailItem label="Status" value={selectedVisit.status} />
           </div>
           <div className="grid md:grid-cols-2">
-            <DetailItem label="Assigned staff" value={selectedVisit.nurseOnDuty} />
-            <DetailItem label="Request" value={selectedVisit.requests.map((request) => request.label).join(", ")} />
+            <DetailItem
+              label="Assigned staff"
+              value={selectedVisit.nurseOnDuty}
+            />
+            <DetailItem
+              label="Request"
+              value={selectedVisit.requests
+                .map((request) => request.label)
+                .join(", ")}
+            />
           </div>
         </div>
 
         <div className="overflow-hidden rounded-xl border bg-white">
           <SectionHeader icon={Stethoscope} title="Assessment" />
           <div className="grid md:grid-cols-2">
-            <DetailItem label="Chief complaint" value={selectedVisit.chiefComplaint} />
-            <DetailItem label="Intake notes / initial history" value={selectedVisit.intakeNotes} />
+            <DetailItem
+              label="Chief complaint"
+              value={selectedVisit.chiefComplaint}
+            />
+            <DetailItem label="Nurse Notes" value={selectedVisit.intakeNotes} />
             <DetailItem label="Diagnosis" value={selectedVisit.diagnosis} />
             <DetailItem
               label="P.E. findings"
@@ -298,7 +322,10 @@ export function VisitHistoryViewer({
                   </summary>
                   <div className="mt-3 space-y-3">
                     {definition.sections.map((section) => (
-                      <div key={section.title} className="overflow-hidden rounded-lg border">
+                      <div
+                        key={section.title}
+                        className="overflow-hidden rounded-lg border"
+                      >
                         <p className="border-b bg-slate-50 px-2 py-1 text-xs font-black uppercase text-slate-600">
                           {section.title}
                         </p>
@@ -308,11 +335,18 @@ export function VisitHistoryViewer({
                             const si = result.values[`${test.key}.siResult`];
                             const conventional =
                               result.values[`${test.key}.conventionalResult`];
-                            const display = section.mode === "dual"
-                              ? [`SI: ${si || "-"}`, `Conventional: ${conventional || "-"}`].join(" / ")
-                              : primary || "-";
+                            const display =
+                              section.mode === "dual"
+                                ? [
+                                    `SI: ${si || "-"}`,
+                                    `Conventional: ${conventional || "-"}`,
+                                  ].join(" / ")
+                                : primary || "-";
                             return (
-                              <div key={test.key} className="grid gap-1 px-2 py-1 md:grid-cols-[14rem_1fr]">
+                              <div
+                                key={test.key}
+                                className="grid gap-1 px-2 py-1 md:grid-cols-[14rem_1fr]"
+                              >
                                 <span className="font-semibold text-slate-700">
                                   {test.name}
                                 </span>

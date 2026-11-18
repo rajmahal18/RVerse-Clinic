@@ -37,7 +37,27 @@ type SurveyValues = {
   email: string;
 };
 
-export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, agencyName = "", survey, disabled = false, disabledReason }: { patientId: string; visitId: string; serviceAvailed: string; agencyName?: string; survey: SurveyValues | null; disabled?: boolean; disabledReason?: string }) {
+export function SatisfactionSurveyModal({
+  patientId,
+  visitId,
+  serviceAvailed,
+  agencyName = "",
+  patientSex = "",
+  patientAge,
+  survey,
+  disabled = false,
+  disabledReason,
+}: {
+  patientId: string;
+  visitId: string;
+  serviceAvailed: string;
+  agencyName?: string;
+  patientSex?: string;
+  patientAge?: number;
+  survey: SurveyValues | null;
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
   const [open, setOpen] = useState(false);
   const submitted = Boolean(survey);
   const modal = open ? (
@@ -71,7 +91,8 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <AutosaveForm visitId={visitId}
+        <AutosaveForm
+          visitId={visitId}
           draftKey="survey"
           action={submitSatisfactionSurveyAction}
           className="min-h-0 space-y-5 overflow-y-auto p-4"
@@ -82,7 +103,11 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
           <section className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-semibold">
               Customer type
-              <select name="customerType" defaultValue={survey?.customerType || ""} className="h-10 rounded-xl border px-3 font-normal">
+              <select
+                name="customerType"
+                defaultValue={survey?.customerType || ""}
+                className="h-10 rounded-xl border px-3 font-normal"
+              >
                 <option value="">Did not specify</option>
                 <option value="Employee">Employee</option>
                 <option value="Dependent">Dependent</option>
@@ -91,7 +116,12 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Patient agency
-              <input name="agencyName" defaultValue={survey ? survey.agencyName || "" : agencyName} maxLength={180} className="h-10 rounded-xl border px-3 font-normal" />
+              <input
+                name="agencyName"
+                defaultValue={survey ? survey.agencyName || "" : agencyName}
+                maxLength={180}
+                className="h-10 rounded-xl border px-3 font-normal"
+              />
             </label>
             <label className="grid gap-1 text-sm font-semibold">
               Client type
@@ -113,9 +143,7 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
                 name="surveyDate"
                 type="date"
                 required
-                defaultValue={
-                  survey?.surveyDate || formatDateKey(new Date())
-                }
+                defaultValue={survey?.surveyDate || formatDateKey(new Date())}
                 className="h-10 rounded-xl border px-3 font-normal"
               />
             </label>
@@ -123,7 +151,7 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
               Sex
               <select
                 name="respondentSex"
-                defaultValue={survey?.respondentSex || ""}
+                defaultValue={survey?.respondentSex || patientSex}
                 className="h-10 rounded-xl border px-3 font-normal"
               >
                 <option value="">Select</option>
@@ -138,7 +166,7 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
                 type="number"
                 min="0"
                 max="130"
-                defaultValue={survey?.respondentAge ?? ""}
+                defaultValue={survey?.respondentAge ?? patientAge ?? ""}
                 className="h-10 rounded-xl border px-3 font-normal"
               />
             </label>
@@ -164,7 +192,8 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
               <input
                 name="serviceAvailed"
                 required
-                defaultValue={survey?.serviceAvailed || serviceAvailed}
+                value={serviceAvailed}
+                readOnly
                 className="h-10 rounded-xl border px-3 font-normal"
               />
             </label>
@@ -204,9 +233,9 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
                 Select one answer for each statement.
               </p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-[820px] w-full border-collapse text-xs">
-                <thead>
+            <div className="min-w-0">
+              <table className="block w-full border-collapse text-xs sm:table sm:table-fixed">
+                <thead className="hidden sm:table-header-group">
                   <tr>
                     <th className="border bg-slate-50 px-2 py-2 text-left">
                       Statement
@@ -221,24 +250,31 @@ export function SatisfactionSurveyModal({ patientId, visitId, serviceAvailed, ag
                     ))}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="block sm:table-row-group">
                   {sqdQuestions.map(([name, question]) => (
-                    <tr key={name}>
-                      <td className="border px-2 py-2 font-semibold">
+                    <tr
+                      key={name}
+                      className="mb-3 grid grid-cols-2 sm:table-row"
+                    >
+                      <td className="col-span-2 block border bg-slate-50 px-2 py-2 font-semibold sm:table-cell sm:bg-white">
                         {name.toUpperCase()}. {question}
                       </td>
                       {scale.map((option, index) => (
                         <td
                           key={option}
-                          className="border px-2 py-2 text-center"
+                          className="block border px-2 py-2 sm:table-cell sm:text-center"
                         >
-                          <input
-                            type="radio"
-                            name={name}
-                            value={option}
-                            defaultChecked={survey?.[name] === option}
-                            required={index === 0}
-                          />
+                          <label className="flex min-h-10 items-center gap-2 sm:block sm:min-h-0">
+                            <input
+                              type="radio"
+                              name={name}
+                              value={option}
+                              defaultChecked={survey?.[name] === option}
+                              required={index === 0}
+                              aria-label={`${name.toUpperCase()}: ${option}`}
+                            />
+                            <span className="sm:sr-only">{option}</span>
+                          </label>
                         </td>
                       ))}
                     </tr>

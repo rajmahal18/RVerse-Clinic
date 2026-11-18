@@ -716,9 +716,8 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
 }
 
 .employee-medication-box {
-  height: 40mm;
+  min-height: 40mm;
   padding: 2mm;
-  overflow: hidden;
   font-size: 8pt;
 }
 

@@ -27,9 +27,9 @@ async function main() {
   try {
     await db.exec(`CREATE TABLE "Patient" (
       "id" TEXT PRIMARY KEY, "clinicId" TEXT NOT NULL,
-      "patientNumber" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMPTZ NOT NULL
+      "patientNumber" TEXT UNIQUE NOT NULL, "createdAt" TIMESTAMPTZ NOT NULL, "deletedAt" TIMESTAMPTZ
     );
-    INSERT INTO "Patient" VALUES
+    INSERT INTO "Patient" ("id","clinicId","patientNumber","createdAt") VALUES
       ('patient-b','clinic-one','OLD-B','2026-09-10T00:00:00Z'),
       ('patient-a','clinic-one','OLD-A','2026-08-10T00:00:00Z'),
       ('patient-c','clinic-two','OLD-C','2026-09-10T00:00:00Z');`);
@@ -51,7 +51,7 @@ async function main() {
     const { getPatientFormCode, findPatientByFormCode, getPatientCodeForDisplay } = module.exports;
     assert.equal(await getPatientCodeForDisplay("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
     assert.equal(await getPatientFormCode("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
-    await db.exec(`INSERT INTO "Patient" VALUES
+    await db.exec(`INSERT INTO "Patient" ("id","clinicId","patientNumber","createdAt") VALUES
       ('patient-e','clinic-one','OLD-E','2026-10-03T00:00:00Z'),
       ('patient-d','clinic-one','OLD-D','2026-09-30T16:00:00Z');`);
     const codes = await Promise.all([
@@ -64,10 +64,14 @@ async function main() {
     assert.equal(await findPatientByFormCode("TC202609-0002", "clinic-two"), null);
     assert.equal(await findPatientByFormCode("TC202610-0002", "clinic-one"), null);
     await db.exec(`DELETE FROM "Patient" WHERE "id"='patient-e';
-      INSERT INTO "Patient" VALUES ('patient-f','clinic-one','OLD-F','2026-11-01T00:00:00Z');`);
+      INSERT INTO "Patient" ("id","clinicId","patientNumber","createdAt") VALUES ('patient-f','clinic-one','OLD-F','2026-11-01T00:00:00Z');`);
     assert.equal(await getPatientFormCode("patient-f", new Date("2026-11-01T00:00:00Z")), "TC202611-0006");
     assert.equal(await getPatientFormCode("patient-b", new Date("2026-09-10T00:00:00Z")), "TC202609-0002");
     assert.equal(await findPatientByFormCode("TC202610-0005", "clinic-one"), null);
+    await db.exec('UPDATE "Patient" SET "deletedAt"=now() WHERE "id"=\'patient-b\'');
+    assert.equal(await findPatientByFormCode("TC202609-0002","clinic-one"),null);
+    await db.exec('UPDATE "Patient" SET "deletedAt"=null WHERE "id"=\'patient-b\'');
+    assert.equal(await findPatientByFormCode("TC202609-0002","clinic-one"),"patient-b");
     await db.exec('DROP TABLE "PatientFormNumber"');
     assert.equal(await getPatientCodeForDisplay("patient-b", new Date("2026-09-10T00:00:00Z")), null);
     console.log("PASS: additive migration, registration order, parallel requests, reprints, month rollover, clinic scope, and deleted-number retention (isolated PostgreSQL).");

@@ -1,3 +1,4 @@
+import { vaccineHistoryEntries, type VaccineHistoryEntry } from "@/lib/patient-medical-info";
 import { requestTypeLabels, getAvailedServiceLabels } from "@/lib/clinic-services";
 export { getAvailedServiceLabels } from "@/lib/clinic-services";
 import {
@@ -59,7 +60,7 @@ type PatientWorkflowRecord = Prisma.PatientGetPayload<{
       include: {
         requests: true;
         diagnoses: true;
-        medicines: true;
+        medicines: { include: { inventoryItem: true } };
         satisfactionSurvey: true;
         followUps: true;
         vaccinations: true;
@@ -96,6 +97,7 @@ export type PatientTableRow = {
   primaryContactNo: string;
   medicalHistory: string;
   vaccineHistory: string;
+  vaccineHistoryEntries?: VaccineHistoryEntry[];
   allergy: string;
   maintenance: string;
   additionalMedicalInformation: string;
@@ -155,6 +157,7 @@ export type PatientVisitWorkflow = {
   statusCode: VisitStatus;
   status: string;
   chiefComplaint: string;
+  referralReason?: string;
   bloodPressure: string;
   rbs: string;
   temperature: string;
@@ -176,6 +179,7 @@ export type PatientVisitWorkflow = {
   nurseOnDuty: string;
   requests: { id: string; type: RequestType; label: string }[];
   medicines: {
+    batchLabel?: string;
     id: string;
     itemName: string;
     quantity: number;
@@ -205,9 +209,17 @@ export type PatientVisitWorkflow = {
     dose: string;
     givenBy: string;
     nextDose: string;
+    dateGiven?: string;
     remarks: string;
   }[];
-  referrals: { id: string; referredTo: string; scheduledFor: string; reasonForReferral: string; medicalHistory: string; remarks: string }[];
+  referrals: {
+    id: string;
+    referredTo: string;
+    scheduledFor: string;
+    reasonForReferral: string;
+    medicalHistory: string;
+    remarks: string;
+  }[];
   followUps: {
     id: string;
     scheduledFor: string;
@@ -248,7 +260,15 @@ export type PatientWorkflowProfile = PatientProfileData & {
 };
 
 export type InventoryTableRow = {
-  movements?: { id: string; quantity: number; boxQuantity: number; reason: string; date: string }[];
+  isRequestable: boolean;
+  pendingRequestCount?: number;
+  movements?: {
+    id: string;
+    quantity: number;
+    boxQuantity: number;
+    reason: string;
+    date: string;
+  }[];
   id: string;
   item: string;
   itemCode: string;
@@ -262,7 +282,13 @@ export type InventoryTableRow = {
   pcsPerBox: string;
   expirationDate: string;
   expirationDateValue: string;
-  expiryStatus: "Expired" | "Within 1 month" | "Within 3 months" | "Within 6 months" | "Safe" | "No expiry";
+  expiryStatus:
+    | "Expired"
+    | "Within 1 month"
+    | "Within 3 months"
+    | "Within 6 months"
+    | "Safe"
+    | "No expiry";
   stock: number;
   boxStock: number;
   physicalCount: number | null;
@@ -539,6 +565,7 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     primaryContactNo: patient.primaryContactNo ?? "Not provided",
     medicalHistory: patient.medicalHistory ?? "Not provided",
     vaccineHistory: patient.vaccineHistory ?? "Not provided",
+    vaccineHistoryEntries: vaccineHistoryEntries(patient.vaccineHistoryEntries),
     allergy: patient.allergy ?? "Not provided",
     maintenance: patient.maintenance ?? "Not provided",
     additionalMedicalInformation: patient.additionalMedicalInformation ?? "Not provided",
@@ -645,6 +672,7 @@ function toVisitWorkflow(
     statusCode: visit.status,
     status: visitStatusLabels[visit.status],
     chiefComplaint: visit.chiefComplaint ?? "",
+    referralReason: visit.referralReason ?? "",
     bloodPressure: visit.bloodPressure ?? "",
     rbs: visit.rbs ?? "",
     temperature: visit.temperature ?? "",
@@ -659,7 +687,11 @@ function toVisitWorkflow(
     readyForDoctorAt: visit.readyForDoctorAt?.toISOString() ?? null,
     diagnosisNotes: visit.diagnosisNotes ?? "",
     diagnosesStructured: visit.diagnosesStructured,
-    diagnoses: visit.diagnoses.map(d => ({ diseaseId: d.diseaseId, diseaseName: d.diseaseName, status: d.status })),
+    diagnoses: visit.diagnoses.map((d) => ({
+      diseaseId: d.diseaseId,
+      diseaseName: d.diseaseName,
+      status: d.status,
+    })),
     doctorLockedFields: Array.isArray(visit.doctorLockedFields)
       ? visit.doctorLockedFields.filter(
           (v): v is string => typeof v === "string",
@@ -674,6 +706,17 @@ function toVisitWorkflow(
       label: requestTypeLabels[request.type],
     })),
     medicines: visit.medicines.map((medicine) => ({
+      batchLabel: medicine.inventoryItem
+        ? [
+            medicine.inventoryItem.dosage,
+            medicine.inventoryItem.brandName,
+            medicine.inventoryItem.expirationDate
+              ? `Exp ${formatDateKey(medicine.inventoryItem.expirationDate)}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" / ")
+        : "",
       id: medicine.id,
       itemName: medicine.itemName,
       quantity: medicine.quantity,
@@ -682,19 +725,29 @@ function toVisitWorkflow(
       status: medicine.status,
       releasedBy: medicine.releasedBy ?? "",
       receivedBy: medicine.receivedBy ?? "",
-      releasedAt: medicine.releasedAt ? formatDateTime(medicine.releasedAt) : "",
-      receivedAt: medicine.receivedAt ? formatDateTime(medicine.receivedAt) : "",
+      releasedAt: medicine.releasedAt
+        ? formatDateTime(medicine.releasedAt)
+        : "",
+      receivedAt: medicine.receivedAt
+        ? formatDateTime(medicine.receivedAt)
+        : "",
       remarks: medicine.remarks ?? "",
     })),
     labResults: visit.labResults.map((result) => ({
       id: result.id,
       type: result.type,
       typeLabel: labTypeLabels[result.type],
-      dateReceived: result.dateReceived ? formatDateKey(result.dateReceived) : "",
-      dateReleased: result.dateReleased ? formatDateKey(result.dateReleased) : "",
+      dateReceived: result.dateReceived
+        ? formatDateKey(result.dateReceived)
+        : "",
+      dateReleased: result.dateReleased
+        ? formatDateKey(result.dateReleased)
+        : "",
       laboratoryHospital: result.laboratoryHospital ?? "",
       createdAt: formatDateTime(result.createdAt),
-      values: Object.fromEntries(result.values.map((value) => [value.fieldKey, value.result])),
+      values: Object.fromEntries(
+        result.values.map((value) => [value.fieldKey, value.result]),
+      ),
     })),
     servicesReceived,
     vaccinations: visit.vaccinations.map((record) => ({
@@ -702,42 +755,56 @@ function toVisitWorkflow(
       vaccine: record.vaccine,
       dose: record.dose ?? "",
       givenBy: record.givenBy ?? "",
+      dateGiven: formatDateKey(record.administeredAt ?? visit.timeIn),
       nextDose: record.nextDose ? formatDisplayDate(record.nextDose) : "",
       remarks: record.remarks ?? "",
     })),
-    referrals: visit.referrals.map(referral => ({ id: referral.id, referredTo: referral.referredTo ?? "", scheduledFor: referral.scheduledFor ? formatDateTime(referral.scheduledFor) : "", reasonForReferral: referral.reasonForReferral ?? "", medicalHistory: referral.medicalHistory ?? "", remarks: referral.remarks ?? "" })),
+    referrals: visit.referrals.map((referral) => ({
+      id: referral.id,
+      referredTo: referral.referredTo ?? "",
+      scheduledFor: referral.scheduledFor
+        ? formatDateTime(referral.scheduledFor)
+        : "",
+      reasonForReferral: referral.reasonForReferral ?? "",
+      medicalHistory: referral.medicalHistory ?? "",
+      remarks: referral.remarks ?? "",
+    })),
     followUps: visit.followUps.map((followUp) => ({
       id: followUp.id,
       scheduledFor: formatDateTime(followUp.scheduledFor),
       remarks: followUp.remarks ?? "",
       status: followUp.status.replaceAll("_", " ").toLowerCase(),
     })),
-    satisfactionSurvey: visit.satisfactionSurvey ? {
-      id: visit.satisfactionSurvey.id,
-      clientType: visit.satisfactionSurvey.clientType ?? "",
-      customerType: visit.satisfactionSurvey.customerType ?? "",
-      agencyName: visit.satisfactionSurvey.agencyName ?? "",
-      surveyDate: visit.satisfactionSurvey.surveyDate ? formatDateKey(visit.satisfactionSurvey.surveyDate) : "",
-      officeVisited: visit.satisfactionSurvey.officeVisited ?? "",
-      regionOfResidence: visit.satisfactionSurvey.regionOfResidence ?? "",
-      serviceAvailed: visit.satisfactionSurvey.serviceAvailed ?? "",
-      respondentSex: visit.satisfactionSurvey.respondentSex ?? "",
-      respondentAge: visit.satisfactionSurvey.respondentAge,
-      cc1: visit.satisfactionSurvey.cc1 ?? "",
-      cc2: visit.satisfactionSurvey.cc2 ?? "",
-      cc3: visit.satisfactionSurvey.cc3 ?? "",
-      sqd0: visit.satisfactionSurvey.sqd0 ?? "",
-      sqd1: visit.satisfactionSurvey.sqd1 ?? "",
-      sqd2: visit.satisfactionSurvey.sqd2 ?? "",
-      sqd3: visit.satisfactionSurvey.sqd3 ?? "",
-      sqd4: visit.satisfactionSurvey.sqd4 ?? "",
-      sqd5: visit.satisfactionSurvey.sqd5 ?? "",
-      sqd6: visit.satisfactionSurvey.sqd6 ?? "",
-      sqd7: visit.satisfactionSurvey.sqd7 ?? "",
-      sqd8: visit.satisfactionSurvey.sqd8 ?? "",
-      suggestions: visit.satisfactionSurvey.suggestions ?? "",
-      email: visit.satisfactionSurvey.email ?? "",
-    } : null,
+    satisfactionSurvey: visit.satisfactionSurvey
+      ? {
+          id: visit.satisfactionSurvey.id,
+          clientType: visit.satisfactionSurvey.clientType ?? "",
+          customerType: visit.satisfactionSurvey.customerType ?? "",
+          agencyName: visit.satisfactionSurvey.agencyName ?? "",
+          surveyDate: visit.satisfactionSurvey.surveyDate
+            ? formatDateKey(visit.satisfactionSurvey.surveyDate)
+            : "",
+          officeVisited: visit.satisfactionSurvey.officeVisited ?? "",
+          regionOfResidence: visit.satisfactionSurvey.regionOfResidence ?? "",
+          serviceAvailed: visit.satisfactionSurvey.serviceAvailed ?? "",
+          respondentSex: visit.satisfactionSurvey.respondentSex ?? "",
+          respondentAge: visit.satisfactionSurvey.respondentAge,
+          cc1: visit.satisfactionSurvey.cc1 ?? "",
+          cc2: visit.satisfactionSurvey.cc2 ?? "",
+          cc3: visit.satisfactionSurvey.cc3 ?? "",
+          sqd0: visit.satisfactionSurvey.sqd0 ?? "",
+          sqd1: visit.satisfactionSurvey.sqd1 ?? "",
+          sqd2: visit.satisfactionSurvey.sqd2 ?? "",
+          sqd3: visit.satisfactionSurvey.sqd3 ?? "",
+          sqd4: visit.satisfactionSurvey.sqd4 ?? "",
+          sqd5: visit.satisfactionSurvey.sqd5 ?? "",
+          sqd6: visit.satisfactionSurvey.sqd6 ?? "",
+          sqd7: visit.satisfactionSurvey.sqd7 ?? "",
+          sqd8: visit.satisfactionSurvey.sqd8 ?? "",
+          suggestions: visit.satisfactionSurvey.suggestions ?? "",
+          email: visit.satisfactionSurvey.email ?? "",
+        }
+      : null,
   };
 }
 
@@ -1062,12 +1129,13 @@ export async function getVaccinationPatientTableRows(
         requests: {
           some: {
             type: RequestType.VACCINATION,
+            deletedAt: null,
           },
         },
       },
       {
         vaccinations: {
-          some: {},
+          some: { deletedAt: null },
         },
       },
     ],
@@ -1123,6 +1191,7 @@ export async function getFollowUpPatientTableRows(
     followUps: {
       some: {
         status: "SCHEDULED",
+        deletedAt: null,
       },
     },
   } satisfies Prisma.VisitWhereInput;
@@ -1208,6 +1277,7 @@ export async function getPatientWorkflowProfile(
           requests: true,
           diagnoses: true,
           medicines: {
+            include: { inventoryItem: true },
             orderBy: {
               createdAt: "desc",
             },
@@ -1269,68 +1339,175 @@ export async function getInventoryLedgerData(
   const normalizedSearch = search?.trim();
   const { start, end, key, label } = getMonthRange(month);
   const now = new Date();
-  const categoryWhere: Prisma.InventoryItemWhereInput = categoryFilter in InventoryCategory
-    ? { category: categoryFilter as InventoryCategory }
-    : {};
-  const expiryWhere: Prisma.InventoryItemWhereInput = expiryFilter === "expired"
-    ? { expirationDate: { lt: now } }
-    : ["1", "3", "6"].includes(expiryFilter)
-      ? { expirationDate: { gte: now, lte: addMonths(now, Number(expiryFilter)) } }
+  const categoryWhere: Prisma.InventoryItemWhereInput =
+    categoryFilter in InventoryCategory
+      ? { category: categoryFilter as InventoryCategory }
       : {};
-  const searchWhere: Prisma.InventoryItemWhereInput = normalizedSearch ? { OR: [
-    { itemCode: { contains: normalizedSearch, mode: "insensitive" } },
-    { name: { contains: normalizedSearch, mode: "insensitive" } },
-    { itemDescription: { contains: normalizedSearch, mode: "insensitive" } },
-    { dosage: { contains: normalizedSearch, mode: "insensitive" } },
-    { brandName: { contains: normalizedSearch, mode: "insensitive" } },
-    { classification: { contains: normalizedSearch, mode: "insensitive" } },
-    { location: { contains: normalizedSearch, mode: "insensitive" } },
-    { unit: { contains: normalizedSearch, mode: "insensitive" } },
-  ] } : {};
+  const expiryWhere: Prisma.InventoryItemWhereInput =
+    expiryFilter === "expired"
+      ? { expirationDate: { lt: now } }
+      : ["1", "3", "6"].includes(expiryFilter)
+        ? {
+            expirationDate: {
+              gte: now,
+              lte: addMonths(now, Number(expiryFilter)),
+            },
+          }
+        : {};
+  const searchWhere: Prisma.InventoryItemWhereInput = normalizedSearch
+    ? {
+        OR: [
+          { itemCode: { contains: normalizedSearch, mode: "insensitive" } },
+          { name: { contains: normalizedSearch, mode: "insensitive" } },
+          {
+            itemDescription: {
+              contains: normalizedSearch,
+              mode: "insensitive",
+            },
+          },
+          { dosage: { contains: normalizedSearch, mode: "insensitive" } },
+          { brandName: { contains: normalizedSearch, mode: "insensitive" } },
+          {
+            classification: { contains: normalizedSearch, mode: "insensitive" },
+          },
+          { location: { contains: normalizedSearch, mode: "insensitive" } },
+          { unit: { contains: normalizedSearch, mode: "insensitive" } },
+        ],
+      }
+    : {};
   const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] =
-    sort === "name_desc" ? [{ name: "desc" }] : sort === "expiry_asc" ? [{ expirationDate: { sort: "asc", nulls: "last" } }] :
-    sort === "expiry_desc" ? [{ expirationDate: { sort: "desc", nulls: "last" } }] : sort === "stock_asc" ? [{ stock: "asc" }] :
-    sort === "stock_desc" ? [{ stock: "desc" }] : sort === "brand_asc" ? [{ brandName: { sort: "asc", nulls: "last" } }] :
-    sort === "classification_asc" ? [{ classification: { sort: "asc", nulls: "last" } }] : [{ name: "asc" }, { expirationDate: "asc" }];
+    sort === "name_desc"
+      ? [{ name: "desc" }]
+      : sort === "expiry_asc"
+        ? [{ expirationDate: { sort: "asc", nulls: "last" } }]
+        : sort === "expiry_desc"
+          ? [{ expirationDate: { sort: "desc", nulls: "last" } }]
+          : sort === "stock_asc"
+            ? [{ stock: "asc" }]
+            : sort === "stock_desc"
+              ? [{ stock: "desc" }]
+              : sort === "brand_asc"
+                ? [{ brandName: { sort: "asc", nulls: "last" } }]
+                : sort === "classification_asc"
+                  ? [{ classification: { sort: "asc", nulls: "last" } }]
+                  : [{ name: "asc" }, { expirationDate: "asc" }];
   const [items, alertItems] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { AND: [searchWhere, expiryWhere, categoryWhere] }, orderBy, include: { movements: { orderBy: { createdAt: "asc" } } } }),
-    prisma.inventoryItem.findMany({ where: { AND: [categoryWhere, { stock: { gt: 0 }, expirationDate: { lte: addMonths(now, 6) } }] }, select: { expirationDate: true } }),
+    prisma.inventoryItem.findMany({
+      where: { AND: [searchWhere, expiryWhere, categoryWhere] },
+      orderBy,
+      include: { movements: { orderBy: { createdAt: "asc" } }, _count: { select: { medicineRequests: { where: { status: { in: ["REQUESTED", "APPROVED"] } } } } } },
+    }),
+    prisma.inventoryItem.findMany({
+      where: {
+        AND: [
+          categoryWhere,
+          { stock: { gt: 0 }, expirationDate: { lte: addMonths(now, 6) } },
+        ],
+      },
+      select: { expirationDate: true },
+    }),
   ]);
 
   return {
     rows: items.map((item) => {
-      const monthlyMovements = item.movements.filter((movement) => movement.createdAt >= start && movement.createdAt < end);
-      const laterMovements = item.movements.filter((movement) => movement.createdAt >= end);
-      const endingStock = item.stock - laterMovements.reduce((sum, movement) => sum + movement.quantityChange, 0);
+      const monthlyMovements = item.movements.filter(
+        (movement) => movement.createdAt >= start && movement.createdAt < end,
+      );
+      const laterMovements = item.movements.filter(
+        (movement) => movement.createdAt >= end,
+      );
+      const endingStock =
+        item.stock -
+        laterMovements.reduce(
+          (sum, movement) => sum + movement.quantityChange,
+          0,
+        );
       const received = monthlyMovements
-        .filter((movement) => movement.quantityChange > 0 && !encodedStockReasons.has(movement.reason))
+        .filter(
+          (movement) =>
+            movement.quantityChange > 0 &&
+            !encodedStockReasons.has(movement.reason),
+        )
         .reduce((sum, movement) => sum + movement.quantityChange, 0);
-      const dispensed = monthlyMovements.filter((movement) => movement.quantityChange < 0).reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
+      const dispensed = monthlyMovements
+        .filter((movement) => movement.quantityChange < 0)
+        .reduce((sum, movement) => sum + Math.abs(movement.quantityChange), 0);
       const beginningStock = endingStock - received + dispensed;
-      const boxReceived = monthlyMovements.filter((movement) => movement.boxQuantityChange > 0 && !encodedStockReasons.has(movement.reason)).reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
-      const boxDeducted = monthlyMovements.filter(movement => movement.boxQuantityChange < 0).reduce((sum, movement) => sum - movement.boxQuantityChange, 0);
-      const endingBoxStock = item.boxStock - laterMovements.reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
-      const latestCondition = [...item.movements].reverse().find((movement) => movement.createdAt < end && movement.physicalCount !== null);
-      const physicalCount = latestCondition?.physicalCount ?? (end > now ? item.physicalCount : null);
-      const functionalCount = latestCondition?.functionalCount ?? (end > now ? item.functionalCount : null);
-      const functionalStatus = physicalCount === null || functionalCount === null ? "Not recorded" : physicalCount === 0 || functionalCount === 0 ? "NF" : functionalCount === physicalCount ? "AF" : `${functionalCount}F`;
-      const legacyBatch = item.category === InventoryCategory.MEDICINE || item.category === InventoryCategory.VACCINE;
-      const deriveBoxesFromUnits = legacyBatch && item.pcsPerBox && item.boxStock === 0 && !item.movements.some(movement => movement.boxQuantityChange !== 0);
+      const boxReceived = monthlyMovements
+        .filter(
+          (movement) =>
+            movement.boxQuantityChange > 0 &&
+            !encodedStockReasons.has(movement.reason),
+        )
+        .reduce((sum, movement) => sum + movement.boxQuantityChange, 0);
+      const boxDeducted = monthlyMovements
+        .filter((movement) => movement.boxQuantityChange < 0)
+        .reduce((sum, movement) => sum - movement.boxQuantityChange, 0);
+      const endingBoxStock =
+        item.boxStock -
+        laterMovements.reduce(
+          (sum, movement) => sum + movement.boxQuantityChange,
+          0,
+        );
+      const latestCondition = [...item.movements]
+        .reverse()
+        .find(
+          (movement) =>
+            movement.createdAt < end && movement.physicalCount !== null,
+        );
+      const physicalCount =
+        latestCondition?.physicalCount ??
+        (end > now ? item.physicalCount : null);
+      const functionalCount =
+        latestCondition?.functionalCount ??
+        (end > now ? item.functionalCount : null);
+      const functionalStatus =
+        physicalCount === null || functionalCount === null
+          ? "Not recorded"
+          : physicalCount === 0 || functionalCount === 0
+            ? "NF"
+            : functionalCount === physicalCount
+              ? "AF"
+              : `${functionalCount}F`;
+      const legacyBatch =
+        item.category === InventoryCategory.MEDICINE ||
+        item.category === InventoryCategory.VACCINE;
+      const deriveBoxesFromUnits =
+        legacyBatch &&
+        item.pcsPerBox &&
+        item.boxStock === 0 &&
+        !item.movements.some((movement) => movement.boxQuantityChange !== 0);
       return {
-        movements: [...item.movements].reverse().slice(0, 20).map(movement => ({ id: movement.id, quantity: movement.quantityChange, boxQuantity: movement.boxQuantityChange, reason: movement.reason, date: formatDateTime(movement.createdAt) })),
+        isRequestable: item.isRequestable,
+        pendingRequestCount: item._count.medicineRequests,
+        movements: [...item.movements]
+          .reverse()
+          .slice(0, 20)
+          .map((movement) => ({
+            id: movement.id,
+            quantity: movement.quantityChange,
+            boxQuantity: movement.boxQuantityChange,
+            reason: movement.reason,
+            date: formatDateTime(movement.createdAt),
+          })),
         id: item.id,
         item: item.name,
         itemCode: item.itemCode ?? "—",
         itemDescription: item.itemDescription ?? "—",
         dosage: item.dosage ?? "—",
         brandName: item.brandName ?? "—",
-        classification: item.classification ?? inventoryCategoryLabels[item.category],
+        classification:
+          item.classification ?? inventoryCategoryLabels[item.category],
         remarks: item.remarks ?? "—",
         location: item.location ?? "—",
         category: inventoryCategoryLabels[item.category],
         pcsPerBox: item.pcsPerBox?.toString() ?? "—",
-        expirationDate: item.expirationDate ? formatDisplayDate(item.expirationDate) : "—",
-        expirationDateValue: item.expirationDate ? formatDateKey(item.expirationDate) : "",
+        expirationDate: item.expirationDate
+          ? formatDisplayDate(item.expirationDate)
+          : "—",
+        expirationDateValue: item.expirationDate
+          ? formatDateKey(item.expirationDate)
+          : "",
         expiryStatus: !item.expirationDate
           ? ("No expiry" as const)
           : item.expirationDate < now
@@ -1382,10 +1559,27 @@ export async function getInventoryLedgerData(
     sort,
     category: categoryFilter,
     expiryAlerts: {
-      expired: alertItems.filter((item) => item.expirationDate && item.expirationDate < now).length,
-      withinOne: alertItems.filter((item) => item.expirationDate && item.expirationDate >= now && item.expirationDate <= addMonths(now, 1)).length,
-      withinThree: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(now, 1) && item.expirationDate <= addMonths(now, 3)).length,
-      withinSix: alertItems.filter((item) => item.expirationDate && item.expirationDate > addMonths(now, 3) && item.expirationDate <= addMonths(now, 6)).length,
+      expired: alertItems.filter(
+        (item) => item.expirationDate && item.expirationDate < now,
+      ).length,
+      withinOne: alertItems.filter(
+        (item) =>
+          item.expirationDate &&
+          item.expirationDate >= now &&
+          item.expirationDate <= addMonths(now, 1),
+      ).length,
+      withinThree: alertItems.filter(
+        (item) =>
+          item.expirationDate &&
+          item.expirationDate > addMonths(now, 1) &&
+          item.expirationDate <= addMonths(now, 3),
+      ).length,
+      withinSix: alertItems.filter(
+        (item) =>
+          item.expirationDate &&
+          item.expirationDate > addMonths(now, 3) &&
+          item.expirationDate <= addMonths(now, 6),
+      ).length,
     },
   };
 }
@@ -1427,7 +1621,8 @@ export async function getMedicineReportData(period: MedicineReportPeriod = "MONT
   const { start, end } = getMedicineReportRange(period);
   const clinicWhere = clinicId ? { clinicId } : {};
   const items = await prisma.inventoryItem.findMany({
-    where: { ...clinicWhere, category: InventoryCategory.MEDICINE },
+    // Historical movements remain reportable after a batch is archived.
+    where: { ...clinicWhere, category: InventoryCategory.MEDICINE, deletedAt: {} },
     include: { movements: { where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: "desc" } } },
   });
   const buckets = new Map<string, MedicineReportData["rows"][number]>();
@@ -1482,6 +1677,7 @@ export async function getSupplyFrequencyReportData(
     : null;
   const itemWhere: Prisma.InventoryItemWhereInput = {
     clinicId,
+    deletedAt: {}, // Include archived batches in historical request/issue statistics.
     category: categoryFilter ?? { in: allowedCategories },
   };
   const [items, requests, movements] = await Promise.all([
@@ -1544,8 +1740,20 @@ export async function getSupplyFrequencyReportData(
 
 export async function getInventoryOptions(clinicId: string) {
   return prisma.inventoryItem.findMany({
-    where: { clinicId, category: InventoryCategory.MEDICINE },
-    orderBy: { name: "asc" },
+    where: {
+      clinicId,
+      category: InventoryCategory.MEDICINE,
+      isRequestable: true,
+      stock: { gt: 0 },
+      OR: [
+        { expirationDate: null },
+        { expirationDate: { gte: getDayRange().start } },
+      ],
+    },
+    orderBy: [
+      { expirationDate: { sort: "asc", nulls: "last" } },
+      { name: "asc" },
+    ],
     select: {
       id: true,
       name: true,
@@ -1560,7 +1768,20 @@ export async function getInventoryOptions(clinicId: string) {
 
 export async function getInventoryRequestOptions(clinicId: string) {
   return prisma.inventoryItem.findMany({
-    where: { clinicId },
+    where: {
+      clinicId,
+      OR: [
+        { category: { not: InventoryCategory.MEDICINE } },
+        {
+          isRequestable: true,
+          stock: { gt: 0 },
+          OR: [
+            { expirationDate: null },
+            { expirationDate: { gte: getDayRange().start } },
+          ],
+        },
+      ],
+    },
     orderBy: [{ category: "asc" }, { name: "asc" }],
     select: {
       id: true,

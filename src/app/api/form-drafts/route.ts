@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
     where: { userId_visitId_key: { userId: user.id, visitId, key } },
   });
   const values = (draft?.values ?? {}) as Record<string, string[]>;
+  const removedRequestTypes = key === "visit"
+    ? (await prisma.visitRequest.findMany({ where: { visitId, deletedAt: { not: null } }, select: { type: true } })).map(request => request.type)
+    : [];
   if (user.role !== "ADMIN" && user.role !== "DOCTOR") delete values.diagnosisSelections;
   if (key === "visit")
     for (const field of visitFields) {
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       values,
+      removedRequestTypes,
       editableFields,
       userId: user.id,
       updatedAt: draft?.updatedAt.toISOString() ?? null,
