@@ -248,6 +248,7 @@ export async function getClinicFormData(
           timeIn: formatTime(selectedVisit.timeIn),
           timeOut: formatTime(selectedVisit.timeOut),
           chiefComplaint: printChiefComplaint(selectedVisit.chiefComplaint),
+          nurseNotes: clean(selectedVisit.intakeNotes),
           bloodPressure: clean(selectedVisit.bloodPressure),
           rbs: clean(selectedVisit.rbs),
           temperature: clean(selectedVisit.temperature),

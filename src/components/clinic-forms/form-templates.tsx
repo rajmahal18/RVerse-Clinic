@@ -383,6 +383,7 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
                 "Date",
                 "Time In",
                 "Chief Complaint",
+                "Nurse Notes",
                 "BP",
                 "RBS",
                 "Temp",
@@ -399,6 +400,7 @@ function DailyPatientSummaryForm({ data }: { data: ClinicFormData }) {
               <td>{visit?.shortDate}</td>
               <td>{visit?.timeIn}</td>
               <td className="left">{visit?.chiefComplaint}</td>
+              <td className="left daily-nurse-notes">{visit?.nurseNotes}</td>
               <td>{visit?.bloodPressure}</td>
               <td>{visit?.rbs}</td>
               <td>{visit?.temperature}</td>

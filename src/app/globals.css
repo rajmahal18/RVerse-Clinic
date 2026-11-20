@@ -821,6 +821,19 @@ body { background: hsl(var(--background)); color: hsl(var(--foreground)); }
   text-align: left;
 }
 
+/* Daily summary has Nurse Notes immediately after Chief Complaint. */
+.daily-summary-page .assessment-table th:nth-child(1), .daily-summary-page .assessment-table td:nth-child(1) { width: 8%; }
+.daily-summary-page .assessment-table th:nth-child(2), .daily-summary-page .assessment-table td:nth-child(2) { width: 8%; }
+.daily-summary-page .assessment-table th:nth-child(3), .daily-summary-page .assessment-table td:nth-child(3) { width: 15%; }
+.daily-summary-page .assessment-table th:nth-child(4), .daily-summary-page .assessment-table td:nth-child(4) { width: 20%; }
+.daily-summary-page .assessment-table th:nth-child(5), .daily-summary-page .assessment-table td:nth-child(5) { width: 6%; }
+.daily-summary-page .assessment-table th:nth-child(6), .daily-summary-page .assessment-table td:nth-child(6) { width: 6%; }
+.daily-summary-page .assessment-table th:nth-child(7), .daily-summary-page .assessment-table td:nth-child(7) { width: 6%; }
+.daily-summary-page .assessment-table th:nth-child(8), .daily-summary-page .assessment-table td:nth-child(8) { width: 15%; }
+.daily-summary-page .assessment-table th:nth-child(9), .daily-summary-page .assessment-table td:nth-child(9) { width: 8%; }
+.daily-summary-page .assessment-table th:nth-child(10), .daily-summary-page .assessment-table td:nth-child(10) { width: 8%; }
+.daily-summary-page .daily-nurse-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .certificate-page,
 .referral-page {
   position: relative;

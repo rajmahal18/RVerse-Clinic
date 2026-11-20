@@ -162,6 +162,22 @@ async function main() {
       await render(React.createElement("main", { className: "clinic-print-screen" }, React.createElement(Form, { form, data })), 1280);
       assert.ok(await page.locator(".clinic-form-page").count(), `Existing form failed to render: ${form}`);
     }
+    data.selectedVisit = {
+      shortDate: "11/20/2026", timeIn: "09:00 AM", timeOut: "09:30 AM",
+      chiefComplaint: "Cough and fever", nurseNotes: "Patient alert and ambulatory.\nReports cough for two days. Vital signs recorded; referred for consultation.",
+      bloodPressure: "120/80", rbs: "100", temperature: "37.5", services: "Medical Consultation, Provision of Medicine",
+      nurseOnDuty: "Clinic Nurse", progressNotes: "Patient examined. Monitor symptoms.", treatmentPlan: "Rest and follow-up as advised.",
+      medicineLog: data.medicineLog.slice(0, 5),
+    };
+    for (const width of [320, 375, 1280]) {
+      await render(React.createElement("main", { className: "clinic-print-screen" }, React.createElement(Form, { form: "daily-patient-summary", data })), width);
+      await assertNoOverflow(`Daily summary with Nurse Notes ${width}`);
+      const headers = await page.locator(".assessment-table th").allTextContents();
+      assert.equal(headers[headers.indexOf("Chief Complaint") + 1], "Nurse Notes");
+      assert.equal(await page.locator(".daily-nurse-notes").textContent(), data.selectedVisit.nurseNotes);
+      const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+      assert.equal(pdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length, 1, `Daily summary must print on one page at ${width}`);
+    }
     await render(React.createElement("main", { className: "patient-qr-screen" },
       React.createElement("div", { className: "no-print" }, "Print controls"),
       React.createElement("img", { className: "patient-qr-sticker", src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(fs.readFileSync("docs/generated-previews/patient-qr-label.svg", "utf8"))}` })
