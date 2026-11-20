@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type PatientRecordTab = {
   id: string;
   label: string;
   content: React.ReactNode;
+  href?: string;
 };
 
 export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordTab[]; defaultTabId?: string }) {
@@ -62,6 +64,13 @@ export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordT
         <div className="flex min-w-max gap-1">
           {tabs.map((tab) => {
             const active = tab.id === selectedTab?.id;
+
+            if (tab.href) return (
+              <Link key={tab.id} href={tab.href} prefetch={false}
+                aria-current={active ? "page" : undefined}
+                className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950", active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white")}
+              >{tab.label}</Link>
+            );
 
             return (
               <button

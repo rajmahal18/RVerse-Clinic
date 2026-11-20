@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
@@ -25,14 +25,26 @@ export function DebouncedSearchForm({
 }: DebouncedSearchFormProps) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
+  const pendingQueries = useRef(new Set<string>());
+  const lastNavigation = useRef<string | null>(null);
   const preservedEntries = useMemo(
     () => Object.entries(preserveParams ?? {}).filter(([, value]) => value?.trim()),
     [preserveParams]
   );
 
   useEffect(() => {
+    // A slow response to an earlier search must not replace newer typing.
+    if (pendingQueries.current.delete(initialQuery.trim())) return;
+    lastNavigation.current = null;
     setQuery(initialQuery);
   }, [initialQuery]);
+
+  function navigate(target: string, value: string) {
+    if (lastNavigation.current === target) return;
+    lastNavigation.current = target;
+    pendingQueries.current.add(value);
+    router.replace(target, { scroll: false });
+  }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -55,7 +67,7 @@ export function DebouncedSearchForm({
       }
 
       const queryString = params.toString();
-      router.push(queryString ? `${action}?${queryString}` : action);
+      navigate(queryString ? `${action}?${queryString}` : action, trimmedQuery);
     }, 450);
 
     return () => window.clearTimeout(timeout);
@@ -78,7 +90,7 @@ export function DebouncedSearchForm({
     }
 
     const queryString = params.toString();
-    router.push(queryString ? `${action}?${queryString}` : action);
+    navigate(queryString ? `${action}?${queryString}` : action, trimmedQuery);
   }
 
   return (

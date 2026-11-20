@@ -86,21 +86,22 @@ export async function PatientProfile({
     notFound();
   }
 
-  const availableRequests = await clinicServiceOptions(patient.clinicId, patient.visitHistory.flatMap(v => v.requests.map(r => r.type)));
-  const newVisitRequests = await clinicServiceOptions(patient.clinicId);
-  const complaintOptions = (
-    await prisma.chiefComplaintCatalog.findMany({
+  const [availableRequests, complaints, diseaseOptions, inventoryOptions, vaccineOptions, currentUser] = await Promise.all([
+    clinicServiceOptions(patient.clinicId, patient.visitHistory.flatMap(v => v.requests.map(r => r.type))),
+    prisma.chiefComplaintCatalog.findMany({
       where: { clinicId: patient.clinicId },
       orderBy: { name: "asc" },
-    })
-  ).map((c) => c.name);
-  const diseaseOptions = await prisma.diseaseCatalog.findMany({
+    }),
+    prisma.diseaseCatalog.findMany({
     where: { clinicId: patient.clinicId },
     orderBy: { name: "asc" },
-  });
-  const inventoryOptions = await getInventoryOptions(patient.clinicId);
-  const vaccineOptions = await getVaccineOptions(patient.clinicId);
-  const currentUser = await getCurrentUser();
+    }),
+    getInventoryOptions(patient.clinicId),
+    getVaccineOptions(patient.clinicId),
+    getCurrentUser(),
+  ]);
+  const newVisitRequests = availableRequests.filter(option => option.isActive);
+  const complaintOptions = complaints.map(c => c.name);
   const canManageVisits = (
     [
       UserRole.ADMIN,

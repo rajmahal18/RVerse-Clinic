@@ -178,7 +178,7 @@ export function PatientTable({
                   {formatPatientName(patient)}
                 </Link>
                 <p className="mt-1 break-words text-xs text-slate-500">
-                  {patient.age} yrs � {patient.gender} � {patient.contact}
+                  {patient.age} yrs &middot; {patient.gender} &middot; {patient.contact}
                 </p>
                 <p className="mt-1 break-words text-xs text-slate-500">
                   {patient.address}
@@ -254,7 +254,7 @@ export function PatientTable({
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
           <span>
-            {startItem}�{endItem} of {totalCount}
+            {startItem} to {endItem} of {totalCount}
           </span>
           <nav className="flex flex-wrap gap-1" aria-label="Queue pages">
             {pageNumbers.map((page) => (

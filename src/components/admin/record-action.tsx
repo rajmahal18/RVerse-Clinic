@@ -35,6 +35,10 @@ export function RecordAction({
       ? "Void"
       : kind === "VisitRequest"
         ? "Remove service"
+        : kind === "Visit"
+          ? "Archive entire visit"
+          : kind === "Patient"
+            ? "Archive patient profile"
         : "Delete";
   return (
     <>
@@ -124,7 +128,11 @@ export function RecordAction({
                   required
                   className="mt-1"
                 />
-                I reviewed the affected records and confirm this action.
+                {kind === "Visit" && !restoring
+                  ? "I confirm that this entire visit and all its linked services and results will be hidden."
+                  : kind === "Patient" && !restoring
+                    ? "I confirm that this patient profile and its visit history will be hidden."
+                    : "I reviewed the affected records and confirm this action."}
               </label>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button

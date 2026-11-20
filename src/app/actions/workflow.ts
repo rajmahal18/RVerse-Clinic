@@ -54,6 +54,12 @@ function optionalString(formData: FormData, key: string) {
   return value || null;
 }
 
+function unchangedFields(record: object, data: object) {
+  const stored = record as Record<string, unknown>;
+  const comparable = (value: unknown) => value instanceof Date ? value.getTime() : value ?? null;
+  return Object.entries(data).every(([key, value]) => comparable(stored[key]) === comparable(value));
+}
+
 function parseMeasurements(formData: FormData) {
   const heightRaw = optionalString(formData, "heightValue");
   const weightRaw = optionalString(formData, "weightValue");
@@ -2818,6 +2824,7 @@ export async function correctCompletedVisitAction(formData: FormData) {
               releasedBy: optionalString(formData, prefix + "releasedBy"),
             };
             const difference = quantity - medicine.quantity;
+            if (unchangedFields(medicine, data)) continue;
             if (
               difference &&
               ["RELEASED", "RECEIVED"].includes(medicine.status)
@@ -2899,6 +2906,8 @@ export async function correctCompletedVisitAction(formData: FormData) {
             for (const key of getLabFieldKeys(lab.type)) {
               if (!formData.has(prefix + key)) continue;
               const value = optionalString(formData, prefix + key);
+              const previousValue = lab.values.find(entry => entry.fieldKey === key);
+              if ((previousValue?.result ?? null) === value) continue;
               if (value)
                 await tx.labResultValue.upsert({
                   where: {
@@ -2935,6 +2944,7 @@ export async function correctCompletedVisitAction(formData: FormData) {
               ...(formData.has(prefix + "administeredAt") ? { administeredAt: optionalString(formData,prefix + "administeredAt") ? parseDate(requiredString(formData,prefix + "administeredAt")) : null } : {}),
               remarks: optionalString(formData, prefix + "remarks"),
             };
+            if (unchangedFields(record, data)) continue;
             changes[`vaccine:${record.id}`] = {
               before: record,
               after: await tx.vaccinationRecord.update({
@@ -2960,6 +2970,7 @@ export async function correctCompletedVisitAction(formData: FormData) {
               ),
               remarks: optionalString(formData, prefix + "remarks"),
             };
+            if (unchangedFields(record, data)) continue;
             changes[`referral:${record.id}`] = {
               before: record,
               after: await tx.referral.update({

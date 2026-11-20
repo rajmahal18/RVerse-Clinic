@@ -26,6 +26,7 @@ async function main() {
   const logs = [];
   const prisma = {
     patient: {
+      count: async () => 0,
       findMany: async (query) => { queries.push(query); return []; },
       findFirst: async (query) => {
         assert.equal(query.where.clinicId, user.clinicId);
@@ -45,12 +46,33 @@ async function main() {
     "@/lib/auth": { getCurrentUser: async () => user },
     "@/lib/date-time": { getDayRange: () => ({ start: new Date("2026-10-06T00:00:00Z"), end: new Date("2026-10-07T00:00:00Z") }) },
     "@/lib/csrf": { assertValidCsrfToken: async () => {} },
+    "@/lib/service-settings": { requireAvailableServices: async () => {} },
     "@/lib/activity-log": { writeActivityLog: async (log) => logs.push(log) },
     "@/lib/action-feedback": { getActionErrorMessage: (error) => error.message, appendActionFeedback: (path, type, message) => `${path}?${type}=${encodeURIComponent(message)}` },
     "next/cache": { revalidatePath() {} },
     "next/navigation": { redirect: (path) => { throw Object.assign(new Error("redirect"), { path }); } },
   };
   const view = load("src/lib/patient-view.ts", mocks);
+  function matches(row, where) {
+    return Object.entries(where).every(([key, value]) => {
+      if (key === "OR") return value.some((part) => matches(row, part));
+      if (key === "AND") return value.every((part) => matches(row, part));
+      if (value && typeof value === "object" && "contains" in value)
+        return String(row[key] ?? "").toLowerCase().includes(value.contains.toLowerCase());
+      return row[key] === value;
+    });
+  }
+  const sample = { firstName: "Juan", middleName: "Santos", lastName: "Dela Cruz", patientNumber: "OLD-001", contactNo: "09123456789", agency: "Office A" };
+  for (const [search, expected] of [
+    ["Juan Dela Cruz", true], ["Dela Cruz, Juan", true], ["  juan   santos dela cruz  ", true],
+    ["Dela Cruz", true], ["Juan Reyes", false], ["Maria Dela Cruz", false],
+    ["OLD-001", true], ["0912345", true], ["Office A", true],
+  ]) {
+    queries.length = 0;
+    await view.getPatientTableRows(undefined, 1, 25, search);
+    assert.equal(queries[0].take, 25, "Ordinary search must paginate in the database");
+    assert.equal(matches(sample, queries[0].where), expected, `Patient Records search: ${search}`);
+  }
   for (const clinicId of ["clinic-a", "clinic-b"]) {
     user.clinicId = clinicId;
     queries.length = 0;
@@ -98,7 +120,7 @@ async function main() {
   await assert.rejects(actions.createVisitAction(form), (error) => error.path.includes("open%20visit"));
   assert.equal(creates.length, 0, "Existing open visits must still prevent duplicate appointments");
   assert.ok(logs.some((log) => log.action === "Queue visit" && log.status !== "FAILED"));
-  console.log("PASS: both queues scoped by clinic; search and unauthenticated handling; Records NOD unassigned; clinical roles preserved; unauthorized roles, foreign patients, and duplicate appointments blocked.");
+  console.log("PASS: Patient Records full-name, surname-first, contact and legacy-code search; both queues scoped by clinic; unauthenticated handling; Records NOD unassigned; clinical roles preserved; unauthorized roles, foreign patients, and duplicate appointments blocked.");
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

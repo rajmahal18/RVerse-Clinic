@@ -229,6 +229,9 @@ async function main() {
     await page.evaluate(()=>{window.testDraft={};});
     await page.evaluate(() => window.show("queue"));
     await page.getByText("Patient / Profile").waitFor({ state: "attached" });
+    assert.ok(!(await page.locator("main").innerText()).includes("\uFFFD"), "Patient queue must not contain replacement characters");
+    assert.ok((await page.locator("main").innerText()).includes("34 yrs · Female · 09123456789"), "Patient details must render readable separators");
+    assert.ok((await page.locator("main").innerText()).includes("1 to 3 of 3"), "Queue pagination must render a readable range");
     for (const width of [375, 768, 1024, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await assertFit("queue " + width);

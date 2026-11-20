@@ -815,6 +815,7 @@ function getPatientSearchWhere(search?: string): Prisma.PatientWhereInput | unde
     return undefined;
   }
   const numericSearch = Number(normalizedSearch);
+  const nameParts = normalizedSearch.split(/[\s,]+/).filter(Boolean);
   const ageSearch = Number.isInteger(numericSearch) && numericSearch >= 0 && numericSearch <= 130
     ? getBirthDateRangeForAge(numericSearch)
     : null;
@@ -828,6 +829,16 @@ function getPatientSearchWhere(search?: string): Prisma.PatientWhereInput | unde
       { contactNo: { contains: normalizedSearch, mode: "insensitive" } },
       { agency: { contains: normalizedSearch, mode: "insensitive" } },
       { designation: { contains: normalizedSearch, mode: "insensitive" } },
+      // Names are stored separately; accept both First Last and Last, First.
+      ...(nameParts.length > 1 ? [{
+        AND: nameParts.map((part) => ({
+          OR: [
+            { lastName: { contains: part, mode: "insensitive" as const } },
+            { firstName: { contains: part, mode: "insensitive" as const } },
+            { middleName: { contains: part, mode: "insensitive" as const } },
+          ],
+        })),
+      }] : []),
       ...(ageSearch ? [{ birthDate: ageSearch }] : []),
     ],
   };
@@ -866,13 +877,14 @@ export async function getPatientTableRows(
     where = patientId ? { id: patientId, clinicId: user!.clinicId } : { id: "__no_matching_patient_code__" };
   }
 
-  if (!filter && !where && !hasPatientTableFilters(options)) {
+  if (!filter && !hasPatientTableFilters(options)) {
     const safePage = Math.max(1, page);
     const safePageSize = Math.min(100, Math.max(10, pageSize));
-    const totalCount = await prisma.patient.count();
+    const totalCount = await prisma.patient.count({ where });
     const totalPages = Math.max(1, Math.ceil(totalCount / safePageSize));
     const currentPage = Math.min(safePage, totalPages);
     const patients = await prisma.patient.findMany({
+      where,
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       skip: (currentPage - 1) * safePageSize,
       take: safePageSize,

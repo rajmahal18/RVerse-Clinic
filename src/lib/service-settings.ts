@@ -14,6 +14,7 @@ export async function clinicServiceOptions(
     .filter((type) => !inactive.has(type) || existing.includes(type))
     .map((value) => ({
       value,
+      isActive: !inactive.has(value),
       label:
         requestTypeLabels[value] +
         (inactive.has(value) ? " (inactive for new visits)" : ""),
@@ -25,11 +26,13 @@ export async function requireAvailableServices(
   types: RequestType[],
   existing: RequestType[] = [],
 ) {
+  const newTypes = types.filter((type) => !existing.includes(type));
+  if (!newTypes.length) return;
   const inactive = await prisma.clinicServiceSetting.findMany({
     where: {
       clinicId,
       isActive: false,
-      type: { in: types.filter((type) => !existing.includes(type)) },
+      type: { in: newTypes },
     },
   });
   if (inactive.length)

@@ -23,9 +23,11 @@ function load(file, mocks = {}) {
 let user = { id: "admin", clinicId: "clinic-a", role: "ADMIN", name: "Admin" };
 let state;
 let failAudit = false;
+let medicineWrites = 0;
 const now = new Date("2026-11-18T02:00:00Z");
 function reset() {
   failAudit = false;
+  medicineWrites = 0;
   user.role = "ADMIN";
   state = {
     visit: {
@@ -125,11 +127,13 @@ const prisma = {
       state.medicines.push(m);
       return m;
     },
-    update: async ({ where, data }) =>
-      Object.assign(
+    update: async ({ where, data }) => {
+      medicineWrites++;
+      return Object.assign(
         state.medicines.find((m) => m.id === where.id),
         data,
-      ),
+      );
+    },
   },
   activityLog: {
     create: async ({ data }) => {
@@ -288,6 +292,10 @@ async function main() {
   assert.equal(state.inventory[0].stock, 48);
   assert.equal(state.movements[0].quantityChange, -2);
   assert.equal(state.medicines[0].status, "RECEIVED");
+  medicineWrites = 0;
+  await run(actions.correctCompletedVisitAction, { "medicine:issued:quantity": 12 });
+  assert.equal(medicineWrites, 0, "Saving an unchanged medicine must not issue another database update");
+  assert.equal(state.inventory[0].stock, 48, "Unchanged saves must preserve stock");
   reset();
   state.medicines = [
     {

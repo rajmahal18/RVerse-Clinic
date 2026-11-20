@@ -44,15 +44,19 @@ export default async function SettingsPage({
   const resolvedSearchParams = await searchParams;
   const user = await getCurrentUser();
   if (!user || user.role !== UserRole.ADMIN) redirect("/dashboard");
-  const complaints = await prisma.chiefComplaintCatalog.findMany({
+  const selectedTab = ["archives", "services", "complaints", "diseases"].includes(resolvedSearchParams?.tab ?? "")
+    ? resolvedSearchParams!.tab! : "general";
+  const [complaints, settings, diseases] = await Promise.all([
+  selectedTab === "complaints" ? prisma.chiefComplaintCatalog.findMany({
     where: { clinicId: user.clinicId },
     orderBy: { name: "asc" },
-  });
-  const settings = await getClinicSettingsData();
-  const diseases = await prisma.diseaseCatalog.findMany({
+  }) : Promise.resolve([]),
+  selectedTab === "general" ? getClinicSettingsData() : Promise.resolve(null),
+  selectedTab === "diseases" ? prisma.diseaseCatalog.findMany({
     where: { clinicId: user.clinicId },
     orderBy: { name: "asc" },
-  });
+  }) : Promise.resolve([]),
+  ]);
 
   return (
     <AppShell>
@@ -70,10 +74,11 @@ export default async function SettingsPage({
               : "general"
         }
         tabs={[
-          {id:"archives",label:"ARCHIVES",content:<ArchiveRegistry clinicId={user.clinicId} kind={resolvedSearchParams?.archiveKind} page={resolvedSearchParams?.archivePage} />},
-          {id:"services",label:"SERVICES",content:<ServiceSettings clinicId={user.clinicId} />},
+          {id:"archives",label:"ARCHIVES",href:"/settings?tab=archives",content:selectedTab === "archives" ? <ArchiveRegistry clinicId={user.clinicId} kind={resolvedSearchParams?.archiveKind} page={resolvedSearchParams?.archivePage} /> : null},
+          {id:"services",label:"SERVICES",href:"/settings?tab=services",content:selectedTab === "services" ? <ServiceSettings clinicId={user.clinicId} /> : null},
           {
             id: "complaints",
+            href: "/settings?tab=complaints",
             label: "CHIEF COMPLAINTS",
             content: (
               <section className="border bg-white p-4">
@@ -108,8 +113,9 @@ export default async function SettingsPage({
           },
           {
             id: "general",
+            href: "/settings",
             label: "CLINIC & ACCOUNTS",
-            content: (
+            content: settings ? (
               <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                 <Card>
                   <CardHeader className="border-b bg-slate-50/70">
@@ -305,10 +311,11 @@ export default async function SettingsPage({
                   </CardContent>
                 </Card>
               </div>
-            ),
+            ) : null,
           },
           {
             id: "diseases",
+            href: "/settings?tab=diseases",
             label: "DISEASE MASTER LIST",
             content: <DiseaseMasterList diseases={diseases} />,
           },

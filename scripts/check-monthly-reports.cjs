@@ -454,6 +454,7 @@ async function surveyActionChecks() {
   let clinicId = "clinic-a";
   const prisma = {
     visit: {
+      findUniqueOrThrow: async () => ({ status: "IN_PROGRESS", requests: [], medicines: [], vaccinations: [], referrals: [], followUps: [] }),
       findUnique: async () => ({
         id: "visit-a",
         patientId: "patient-a",

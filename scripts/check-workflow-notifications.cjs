@@ -51,7 +51,7 @@ async function main() {
   await summaryLib.buildDailySummary("clinic-a", "2026-10-07");
   const opening = { id: "opening", createdAt: new Date("2026-09-30T00:00:00Z"), quantityChange: 50, boxQuantityChange: 3, reason: "Existing stock encoded", physicalCount: null, functionalCount: null };
   const adjustment = { id: "deduction", createdAt: new Date("2026-10-07T00:00:00Z"), quantityChange: -4, boxQuantityChange: -2, reason: "Manual adjustment", physicalCount: null, functionalCount: null };
-  const itemBase = { category: "MEDICINE", name: "Test medicine", stock: 46, pcsPerBox: 10, reorderLevel: 5, unit: "pcs", createdAt: opening.createdAt, expirationDate: null, physicalCount: null, functionalCount: null };
+  const itemBase = { _count: { medicineRequests: 0 }, isRequestable: true, category: "MEDICINE", name: "Test medicine", stock: 46, pcsPerBox: 10, reorderLevel: 5, unit: "pcs", createdAt: opening.createdAt, expirationDate: null, physicalCount: null, functionalCount: null };
   const ledgerItems = [{ ...itemBase, id: "boxed", boxStock: 1, movements: [opening, adjustment] }, { ...itemBase, id: "unit-only", boxStock: 0, movements: [{ ...opening, boxQuantityChange: 0 }, { ...adjustment, boxQuantityChange: 0 }] }];
   const view = load("src/lib/patient-view.ts", {
     "@/lib/date-time": date,

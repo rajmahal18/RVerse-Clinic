@@ -31,9 +31,11 @@ export function AutosaveForm({
   const version = useRef(0);
   const [state, setState] = useState("Autosave on");
 
-  function save(data: FormData, currentVersion: number) {
+  function save(data: FormData, currentVersion: number, finalSave = false) {
     queue.current = queue.current.then(async () => {
-      if (submitted.current) return;
+      // Cleanup owns a captured snapshot of the previous visit. A new visit's
+      // version or submission must not cancel that visit's final save.
+      if (!finalSave && (submitted.current || currentVersion !== version.current)) return;
       try {
         const result = await autosaveAction(data);
         if (currentVersion === version.current)
@@ -151,6 +153,10 @@ export function AutosaveForm({
         restoreInputs();
         // Stateful selections may reveal conditional inputs on the next render.
         requestAnimationFrame(() => {
+          if (cancelled || version.current !== initialVersion) {
+            restoring.current = false;
+            return;
+          }
           restoreInputs();
           restoring.current = false;
         });
@@ -170,7 +176,7 @@ export function AutosaveForm({
       cancelled = true;
       if (timer.current) clearTimeout(timer.current);
       if (latest.current && !submitted.current)
-        void save(latest.current, version.current);
+        void save(latest.current, version.current, true);
       window.removeEventListener("pagehide", flush);
     };
     // Each mounted form owns a draft and serial save queue.
@@ -178,6 +184,11 @@ export function AutosaveForm({
   }, [draftKey, visitId]);
 
   function handleInput(event: React.FormEvent<HTMLFormElement>) {
+    // React fires input and change for the same keystroke; capture it once.
+    if (event.type === "input" && event.target instanceof HTMLInputElement &&
+        ["checkbox", "radio"].includes(event.target.type)) return;
+    if (event.type === "change" && (event.target instanceof HTMLTextAreaElement ||
+        (event.target instanceof HTMLInputElement && !["checkbox", "radio", "file"].includes(event.target.type)))) return;
     if (submitted.current || restoring.current) return;
     if (timer.current) clearTimeout(timer.current);
     latest.current = new FormData(event.currentTarget);

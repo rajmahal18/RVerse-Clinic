@@ -61,6 +61,8 @@ const mocks = {
   },
   "@/lib/prisma": {
     prisma: {
+      chiefComplaintCatalog: { findMany: async () => [] },
+      clinicServiceSetting: { findMany: async () => [] },
       diseaseCatalog: {
         findMany: async () => [
           { id: "disease-a", name: "Client-provided disease", isActive: true },
@@ -95,6 +97,10 @@ function load(filename) {
           fs.existsSync(base + ".tsx") ? base + ".tsx" : base + ".ts",
         );
       }
+      if (name.startsWith(".")) {
+        const base = path.resolve(path.dirname(filename), name);
+        return load(fs.existsSync(base + ".tsx") ? base + ".tsx" : base + ".ts");
+      }
       return require(name);
     },
     module,
@@ -112,7 +118,7 @@ async function main() {
   );
   assert.ok(queued.includes("Historical assessment"));
   assert.ok(queued.includes("HISTORY"));
-  assert.ok(!queued.includes("LABORATORY"));
+  assert.ok(!queued.includes('id="tab-laboratory"'), "Queued visits must not open the active laboratory panel");
   visit.statusCode = "IN_PROGRESS";
   visit.status = "In progress";
   const nurse = renderToStaticMarkup(await Profile({ id: patient.id }));
