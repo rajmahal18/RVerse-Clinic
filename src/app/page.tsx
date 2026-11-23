@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ClinicLogo } from "@/components/layout/clinic-logo";
 import { LandingRevealObserver } from "@/components/landing/landing-reveal-observer";
+import { APP_VERSION } from "@/lib/app-version";
 import { verifySessionToken } from "@/lib/auth";
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
 
@@ -312,10 +313,13 @@ export default async function LandingPage() {
           <div className="w-full max-w-md bg-white p-3">
             <ClinicLogo variant="large" className="w-full" />
           </div>
-          <Link href={accessHref} className="landing-button inline-flex w-fit items-center gap-2 font-black text-white">
-            {accessLabel}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <Link href={accessHref} className="landing-button inline-flex w-fit items-center gap-2 font-black text-white">
+              {accessLabel}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <p className="text-xs text-slate-400">v{APP_VERSION}</p>
+          </div>
         </div>
       </footer>
     </main>
