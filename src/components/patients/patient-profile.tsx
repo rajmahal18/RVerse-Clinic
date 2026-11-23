@@ -445,7 +445,7 @@ export async function PatientProfile({
                             assessment.
                           </h3>
                           <p className="mt-2 text-sm leading-6 text-slate-600">
-                            Enter the patient's vital signs to begin the
+                            Enter the patient&apos;s vital signs to begin the
                             assessment.
                           </p>
                           <form

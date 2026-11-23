@@ -200,7 +200,7 @@ export function SatisfactionSurveyModal({
           </section>
           <section className="space-y-4">
             <h3 className="border-b pb-2 font-black text-slate-900">
-              Citizen's Charter questions
+              Citizen&apos;s Charter questions
             </h3>
             {ccQuestions.map(([name, question, options]) => (
               <fieldset key={name} className="grid gap-2">

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      DATABASE_URL: postgresql://127.0.0.1:9/synthetic
+      DIRECT_URL: postgresql://127.0.0.1:9/synthetic
+      APP_BASE_URL: http://127.0.0.1:3000
+      AUTH_COOKIE_SECURE: 'true'
+      TRUST_PROXY_HEADERS: 'false'
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        id: node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.19.0'
+          package-manager-cache: false
+
+      - name: Install dependencies and generate Prisma Client
+        run: npm ci --no-audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Generate synthetic auth secret
+        run: |
+          AUTH_SECRET="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$AUTH_SECRET"
+          printf 'AUTH_SECRET=%s\n' "$AUTH_SECRET" >> "$GITHUB_ENV"
+
+      - name: Generate route types and typecheck
+        env:
+          NODE_ENV: production
+        run: |
+          npm exec --offline -- next typegen
+          npm run typecheck
+
+      - name: Mocked production regression checks
+        run: npm run check:production
+
+      # Numbering uses an in-memory PGlite fixture. QR checks use synthetic labels.
+      - name: Patient labels with isolated fixtures
+        run: npm run check:patient-labels
+
+      - name: Mocked Linux backup check
+        run: sh scripts/check-backup.sh
+
+      - name: Build with synthetic configuration
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Check built-server startup
+        run: node scripts/check-startup.cjs
+
+      - name: Check clinic layout in headless Chrome
+        run: |
+          CHROME_PATH="$(command -v google-chrome)"
+          export CHROME_PATH
+          "$CHROME_PATH" --version
+          npm run check:clinic-layout
+
+      # Audit the committed dependency graph even when an earlier check fails.
+      # Fail for findings at any severity or when the audit service is unavailable.
+      - name: Audit all npm dependencies
+        if: ${{ !cancelled() && steps.node.outcome == 'success' }}
+        run: npm audit --include=dev --include=optional --include=peer --audit-level=info

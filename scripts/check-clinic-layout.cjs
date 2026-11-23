@@ -45,8 +45,8 @@ async function main() {
     const css = process.env.CLINIC_LAYOUT_CSS ? fs.readFileSync(process.env.CLINIC_LAYOUT_CSS, "utf8") : fs.readdirSync(".next/static/css").filter((name) => name.endsWith(".css"))
       .map((name) => fs.readFileSync(path.join(".next/static/css", name), "utf8")).join("\n");
     const page = await browser.newPage();
-    const render = async (element, width) => {
-      await page.setViewportSize({ width, height: 900 });
+    const render = async (element, width, height = 900) => {
+      await page.setViewportSize({ width, height });
       await page.setContent(`<!doctype html><html><head><style>${css}</style></head><body>${renderToStaticMarkup(element)}</body></html>`);
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.evaluate(() => Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => {}))));
@@ -99,8 +99,7 @@ async function main() {
     for (const [width, height] of [[375, 667], [768, 600], [1024, 600], [1180, 600], [1280, 600]]) {
       await render(React.createElement(Shell, {
         role: "ADMIN", userInitials: "SA", medicineExpiry: { expired: 0, expiringSoon: 0 },
-      }, React.createElement("div", { style: { minHeight: "2400px" } }, "Patient Profile")), width);
-      await page.setViewportSize({ width, height });
+      }, React.createElement("div", { style: { minHeight: "2400px" } }, "Patient Profile")), width, height);
       const drawer = page.locator('aside[aria-label="Mobile navigation"]');
       if (width < 1024) {
         // Static rendering has no React handlers; reproduce the open drawer and body lock.
@@ -115,9 +114,12 @@ async function main() {
       const bounds = await scroller.boundingBox();
       assert.ok(bounds && bounds.y + bounds.height <= height + 1, `Navigation must fit viewport at ${width}x${height}`);
       assert.ok(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight), `Expected overflowing navigation at ${width}x${height}`);
-      await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+      // Let the drawer's open state reach the compositor before sending wheel input.
+      await scroller.hover();
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       await page.mouse.wheel(0, 1500);
-      await page.waitForFunction((element) => element.scrollTop > 0, await scroller.elementHandle());
+      await page.waitForFunction((element) => element.scrollTop + element.clientHeight >= element.scrollHeight - 1, await scroller.elementHandle(), { timeout: 5000 })
+        .catch(() => assert.fail(`Wheel must reach the bottom of navigation at ${width}x${height}`));
       const lastLink = scroller.locator("nav a").last();
       const lastBounds = await lastLink.boundingBox();
       assert.ok(lastBounds.y >= bounds.y && lastBounds.y + lastBounds.height <= bounds.y + bounds.height + 1, `Last menu must be reachable at ${width}x${height}`);
@@ -129,7 +131,8 @@ async function main() {
         await touchSession.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: Math.round(startY - step * (bounds.height - 80) / 8) }] });
       }
       await touchSession.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await page.waitForFunction((element) => element.scrollTop > 0, await scroller.elementHandle());
+      await page.waitForFunction((element) => element.scrollTop > 0, await scroller.elementHandle(), { timeout: 5000 })
+        .catch(() => assert.fail(`Touch must scroll navigation at ${width}x${height}`));
       await assertNoOverflow(`Scrollable navigation ${width}x${height}`);
       assert.equal(await page.evaluate(() => window.scrollY), 0, "Navigation scroll must not move the page");
     }
