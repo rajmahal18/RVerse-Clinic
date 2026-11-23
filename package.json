@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src next.config.ts tailwind.config.ts",
     "typecheck": "tsc --noEmit",
     "check:patient-labels": "node scripts/check-patient-numbering.cjs && node scripts/check-patient-qr.cjs",
     "check:clinic-layout": "node scripts/check-clinic-layout.cjs",
@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@eslint/eslintrc": "3.3.5",
     "@types/node": "^22.10.1",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.1",
