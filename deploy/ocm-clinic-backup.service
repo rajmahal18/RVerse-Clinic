@@ -1,0 +1,31 @@
+[Unit]
+Description=OCM Clinic PostgreSQL backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ocm-clinic-backup
+Group=ocm-clinic-backup
+StateDirectory=ocm-clinic-backup
+StateDirectoryMode=0700
+Environment=BACKUP_DIR=/var/lib/ocm-clinic-backup
+Environment=BACKUP_LOCK_FILE=/var/lib/ocm-clinic-ops/operations.lock
+Environment=BACKUP_WINDOW_HOUR=02
+Environment=PGSERVICE=ocm-clinic-backup
+Environment=PGSERVICEFILE=%d/pg_service.conf
+Environment=PGPASSFILE=%d/pgpass
+Environment=PGCONNECT_TIMEOUT=10
+EnvironmentFile=-/etc/ocm-clinic/backup.conf
+LoadCredential=pg_service.conf:/etc/ocm-clinic/backup.pg_service.conf
+LoadCredential=pgpass:/etc/ocm-clinic/backup.pgpass
+ReadWritePaths=/var/lib/ocm-clinic-ops/operations.lock
+ExecStart=/bin/sh /usr/local/libexec/ocm-clinic-backup
+TimeoutStartSec=30min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StandardOutput=journal
+StandardError=journal

@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily OCM Clinic PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Asia/Manila
+Persistent=false
+Unit=ocm-clinic-backup.service
+
+[Install]
+WantedBy=timers.target

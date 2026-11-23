@@ -150,14 +150,12 @@ and `-Keep`. It removes Prisma-only URL options before calling PostgreSQL tools,
 keeps 14 completed dumps by default, rejects failed/empty output, and prunes only
 after success. Tool diagnostics are suppressed to avoid credential leakage.
 
-Linux: schedule `sh scripts/backup-postgres.sh` using an IT-controlled timer/cron
-job. Supply `PGDATABASE`, optional `PGHOST`/`PGPORT`/`PGUSER` or `PGSERVICE`, and a
-mode-0600 `PGPASSFILE` through a restricted environment/service config. A libpq URL
-must not contain Prisma-only `schema`, `connection_limit`, or `pool_timeout`
-options. Set `BACKUP_DIR` and optionally `BACKUP_KEEP` (default 14 completed dumps).
-Use one scheduled writer per destination; alert on any nonzero exit and stale
-backups. Both scripts preserve prior dumps on generation failure. An exit-success,
-nonempty dump is not proof of restorability: perform restore drills.
+Linux: use the [OCM PM2 recovery runbook](ocm-pm2-recovery.md) for the restricted
+systemd service, three-copy rotation, storage limits, and off-host restore drill.
+The Linux helper accepts `PGDATABASE` or `PGSERVICE` through protected libpq
+configuration. Use a libpq service file and passfile for production credentials.
+Both scripts preserve prior dumps on generation failure. Verify recoverability
+with a full restore drill.
 
 Keep encrypted copies on separate storage/offline media with restricted access.
 Same-disk backups and VM snapshots alone are insufficient. IT owns scheduling,
