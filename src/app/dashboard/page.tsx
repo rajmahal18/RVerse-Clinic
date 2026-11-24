@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
+import { activeServiceWhere } from "@/lib/service-state";
 import { ArrowRight, CalendarClock, ClipboardList, ShieldPlus, Syringe, UsersRound, Activity, PackageCheck, Pill } from "lucide-react";
 import { RequestType, VisitStatus } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
@@ -68,6 +69,7 @@ export default async function DashboardPage() {
     prisma.visit.count({
       where: {
         status: VisitStatus.COMPLETED,
+        OR: [{ requests: { none: {} } }, { requests: { some: activeServiceWhere } }],
         timeIn: {
           gte: today.start,
           lt: today.end,
@@ -247,7 +249,7 @@ export default async function DashboardPage() {
           );
         })}
       </div>
-      {canViewPatients ? <DashboardAnalytics /> : null}
+      {canViewPatients && currentUser ? <DashboardAnalytics clinicId={currentUser.clinicId} /> : null}
     </AppShell>
   );
 }

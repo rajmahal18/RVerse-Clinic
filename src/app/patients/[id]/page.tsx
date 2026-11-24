@@ -11,6 +11,7 @@ export default async function PatientDetailPage({
     error?: string;
     message?: string;
     visitId?: string;
+    returnTo?: string;
   }>;
 }) {
   const { id } = await params;
@@ -19,7 +20,7 @@ export default async function PatientDetailPage({
   return (
     <AppShell>
       <ActionAlert error={resolvedSearchParams?.error} message={resolvedSearchParams?.message} />
-      <PatientProfile id={id} visitId={resolvedSearchParams?.visitId} />
+      <PatientProfile id={id} visitId={resolvedSearchParams?.visitId} returnTo={resolvedSearchParams?.returnTo} />
     </AppShell>
   );
 }

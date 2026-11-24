@@ -1,3 +1,5 @@
+
+import { FormFeedback } from "@/components/ui/form-feedback";
 import { RecordAction } from "@/components/admin/record-action";
 import { PatientRecordManagement } from "@/components/admin/patient-record-management";
 import { getAvailedServiceLabels } from "@/lib/clinic-services";
@@ -10,7 +12,7 @@ import { DiagnosisField } from "@/components/patients/diagnosis-field";
 import { DeleteAppointmentButton } from "@/components/patients/delete-appointment-button";
 import { prisma } from "@/lib/prisma";
 import { canEditVisitField } from "@/lib/visit-fields";
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, ChevronDown, FileText, Pencil, PlayCircle, QrCode, Save, UserRound } from "lucide-react";
 import { RequestType, UserRole, VisitStatus } from "@prisma/client";
@@ -47,6 +49,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
+import { VisitServices } from "@/components/patients/service-cancellation";
+import { closedWithoutServiceLabel } from "@/lib/service-state";
+import { safeReportReturnTo } from "@/lib/report-navigation";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 
 const statusOptions = [
   { value: VisitStatus.QUEUED, label: "Queued" },
@@ -76,10 +82,13 @@ function hasCompletedSatisfactionSurvey(survey: { cc1: string; cc2: string; cc3:
 export async function PatientProfile({
   id,
   visitId,
+  returnTo,
 }: {
   id: string;
   visitId?: string;
+  returnTo?: string;
 }) {
+  const reportReturnTo = safeReportReturnTo(returnTo);
   const patient = await getPatientWorkflowProfile(id);
 
   if (!patient) {
@@ -138,6 +147,7 @@ export async function PatientProfile({
   const historicalVisits = activeVisit
     ? patient.visitHistory.filter((visit) => visit.id !== activeVisit.id)
     : patient.visitHistory;
+  const serviceCancelled = (type: RequestType) => Boolean(activeVisit?.requests.some((request) => request.type === type && request.cancellation));
   const activeVisitSurveyComplete = activeVisit
     ? hasCompletedSatisfactionSurvey(activeVisit.satisfactionSurvey)
     : false;
@@ -164,6 +174,7 @@ export async function PatientProfile({
         ? "Released medicine must be marked received before this visit can be completed."
         : "";
   const availableStatusOptions = statusOptions.filter((option) => {
+    if (option.value === VisitStatus.CANCELLED) return false;
     if (!activeVisit) return true;
     if (option.value === VisitStatus.COMPLETED)
       return activeVisitCompletionReady;
@@ -184,11 +195,11 @@ export async function PatientProfile({
               variant="ghost"
               size="icon"
               className="shrink-0 border bg-white"
-              aria-label="Back to patient records"
+              aria-label={reportReturnTo ? "Back to report" : "Back to patient records"}
             >
-              <Link href="/patients">
+              <RetainedBackLink href={reportReturnTo ?? "/patients"} source>
                 <ArrowLeft className="h-5 w-5" />
-              </Link>
+              </RetainedBackLink>
             </Button>
             <h2 className="min-w-0 max-w-full break-words text-2xl font-black tracking-tight uppercase sm:text-3xl">
               {patient.lastName}, {patient.firstName} {patient.middleName}
@@ -367,11 +378,12 @@ export async function PatientProfile({
         patientId={patient.id}
         canReceive={canManageVisits}
       />
+      {activeVisit ? <VisitServices patientId={patient.id} visitId={activeVisit.id} services={activeVisit.requests} canCancel={canManageVisits} canCancelVisit={currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.DOCTOR} /> : null}
       {currentUser?.role === UserRole.ADMIN &&
-      historicalVisits.some((v) => v.statusCode === VisitStatus.COMPLETED) ? (
+      historicalVisits.some((v) => v.statusCode === VisitStatus.COMPLETED && v.status !== closedWithoutServiceLabel) ? (
         <CompletedVisitEditor
           visits={historicalVisits.filter(
-            (v) => v.statusCode === VisitStatus.COMPLETED,
+            (v) => v.statusCode === VisitStatus.COMPLETED && v.status !== closedWithoutServiceLabel,
           )}
           patientId={patient.id}
           complaints={complaintOptions}
@@ -452,6 +464,7 @@ export async function PatientProfile({
                             action={startVisitAction}
                             className="mt-5 grid gap-4"
                           >
+      <FormFeedback />
                             <p className="text-sm font-semibold text-slate-700">
                               Enter at least one vital sign to start.
                             </p>
@@ -583,6 +596,7 @@ export async function PatientProfile({
                             </div>
                             <ServiceRequestedFields
                               lockExisting
+                              cancelledValues={activeVisit.requests.filter((request) => request.cancellation).map((request) => request.type)}
                               options={availableRequests}
                                 defaultReferralReason={activeVisit.referralReason}
                               defaultValues={activeVisit.requests.map(
@@ -844,29 +858,29 @@ export async function PatientProfile({
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              <MedicineRequestModal
+                              {!serviceCancelled("MEDICINES") ? <MedicineRequestModal
                                 action={requestMedicineAction}
                                 patientId={patient.id}
                                 visitId={activeVisit.id}
                                 inventoryOptions={inventoryOptions}
-                              />
-                              <ReferralScheduleModal referralReason={activeVisit.referralReason}
+                              /> : null}
+                              {!serviceCancelled("REFERRAL") ? <ReferralScheduleModal referralReason={activeVisit.referralReason}
                                 action={scheduleReferralAction}
                                 patientId={patient.id}
                                 visitId={activeVisit.id}
-                              />
-                              <VaccinationRecordModal
+                              /> : null}
+                              {!serviceCancelled("VACCINATION") ? <VaccinationRecordModal
                                 action={addVaccinationRecordAction}
                                 patientId={patient.id}
                                 visitId={activeVisit.id}
                                 vaccines={vaccineOptions}
-                              />
-                              <VaccineRequestModal
+                              /> : null}
+                              {!serviceCancelled("VACCINATION") ? <VaccineRequestModal
                                 action={requestVaccineAction}
                                 patientId={patient.id}
                                 visitId={activeVisit.id}
                                 vaccines={vaccineOptions}
-                              />
+                              /> : null}
                             </div>
                           </div>
                         </div>
@@ -960,12 +974,12 @@ export async function PatientProfile({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="font-bold">Vaccination records</h3>
-                      <VaccinationRecordModal
+                      {!serviceCancelled("VACCINATION") ? <VaccinationRecordModal
                         action={addVaccinationRecordAction}
                         patientId={patient.id}
                         visitId={activeVisit.id}
                         vaccines={vaccineOptions}
-                      />
+                      /> : null}
                     </div>
                     <div className="divide-y">
                       {activeVisit.vaccinations.map((record) => (
@@ -1008,12 +1022,12 @@ export async function PatientProfile({
                   <Card id="medicines">
                     <CardHeader>
                       <CardTitle>Medicine Request History</CardTitle>
-                      <MedicineRequestModal
+                      {!activeVisit.requests.some((request) => request.type === "MEDICINES" && request.cancellation) ? <MedicineRequestModal
                         action={requestMedicineAction}
                         patientId={patient.id}
                         visitId={activeVisit.id}
                         inventoryOptions={inventoryOptions}
-                      />
+                      /> : <p className="text-sm text-slate-500">Provision of Medicine was cancelled for this visit.</p>}
                     </CardHeader>
                     <CardContent>
                       <PatientMedicineHistory

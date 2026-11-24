@@ -1,6 +1,9 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useMemo, useState } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { CalendarClock, Check, Clock3, FileText, PackageCheck, UserRound, X, XIcon } from "lucide-react";
 import { releaseItemRequestAction, resolveItemRequestAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
@@ -11,6 +14,7 @@ export type ItemRequestListRow = {
   itemName: string;
   quantity: number;
   status: string;
+  blockedReason?: string;
   patientName: string;
   requestedBy: string;
   frequency: string;
@@ -24,7 +28,7 @@ export type ItemRequestListRow = {
 
 function StatusPill({ status }: { status: string }) {
   const label = status === "REQUESTED" ? "WAITING FOR APPROVAL" : status;
-  const tone = status === "REJECTED"
+  const tone = status === "REJECTED" || status === "CANCELLED"
     ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
     : status === "REQUESTED"
       ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
@@ -39,6 +43,7 @@ function DecisionActions({ requestId, compact = false }: { requestId: string; co
   const [rejectionReason, setRejectionReason] = useState("");
   return (
     <form action={resolveItemRequestAction} className="grid min-w-0 gap-2">
+      <FormFeedback />
       <CsrfField />
       <input type="hidden" name="requestId" value={requestId} />
       {rejectOpen ? (
@@ -72,6 +77,7 @@ function DecisionActions({ requestId, compact = false }: { requestId: string; co
 function ReleaseAction({ requestId, compact = false }: { requestId: string; compact?: boolean }) {
   return (
     <form action={releaseItemRequestAction} className={compact ? "grid gap-2 sm:grid-cols-[1fr_auto]" : "flex flex-wrap gap-2"}>
+      <FormFeedback />
       <CsrfField />
       <input type="hidden" name="requestId" value={requestId} />
       <input name="releasedBy" className="min-h-10 rounded-xl border px-3 text-sm" placeholder="Released by" />
@@ -98,7 +104,7 @@ export function ItemRequestList({
   historyView: boolean;
   canResolveRequests: boolean;
 }) {
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useRetainedViewState<string | null>("request-selection", null);
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? null,
     [requests, selectedRequestId]
@@ -125,7 +131,7 @@ export function ItemRequestList({
               </p>
               {request.remarks ? <p className="mt-1 line-clamp-1 text-xs text-slate-500">Remarks: {request.remarks}</p> : null}
             </button>
-            {!historyView && canResolveRequests ? (
+            {!historyView && canResolveRequests && !request.blockedReason ? (
               <div className="hidden md:block">
                 {request.status === "REQUESTED" ? <DecisionActions requestId={request.id} /> : null}
                 {request.status === "APPROVED" ? <ReleaseAction requestId={request.id} /> : null}
@@ -221,7 +227,8 @@ export function ItemRequestList({
               ) : null}
             </div>
 
-            {!historyView && canResolveRequests ? (
+            {selectedRequest.blockedReason ? <p className="border-t px-4 py-3 text-sm text-slate-500">{selectedRequest.blockedReason}</p> : null}
+            {!historyView && canResolveRequests && !selectedRequest.blockedReason ? (
               <div className="border-t bg-slate-50/70 p-4 md:px-5">
                 {selectedRequest.status === "REQUESTED" ? <DecisionActions key={selectedRequest.id} requestId={selectedRequest.id} compact /> : null}
                 {selectedRequest.status === "APPROVED" ? <ReleaseAction requestId={selectedRequest.id} compact /> : null}

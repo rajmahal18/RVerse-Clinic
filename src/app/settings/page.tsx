@@ -1,3 +1,5 @@
+
+import { FormFeedback } from "@/components/ui/form-feedback";
 import { ArchiveRegistry } from "@/components/admin/archive-registry";
 import { ServiceSettings } from "@/components/admin/service-settings";
 import { addChiefComplaintAction } from "@/app/actions/workflow";
@@ -90,6 +92,7 @@ export default async function SettingsPage({
                   action={addChiefComplaintAction}
                   className="my-4 flex flex-wrap gap-2"
                 >
+      <FormFeedback />
                   <CsrfField />
                   <input
                     name="name"
@@ -129,6 +132,7 @@ export default async function SettingsPage({
                       action={updateClinicSettingsAction}
                       className="grid gap-4"
                     >
+      <FormFeedback />
                       <CsrfField />
                       <label className="grid gap-1.5 text-sm font-semibold text-slate-700">
                         Clinic name
@@ -191,6 +195,7 @@ export default async function SettingsPage({
                       action={createUserAction}
                       className="grid gap-3 md:grid-cols-2"
                     >
+      <FormFeedback />
                       <CsrfField />
                       <input
                         type="hidden"
@@ -280,6 +285,7 @@ export default async function SettingsPage({
                             action={toggleUserStatusAction}
                             className="shrink-0"
                           >
+      <FormFeedback />
                             <CsrfField />
                             <input
                               type="hidden"

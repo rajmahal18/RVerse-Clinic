@@ -1,4 +1,5 @@
 import { vaccineHistoryEntries, type VaccineHistoryEntry } from "@/lib/patient-medical-info";
+import { serviceCancellation, closedWithoutService, closedWithoutServiceLabel, activeServiceWhere, type ServiceCancellation } from "@/lib/service-state";
 import { requestTypeLabels, getAvailedServiceLabels } from "@/lib/clinic-services";
 export { getAvailedServiceLabels } from "@/lib/clinic-services";
 import {
@@ -103,7 +104,7 @@ export type PatientTableRow = {
   additionalMedicalInformation: string;
   request: string;
   status: string;
-  statusCode: VisitStatus | "NO_VISIT";
+  statusCode: VisitStatus | "NO_VISIT" | "CLOSED_NO_SERVICE";
   requestTypes: RequestType[];
   latestVisitAt: string;
   latestVisitDay: string;
@@ -177,7 +178,7 @@ export type PatientVisitWorkflow = {
   progressNotesDoneAt: string | null;
   treatmentDoneAt: string | null;
   nurseOnDuty: string;
-  requests: { id: string; type: RequestType; label: string }[];
+  requests: { id: string; type: RequestType; label: string; cancellation?: ServiceCancellation | null }[];
   medicines: {
     batchLabel?: string;
     id: string;
@@ -228,6 +229,7 @@ export type PatientVisitWorkflow = {
   }[];
   satisfactionSurvey: {
     id: string;
+    updatedAt?: string;
     clientType: string;
     customerType: string;
     agencyName: string;
@@ -535,7 +537,7 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
   const latestVisit = patient.visits[0];
   const latestRequests = latestVisit?.requests ?? [];
   const request = latestRequests.length
-    ? latestRequests.map(({ type }) => requestTypeLabels[type]).join(", ")
+    ? latestRequests.map((request) => requestTypeLabels[request.type] + (serviceCancellation(request) ? " (service cancelled)" : "")).join(", ")
     : "No request yet";
   const bmi = patient.heightCm && patient.weightKg
     ? patient.weightKg / (patient.heightCm / 100) ** 2
@@ -570,8 +572,8 @@ function toPatientTableRow(patient: PatientWithVisits): PatientTableRow {
     maintenance: patient.maintenance ?? "Not provided",
     additionalMedicalInformation: patient.additionalMedicalInformation ?? "Not provided",
     request,
-    status: latestVisit ? visitStatusLabels[latestVisit.status] : "No visit yet",
-    statusCode: latestVisit?.status ?? "NO_VISIT",
+    status: latestVisit ? closedWithoutService(latestVisit) ? closedWithoutServiceLabel : visitStatusLabels[latestVisit.status] : "No visit yet",
+    statusCode: latestVisit && closedWithoutService(latestVisit) ? "CLOSED_NO_SERVICE" : latestVisit?.status ?? "NO_VISIT",
     requestTypes: latestRequests.map(({ type }) => type),
     latestVisitAt: latestVisit ? formatDateTime(latestVisit.timeIn) : "No visit yet",
     latestVisitDay: latestVisit ? formatDisplayDate(latestVisit.timeIn) : "",
@@ -670,7 +672,7 @@ function toVisitWorkflow(
     timeIn: formatDateTime(visit.timeIn),
     timeOut: visit.timeOut ? formatDateTime(visit.timeOut) : null,
     statusCode: visit.status,
-    status: visitStatusLabels[visit.status],
+    status: closedWithoutService(visit) ? closedWithoutServiceLabel : visitStatusLabels[visit.status],
     chiefComplaint: visit.chiefComplaint ?? "",
     referralReason: visit.referralReason ?? "",
     bloodPressure: visit.bloodPressure ?? "",
@@ -704,6 +706,7 @@ function toVisitWorkflow(
       id: request.id,
       type: request.type,
       label: requestTypeLabels[request.type],
+      cancellation: serviceCancellation(request),
     })),
     medicines: visit.medicines.map((medicine) => ({
       batchLabel: medicine.inventoryItem
@@ -778,6 +781,7 @@ function toVisitWorkflow(
     satisfactionSurvey: visit.satisfactionSurvey
       ? {
           id: visit.satisfactionSurvey.id,
+          updatedAt: visit.satisfactionSurvey.updatedAt.toISOString(),
           clientType: visit.satisfactionSurvey.clientType ?? "",
           customerType: visit.satisfactionSurvey.customerType ?? "",
           agencyName: visit.satisfactionSurvey.agencyName ?? "",
@@ -1141,6 +1145,7 @@ export async function getVaccinationPatientTableRows(
         requests: {
           some: {
             type: RequestType.VACCINATION,
+            ...activeServiceWhere,
             deletedAt: null,
           },
         },

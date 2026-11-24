@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, FileText } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -27,9 +28,9 @@ export default async function PatientFormsPage({
       <PageHeader
         title="Clinic Forms"
         actions={
-          <Link href={`/patients/${id}`} className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+          <RetainedBackLink href={`/patients/${id}`} className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
             <ArrowLeft className="h-4 w-4" /> Patient Profile
-          </Link>
+          </RetainedBackLink>
         }
       />
       <section className="overflow-hidden rounded-2xl border bg-white shadow-soft">

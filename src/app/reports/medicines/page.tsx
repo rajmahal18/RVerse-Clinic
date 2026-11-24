@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import { ArrowLeft, FileHeart, PackageSearch } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -37,9 +38,9 @@ export default async function MedicineReportsPage({ searchParams }: { searchPara
       <PageHeader
         title="Medicine Reports"
         actions={
-          <Link href="/reports" className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
+          <RetainedBackLink href="/reports" className="inline-flex h-10 items-center gap-2 rounded-xl border bg-white px-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950">
             <ArrowLeft className="h-4 w-4" /> Reports
-          </Link>
+          </RetainedBackLink>
         }
       />
       <div className="space-y-5">

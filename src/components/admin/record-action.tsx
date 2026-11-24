@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 import { useState } from "react";
 import { manageRecordAction } from "@/app/actions/record-management";
 import { Button } from "@/components/ui/button";
@@ -78,6 +80,7 @@ export function RecordAction({
                 : "The record is retained for recovery and audit. Linked history is preserved. Archived or voided services are excluded from normal service totals."}
             </p>
             <form action={manageRecordAction} className="grid gap-4">
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="kind" value={kind} />
               <input type="hidden" name="recordId" value={recordId} />

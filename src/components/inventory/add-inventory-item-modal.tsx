@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useState, type InputHTMLAttributes } from "react";
 import { Boxes, Plus, X } from "lucide-react";
@@ -22,7 +24,8 @@ export function AddInventoryItemModal({ action }: { action: ServerFormAction }) 
     {open ? <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/40 sm:place-items-center sm:p-4" onClick={() => setOpen(false)}>
       <div role="dialog" aria-modal="true" aria-labelledby="add-item-title" className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border bg-white shadow-2xl sm:rounded-2xl" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 border-b px-4 py-4 sm:px-5"><div className="flex min-w-0 items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-primary"><Boxes className="h-5 w-5" /></span><div><h2 id="add-item-title" className="text-lg font-black text-slate-900">Add Inventory Item</h2><p className="mt-0.5 text-sm text-slate-500">Enter item details and starting quantities.</p></div></div><Button type="button" variant="ghost" size="icon" onClick={() => setOpen(false)} aria-label="Close add item"><X className="h-5 w-5" /></Button></div>
-        <form action={action} className="min-h-0 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5"><CsrfField />
+        <form action={action} className="min-h-0 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+      <FormFeedback /><CsrfField />
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="grid gap-1.5 text-sm font-semibold text-slate-700 sm:col-span-2">Category<select name="category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-xl border bg-white px-3 font-normal">{categories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             {!medicineLike ? <Field name="itemCode" label="Item code" placeholder="Entered by clinic staff" /> : null}<Field name="name" label={category === "MEDICINE" ? "Generic name" : category === "VACCINE" ? "Vaccine name" : "Item name"} required />

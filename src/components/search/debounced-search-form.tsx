@@ -1,8 +1,10 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useFeedbackRouter as useRouter } from "@/components/navigation/use-feedback-router";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +97,7 @@ export function DebouncedSearchForm({
 
   return (
     <form onSubmit={handleSubmit} className={cn("relative", className)}>
+      <FormFeedback />
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
         name="q"

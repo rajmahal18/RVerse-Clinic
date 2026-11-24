@@ -1,4 +1,6 @@
-import Link from "next/link";
+
+import { FormFeedback } from "@/components/ui/form-feedback";
+import Link from "@/components/navigation/app-link";
 import { redirect, notFound } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -9,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildDailySummary, readDailySummary, validSummaryDate } from "@/lib/daily-summary";
+import { closedWithoutServiceLabel } from "@/lib/service-state";
 import { formatDateKey, formatDateTime } from "@/lib/date-time";
 import { submitDailySummaryAction } from "@/app/actions/workflow";
 
@@ -28,7 +31,7 @@ export default async function DailySummaryPage({ searchParams }: { searchParams:
   if (submission && !snapshot) notFound();
   const summary = snapshot ?? (await buildDailySummary(user.clinicId, date));
   const recent = await prisma.activityLog.findMany({ where: { clinicId: user.clinicId, module: "Daily Summary", action: "Submit daily summary", status: "SUCCESS" }, orderBy: { createdAt: "desc" }, take: 14 });
-  const ready = summary.rows.length > 0 && summary.rows.every(row => row.status === "completed");
+  const ready = summary.rows.length > 0 && summary.rows.every(row => row.status === "completed" || row.status === closedWithoutServiceLabel);
   return (
     <AppShell>
       <div className="daily-summary-screen space-y-4">
@@ -40,6 +43,7 @@ export default async function DailySummaryPage({ searchParams }: { searchParams:
               action="/reports/daily-summary"
               className="flex flex-wrap items-end gap-2"
             >
+      <FormFeedback />
               <label className="grid gap-1 text-sm font-semibold">
                 Clinic date
                 <input
@@ -55,6 +59,7 @@ export default async function DailySummaryPage({ searchParams }: { searchParams:
             </form>
             {user.role !== "RECORDS" && !submission ? (
               <form action={submitDailySummaryAction}>
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="date" value={summary.date} />
                 <Button disabled={!ready}>Submit to records</Button>

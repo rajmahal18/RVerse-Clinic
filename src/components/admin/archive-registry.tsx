@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
 import { prisma } from "@/lib/prisma";
 import { RecordAction } from "./record-action";
 

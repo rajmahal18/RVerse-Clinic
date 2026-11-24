@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { activeServices, closedWithoutService, closedWithoutServiceLabel } from "@/lib/service-state";
 import { formatTime, getDateInputRange } from "@/lib/date-time";
 
 export type DailySummaryRow = { patientId: string; patientNumber: string; name: string; time: string; services: string; status: string; diagnosis: string };
@@ -14,7 +15,7 @@ export function validSummaryDate(date: string) {
 export async function buildDailySummary(clinicId: string, date: string): Promise<DailySummary> {
   const { start, end } = getDateInputRange(validSummaryDate(date));
   const visits = await prisma.visit.findMany({ where: { patient: { clinicId }, timeIn: { gte: start, lt: end }, status: { not: "CANCELLED" } }, include: { patient: true, requests: true }, orderBy: { timeIn: "asc" } });
-  return { date, rows: visits.map(visit => ({ patientId: visit.patientId, patientNumber: visit.patient.patientNumber, name: `${visit.patient.lastName}, ${visit.patient.firstName}`, time: formatTime(visit.timeIn), services: visit.requests.map(request => request.type.replaceAll("_", " ").toLowerCase()).join(", ") || "Consultation", status: visit.status.replaceAll("_", " ").toLowerCase(), diagnosis: visit.diagnosis ?? "" })) };
+  return { date, rows: visits.map(visit => ({ patientId: visit.patientId, patientNumber: visit.patient.patientNumber, name: `${visit.patient.lastName}, ${visit.patient.firstName}`, time: formatTime(visit.timeIn), services: activeServices(visit.requests).map(request => request.type.replaceAll("_", " ").toLowerCase()).join(", ") || (closedWithoutService(visit) ? "No service provided" : "Consultation"), status: closedWithoutService(visit) ? closedWithoutServiceLabel : visit.status.replaceAll("_", " ").toLowerCase(), diagnosis: visit.diagnosis ?? "" })) };
 }
 
 export function readDailySummary(value: unknown): DailySummary | null {

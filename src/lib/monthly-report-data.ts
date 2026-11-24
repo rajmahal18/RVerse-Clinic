@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { ReportRange } from "@/lib/report-period";
 import {
   buildMonthlyReports,
   reportMonth,
@@ -25,7 +26,7 @@ const select = {
       agency: true,
     },
   },
-  requests: { select: { type: true } },
+  requests: { select: { type: true, remarks: true } },
   medicines: { select: { status: true } },
   vaccinations: { select: { id: true } },
   referrals: { select: { id: true } },
@@ -54,6 +55,26 @@ const select = {
     },
   },
 } satisfies Prisma.VisitSelect;
+
+export async function getAccomplishmentReports(
+  clinicId: string,
+  range: ReportRange,
+  thresholds: ReportThresholds,
+) {
+  const visits = await prisma.visit.findMany({
+    where: {
+      patient: { clinicId },
+      deletedAt: null,
+      status: { not: "CANCELLED" },
+      ...(range.period === "all-time"
+        ? {}
+        : { timeIn: { gte: range.start, lt: range.end } }),
+    },
+    select: { ...select, satisfactionSurvey: false, followUps: false },
+    orderBy: { timeIn: "asc" },
+  });
+  return buildMonthlyReports(visits.map((visit) => ({ ...visit, satisfactionSurvey: null, followUps: [] })), [], range.key, thresholds, range);
+}
 
 export async function getMonthlyReports(
   clinicId: string,

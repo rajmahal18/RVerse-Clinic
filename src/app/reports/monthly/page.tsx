@@ -1,9 +1,19 @@
-import Link from "next/link";
+
+import { FormFeedback } from "@/components/ui/form-feedback";
+import Link from "@/components/navigation/app-link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, ClipboardCheck, MessageSquareText } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { getCurrentUser } from "@/lib/auth";
-import { getMonthlyReports } from "@/lib/monthly-report-data";
+import {
+  getMonthlyReports,
+  getAccomplishmentReports,
+} from "@/lib/monthly-report-data";
+import { accomplishmentRange } from "@/lib/report-period";
+import { formatDateKey, getDateParts } from "@/lib/date-time";
+import { AccomplishmentFilters } from "@/components/reports/accomplishment-filters";
+import { ReportViewRetention } from "@/components/reports/report-view-retention";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import {
   reportMonth,
   reportRoles,
@@ -15,6 +25,9 @@ import { ReportExport } from "@/components/reports/report-export";
 
 type Params = {
   month?: string;
+  period?: string;
+  date?: string;
+  year?: string;
   tab?: string;
   systolic?: string;
   diastolic?: string;
@@ -29,73 +42,114 @@ export default async function MonthlyReportsPage({
   if (!user) redirect("/login");
   if (!reportRoles.includes(user.role)) redirect("/reports");
   const params = await searchParams;
+  const tab = params.tab === "satisfaction" ? "satisfaction" : "accomplishment";
+  let range = accomplishmentRange({});
   let error = "";
   let month = reportMonth().key;
   let thresholds = defaultThresholds;
   try {
     month = reportMonth(params.month).key;
     thresholds = reportThresholds(params);
+    if (tab === "accomplishment") range = accomplishmentRange(params);
   } catch (cause) {
     error = cause instanceof Error ? cause.message : "Invalid report filters.";
   }
-  const tab = params.tab === "satisfaction" ? "satisfaction" : "accomplishment";
   const report = error
     ? null
-    : await getMonthlyReports(user.clinicId, month, thresholds);
+    : tab === "accomplishment"
+      ? await getAccomplishmentReports(user.clinicId, range, thresholds)
+      : await getMonthlyReports(user.clinicId, month, thresholds);
   const title =
     tab === "accomplishment"
-      ? "Monthly Accomplishment Report"
+      ? `${range.period === "all-time" ? "All Time" : range.period[0].toUpperCase() + range.period.slice(1)} Accomplishment Report`
       : "Client Satisfaction Measurement Report";
   const sections = report?.[tab] ?? [];
   const query = new URLSearchParams({
     month,
+    period:
+      tab === "satisfaction" ? (params.period ?? "monthly") : range.period,
+    ...(params.date || range.period === "daily" || range.period === "weekly"
+      ? { date: params.date ?? range.key }
+      : {}),
+    ...(params.year || range.period === "yearly"
+      ? { year: params.year ?? range.key }
+      : {}),
     systolic: String(thresholds.systolic),
     diastolic: String(thresholds.diastolic),
     rbs: String(thresholds.rbs),
   });
+  const returnTo = `/reports/monthly?${query}&tab=${tab}`;
+  const retentionKey = `clinic-report:v1:${user.id}:${returnTo}`;
   return (
     <AppShell>
       <div className="monthly-report-screen min-w-0 space-y-5 pb-28 sm:pb-10">
+        <ReportViewRetention key={retentionKey} storageKey={retentionKey} />
         <div className="no-print space-y-4">
-          <Link
+          <RetainedBackLink
             href="/reports"
             className="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-primary"
           >
             <ArrowLeft className="h-4 w-4" /> Reports
-          </Link>
+          </RetainedBackLink>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">
-                Monthly reports
+                {tab === "accomplishment"
+                  ? "Accomplishment Report"
+                  : "Monthly reports"}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Clinic activity and client feedback, grouped by month.
+                {tab === "accomplishment"
+                  ? "Clinic activity for the selected period."
+                  : "Clinic activity and client feedback, grouped by month."}
               </p>
             </div>
-            <form
-              action="/reports/monthly"
-              className="flex flex-wrap items-end gap-2"
-            >
-              <input type="hidden" name="tab" value={tab} />
-              {Object.entries(thresholds).map(([name, value]) => (
-                <input key={name} type="hidden" name={name} value={value} />
-              ))}
-              <label className="grid gap-1 text-xs font-semibold text-slate-500">
-                Report month
-                <input
-                  type="month"
-                  name="month"
-                  defaultValue={month}
-                  min="1900-01"
-                  max="2199-12"
-                  required
-                  className="h-10 max-w-full rounded-lg border bg-white px-3 text-sm text-slate-800"
-                />
-              </label>
-              <button className="h-10 rounded-lg border bg-white px-4 text-sm font-semibold text-primary">
-                View
-              </button>
-            </form>
+            {tab === "accomplishment" ? (
+              <AccomplishmentFilters
+                key={retentionKey}
+                period={range.period}
+                date={params.date ?? formatDateKey(new Date())}
+                month={month}
+                year={params.year ?? String(getDateParts(new Date()).year)}
+                thresholds={thresholds}
+              />
+            ) : (
+              <form
+                action="/reports/monthly"
+                className="flex flex-wrap items-end gap-2"
+              >
+      <FormFeedback />
+                <input type="hidden" name="tab" value={tab} />
+                {(["period", "date", "year"] as const).map((name) =>
+                  query.has(name) ? (
+                    <input
+                      key={name}
+                      type="hidden"
+                      name={name}
+                      value={query.get(name)!}
+                    />
+                  ) : null,
+                )}
+                {Object.entries(thresholds).map(([name, value]) => (
+                  <input key={name} type="hidden" name={name} value={value} />
+                ))}
+                <label className="grid gap-1 text-xs font-semibold text-slate-500">
+                  Report month
+                  <input
+                    type="month"
+                    name="month"
+                    defaultValue={month}
+                    min="1900-01"
+                    max="2199-12"
+                    required
+                    className="h-10 max-w-full rounded-lg border bg-white px-3 text-sm text-slate-800"
+                  />
+                </label>
+                <button className="h-10 rounded-lg border bg-white px-4 text-sm font-semibold text-primary">
+                  View
+                </button>
+              </form>
+            )}
           </div>
           <nav
             aria-label="Monthly report type"
@@ -147,7 +201,7 @@ export default async function MonthlyReportsPage({
                 title={title}
                 month={report.label}
                 sections={sections}
-                filename={`${tab}-report-${month}`}
+                filename={`${tab}-report-${tab === "accomplishment" ? `${range.period}-${range.key}` : month}`}
               />
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-3 border-y py-4 text-sm">
@@ -193,8 +247,12 @@ export default async function MonthlyReportsPage({
               </p>
             ) : (
               <p className="text-sm leading-6 text-slate-500">
-                Visits this month, excluding cancelled appointments. Patients
-                may appear under more than one service.
+                Visits{" "}
+                {range.period === "all-time"
+                  ? "across all dates"
+                  : "in the selected period"}
+                , excluding cancelled appointments. Patients may appear under
+                more than one service.
               </p>
             )}
             {tab === "accomplishment" ? (
@@ -206,7 +264,23 @@ export default async function MonthlyReportsPage({
                   action="/reports/monthly"
                   className="mt-3 flex flex-wrap items-end gap-3"
                 >
+      <FormFeedback />
                   <input type="hidden" name="month" value={month} />
+                  <input type="hidden" name="period" value={range.period} />
+                  {query.has("date") ? (
+                    <input
+                      type="hidden"
+                      name="date"
+                      value={query.get("date")!}
+                    />
+                  ) : null}
+                  {query.has("year") ? (
+                    <input
+                      type="hidden"
+                      name="year"
+                      value={query.get("year")!}
+                    />
+                  ) : null}
                   <input type="hidden" name="tab" value={tab} />
                   {[
                     { name: "systolic", label: "Systolic BP (mmHg)" },
@@ -245,8 +319,11 @@ export default async function MonthlyReportsPage({
             <div className="space-y-7">
               {sections.map((section) => (
                 <ReportTable
-                  key={`${month}-${tab}-${section.id}`}
+                  key={`${tab === "accomplishment" ? `${range.period}-${range.key}` : month}-${tab}-${section.id}`}
                   section={section}
+                  returnTo={returnTo}
+                  retentionKey={`${retentionKey}:${section.id}`}
+                  canCorrectSurvey={user.role === "ADMIN"}
                 />
               ))}
             </div>

@@ -12,6 +12,7 @@ function load(file, mocks = {}) {
   new Function("require", "module", "exports", code)(
     (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (["@/lib/service-state", "@/lib/clinic-services", "@/lib/visit-cancellation"].includes(name)) return load("src/" + name.slice(2) + ".ts", mocks);
       if (name.startsWith("@/") || name.startsWith("next/")) return {};
       return require(name);
     },
@@ -78,6 +79,7 @@ const prisma = {
     }
   },
   visit: {
+    findFirst: async ({ where }) => where.patient.clinicId === state.visit.patient.clinicId ? { ...structuredClone(state.visit), requests: structuredClone(state.requests) } : null,
     findUnique: async () => structuredClone(state.visit),
     update: async ({ data }) => Object.assign(state.visit, data),
   },
@@ -245,6 +247,13 @@ async function main() {
   assert.deepEqual(state.visit.timeOut, now);
   assert.equal(state.logs[0].metadata.changes.chiefComplaint.before, null);
   assert.equal(state.logs[0].metadata.changes.chiefComplaint.after, "Cough");
+  reset();
+  user.role = "NURSE";
+  state.visit.status = "IN_PROGRESS";
+  await run(actions.updateVisitAction, { status: "CANCELLED" }, "Use Cancel visit");
+  await run(actions.updateVisitStatusAction, { status: "CANCELLED" }, "Use Cancel visit");
+  await run(actions.cancelQueuedVisitAction, { reason: "Patient declined" }, "permission");
+  assert.equal(state.visit.status, "IN_PROGRESS");
   reset();
   user.role = "NURSE";
   await run(

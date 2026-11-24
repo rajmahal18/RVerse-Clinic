@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
+import Link from "@/components/navigation/app-link";
 import { cn } from "@/lib/utils";
 
 type PatientRecordTab = {
@@ -11,11 +12,38 @@ type PatientRecordTab = {
   href?: string;
 };
 
-export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordTab[]; defaultTabId?: string }) {
-  const [activeTab, setActiveTab] = useState(defaultTabId ?? tabs[0]?.id ?? "");
+export function PatientRecordTabs({
+  tabs,
+  defaultTabId,
+}: {
+  tabs: PatientRecordTab[];
+  defaultTabId?: string;
+}) {
+  const [activeTab, setActiveTab] = useRetainedViewState(
+    `record-tab:${tabs.map((tab) => tab.id).join("|")}`,
+    defaultTabId ?? tabs[0]?.id ?? "",
+    () => {
+      const query = new URLSearchParams(location.search);
+      const requested =
+        defaultTabId === "history"
+          ? "history"
+          : query.get("tab") ||
+            (query.get("section") === "medicines"
+              ? "medicines"
+              : query.get("section") === "vaccinations"
+                ? "vaccinations"
+                : defaultTabId);
+      return (
+        tabs.find((tab) => tab.id === requested)?.id ??
+        defaultTabId ??
+        tabs[0]?.id ??
+        ""
+      );
+    },
+  );
   const selectedTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   useEffect(() => {
-    function jump() {
+    function jump(applyRequested = true) {
       const query = new URLSearchParams(window.location.search);
       const section = query.get("section");
       const requested =
@@ -26,8 +54,12 @@ export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordT
               ? "medicines"
               : section === "vaccinations"
                 ? "vaccinations"
-                : defaultTabId);
-      if (requested && tabs.some((tab) => tab.id === requested))
+                : undefined);
+      if (
+        applyRequested &&
+        requested &&
+        tabs.some((tab) => tab.id === requested)
+      )
         setActiveTab(requested);
       const target = query.get("section") || window.location.hash.slice(1);
       if (target)
@@ -53,10 +85,11 @@ export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordT
           }),
         );
     }
-    jump();
-    window.addEventListener("hashchange", jump);
-    return () => window.removeEventListener("hashchange", jump);
-  }, [tabs, defaultTabId]);
+    jump(false);
+    const onHashChange = () => jump();
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [tabs, defaultTabId, setActiveTab]);
 
   return (
     <section className="min-w-0 space-y-4 pb-8">
@@ -65,12 +98,22 @@ export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordT
           {tabs.map((tab) => {
             const active = tab.id === selectedTab?.id;
 
-            if (tab.href) return (
-              <Link key={tab.id} href={tab.href} prefetch={false}
-                aria-current={active ? "page" : undefined}
-                className={cn("inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950", active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white")}
-              >{tab.label}</Link>
-            );
+            if (tab.href)
+              return (
+                <Link
+                  key={tab.id}
+                  href={tab.href}
+                  prefetch={false}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950",
+                    active &&
+                      "bg-primary text-white shadow-soft hover:bg-primary hover:text-white",
+                  )}
+                >
+                  {tab.label}
+                </Link>
+              );
 
             return (
               <button
@@ -79,7 +122,8 @@ export function PatientRecordTabs({ tabs, defaultTabId }: { tabs: PatientRecordT
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
                   "h-10 rounded-xl px-4 text-sm font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950",
-                  active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white"
+                  active &&
+                    "bg-primary text-white shadow-soft hover:bg-primary hover:text-white",
                 )}
               >
                 {tab.label}

@@ -1,7 +1,10 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 import { RecordAction } from "@/components/admin/record-action";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { CheckCircle2, CircleOff, X } from "lucide-react";
 import {
   toggleUserStatusAction,
@@ -52,6 +55,7 @@ function ToggleAccountForm({
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
+      <FormFeedback />
       <CsrfField />
       <input type="hidden" name="redirectTo" value="/accounts" />
       <input type="hidden" name="userId" value={user.id} />
@@ -72,7 +76,7 @@ function ToggleAccountForm({
 }
 
 export function AccountList({ users }: { users: AccountUser[] }) {
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useRetainedViewState<string | null>("account-selection", null);
   const selectedUser = useMemo(
     () => users.find((user) => user.id === selectedUserId) ?? null,
     [users, selectedUserId]
@@ -203,6 +207,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
                 action={updateUserRoleAction}
                 className="flex flex-wrap items-end gap-3"
               >
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="userId" value={selectedUser.id} />
                 <label className="grid flex-1 gap-1 text-sm font-semibold">
@@ -235,6 +240,7 @@ export function AccountList({ users }: { users: AccountUser[] }) {
                 </Button>
               </form>
               <form action={updateUserDisplayNameAction} className="overflow-hidden rounded-xl border">
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="redirectTo" value="/accounts" />
                 <input type="hidden" name="userId" value={selectedUser.id} />

@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
+import { serviceCancellation } from "@/lib/service-state";
 import { Clock3, History, PackageCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -32,16 +33,16 @@ export default async function ItemRequestsPage({
   const requestWhere: Prisma.MedicineRequestWhereInput = myRequestsView
     ? { AND: [clinicRequestWhere, { requestedByUserId: currentUser?.id ?? "__unauthenticated__" }] }
     : historyView
-      ? { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED"] } }] }
+      ? { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED", "CANCELLED"] } }] }
       : { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] };
   const [pendingCount, historyCount, myRequestsCount, requests, inventoryOptions] = await Promise.all([
     prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REQUESTED", "APPROVED"] } }] } }),
-    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED"] } }] } }),
+    prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { status: { in: ["REJECTED", "RELEASED", "RECEIVED", "CANCELLED"] } }] } }),
     prisma.medicineRequest.count({ where: { AND: [clinicRequestWhere, { requestedByUserId: currentUser?.id ?? "__unauthenticated__" }] } }),
     prisma.medicineRequest.findMany({
       where: requestWhere,
       orderBy: myRequestsView || historyView ? [{ resolvedAt: "desc" }, { createdAt: "desc" }] : { createdAt: "asc" },
-      include: { inventoryItem: true, requestedBy: true, visit: { include: { patient: true } } },
+      include: { inventoryItem: true, requestedBy: true, visit: { include: { patient: true, requests: true } } },
     }),
     currentUser ? getInventoryRequestOptions(currentUser.clinicId) : [],
   ]);
@@ -51,6 +52,7 @@ export default async function ItemRequestsPage({
     itemName: request.itemName,
     quantity: request.quantity,
     status: request.status,
+    blockedReason: !["REQUESTED", "APPROVED", "RELEASED"].includes(request.status) ? undefined : request.visit && ["CANCELLED", "COMPLETED"].includes(request.visit.status) ? "Visit is closed. Ask an admin to review this request." : request.visit?.requests.some((service) => service.type === "MEDICINES" && serviceCancellation(service)) ? "Provision of Medicine was cancelled for this visit." : undefined,
     patientName: request.visit ? `${request.visit.patient.lastName}, ${request.visit.patient.firstName}` : "Internal inventory request",
     requestedBy: request.requestedBy?.name || "",
     frequency: request.frequency || "",

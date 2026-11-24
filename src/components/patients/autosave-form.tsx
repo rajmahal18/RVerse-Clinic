@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useEffect, useRef, useState } from "react";
 import { saveFormDraftAction } from "@/app/actions/workflow";
@@ -77,7 +79,8 @@ export function AutosaveForm({
           );
           if (
             local &&
-            local.at > Date.parse(result.updatedAt || result.visitUpdatedAt)
+            local.at > (draftKey === "survey" ? Math.max(Date.parse(result.updatedAt || result.visitUpdatedAt), Date.parse(result.surveyUpdatedAt || result.visitUpdatedAt)) : Date.parse(result.updatedAt || result.visitUpdatedAt)) &&
+            (draftKey !== "survey" || !local.values?.surveyVersion || local.values.surveyVersion[0] === (result.surveyUpdatedAt || ""))
           )
             values = local.values;
         } catch {
@@ -249,6 +252,7 @@ export function AutosaveForm({
       onChange={handleInput}
       onSubmit={handleSubmit}
     >
+      <FormFeedback />
       <input type="hidden" name="draftKey" value={draftKey} />
       {children}
       <span className="text-xs font-semibold text-slate-500" aria-live="polite">

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
 import { CalendarDays } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -6,7 +6,7 @@ import { ActivityLogFilters } from "@/components/activity-logs/activity-log-filt
 import { ActivityLogTable } from "@/components/activity-logs/activity-log-table";
 import { getActivityLogData } from "@/lib/activity-log-view";
 
-const modules = ["Patient Records", "Medicines", "Inventory", "Follow-ups", "Vaccination", "Accounts", "Settings", "Authentication"];
+const modules = ["Patient Records", "Client Satisfaction", "Medicines", "Inventory", "Follow-ups", "Vaccination", "Accounts", "Settings", "Authentication"];
 const statuses = ["SUCCESS", "FAILED"];
 const ranges = [
   { value: "today", label: "Today" },

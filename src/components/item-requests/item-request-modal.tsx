@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useState } from "react";
 import { ClipboardPlus, X } from "lucide-react";
@@ -85,6 +87,7 @@ export function ItemRequestModal({
               action={createItemRequestAction}
               className="grid min-h-0 gap-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
             >
+      <FormFeedback />
               <CsrfField />
               <label className="grid gap-1 text-sm font-semibold">
                 Search items

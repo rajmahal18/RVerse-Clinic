@@ -9,6 +9,9 @@ let role = "ADMIN";
 let reportData;
 let dataCalls = 0;
 const mocks = {
+  "@/app/actions/survey-corrections": {
+    correctSurveyAnswerAction: async () => ({ ok: true }),
+  },
   "next/link": ({ children, ...props }) =>
     React.createElement("a", props, children),
   "next/navigation": {
@@ -23,6 +26,11 @@ const mocks = {
     AppShell: ({ children }) => React.createElement("main", null, children),
   },
   "@/lib/monthly-report-data": {
+    getAccomplishmentReports: async (clinicId, range) => {
+      assert.equal(clinicId, "clinic-a");
+      dataCalls++;
+      return { ...reportData, label: range.label };
+    },
     getMonthlyReports: async (clinicId, month, thresholds) => {
       assert.equal(clinicId, "clinic-a");
       assert.equal(month, "2026-10");
@@ -295,6 +303,22 @@ async function main() {
     2,
   );
   const responses = section(reportData, "satisfaction", "responses").rows;
+  const naRespondents = responses
+    .find((r) => r.id === "sqd0")
+    .details.find((d) => d.label === "N/A").respondents;
+  assert.equal(naRespondents.length, 5);
+  assert.ok(
+    naRespondents.every(
+      (person) =>
+        person.label && person.value && person.href.startsWith("/patients/"),
+    ),
+  );
+  assert.deepEqual(
+    responses
+      .find((r) => r.id === "sqd0")
+      .details.find((d) => d.label === "Strongly Agree").respondents,
+    [],
+  );
   assert.equal(responses.find((r) => r.id === "sqd0").cells[1], 5);
   assert.equal(
     responses
@@ -414,6 +438,74 @@ async function main() {
     queries[1].where.satisfactionSurvey.is.OR[0].surveyDate.lt.toISOString(),
     "2026-10-31T16:00:00.000Z",
   );
+  const { accomplishmentRange } = load("src/lib/report-period.ts");
+  const { safeReportReturnTo, reportPatientHref } = load("src/lib/report-navigation.ts");
+  for (const unsafe of ["https://example.com/reports/monthly", "//example.com/reports/monthly", "/reports/monthly/../accounts", "/reports/monthly-other", "/patients"]) assert.equal(safeReportReturnTo(unsafe), undefined);
+  const originReport = "/reports/monthly?period=weekly&date=2026-10-08&tab=accomplishment&systolic=150";
+  const patientLink = new URL(reportPatientHref("/patients/p1?visitId=v1&tab=history", originReport), "https://clinic.local");
+  assert.equal(patientLink.searchParams.get("visitId"), "v1");
+  assert.equal(patientLink.searchParams.get("returnTo"), originReport);
+  const daily = accomplishmentRange({ period: "daily", date: "2026-10-08" });
+  assert.equal(daily.start.toISOString(), "2026-10-07T16:00:00.000Z");
+  assert.equal(daily.end.toISOString(), "2026-10-08T16:00:00.000Z");
+  const weekly = accomplishmentRange({ period: "weekly", date: "2027-01-03" });
+  assert.equal(weekly.key, "2026-12-28");
+  assert.equal(weekly.end.toISOString(), "2027-01-03T16:00:00.000Z");
+  assert.equal(
+    accomplishmentRange({ period: "weekly", date: "2026-12-28" }).key,
+    weekly.key,
+  );
+  const yearly = accomplishmentRange({ period: "yearly", year: "2024" });
+  assert.equal((yearly.end - yearly.start) / 86400000, 366);
+  for (const invalid of [
+    { period: "bad" },
+    { period: "daily", date: "2026-02-30" },
+    { period: "weekly", date: "invalid" },
+    { period: "yearly", year: "2200" },
+    { period: "monthly", month: "2026-13" },
+  ])
+    assert.throws(() => accomplishmentRange(invalid));
+  const periodVisits = [
+    visit("before", "a", { timeIn: new Date(daily.start.getTime() - 1) }),
+    visit("start", "b", { timeIn: daily.start }),
+    visit("last", "b", { timeIn: new Date(daily.end.getTime() - 1) }),
+    visit("end", "c", { timeIn: daily.end }),
+  ];
+  const dailyReport = lib.buildMonthlyReports(
+    periodVisits,
+    [],
+    daily.key,
+    lib.defaultThresholds,
+    daily,
+  );
+  assert.equal(dailyReport.summary.visits, 2);
+  assert.equal(dailyReport.summary.completedPatients, 1);
+  assert.equal(dailyReport.label, daily.label);
+  const allTime = accomplishmentRange({ period: "all-time" });
+  assert.equal(
+    lib.buildMonthlyReports(
+      periodVisits,
+      [],
+      allTime.key,
+      lib.defaultThresholds,
+      allTime,
+    ).summary.visits,
+    4,
+  );
+  await data.getAccomplishmentReports("clinic-a", daily, lib.defaultThresholds);
+  assert.equal(queries[2].where.patient.clinicId, "clinic-a");
+  assert.equal(queries[2].where.timeIn.gte, daily.start);
+  await data.getAccomplishmentReports(
+    "clinic-a",
+    allTime,
+    lib.defaultThresholds,
+  );
+  assert.equal(queries[3].where.timeIn, undefined);
+  assert.equal(queries[3].where.status.not, "CANCELLED");
+  assert.equal(queries[3].where.deletedAt, null);
+  console.log(
+    "PASS: daily/weekly/yearly/all-time periods, Manila boundaries, Monday–Sunday across years, leap year, invalid dates, exclusive range ends, distinct patients, and scoped queries.",
+  );
   const Page = load("src/app/reports/monthly/page.tsx").default;
   const rendered = {};
   for (const tab of ["accomplishment", "satisfaction"]) {
@@ -428,6 +520,32 @@ async function main() {
   );
   assert.ok(invalid.includes('role="alert"'));
   assert.equal(dataCalls, beforeCalls);
+  for (const period of ["daily", "weekly", "yearly", "all-time"]) {
+    const html = renderToStaticMarkup(
+      await Page({
+        searchParams: Promise.resolve({
+          month: "2026-10",
+          period,
+          date: "2026-10-08",
+          year: "2026",
+        }),
+      }),
+    );
+    const expected = accomplishmentRange({
+      period,
+      date: "2026-10-08",
+      year: "2026",
+    });
+    assert.ok(html.includes(expected.label));
+    assert.ok(
+      html.includes(
+        period === "all-time"
+          ? "All Time Accomplishment Report"
+          : `${period[0].toUpperCase() + period.slice(1)} Accomplishment Report`,
+      ),
+    );
+    assert.ok(html.includes(`name="period" value="${period}"`));
+  }
   role = "PHARMACIST";
   await assert.rejects(
     Page({ searchParams: Promise.resolve({ month: "2026-10" }) }),
@@ -453,8 +571,19 @@ async function surveyActionChecks() {
   let writes = 0;
   let clinicId = "clinic-a";
   const prisma = {
+    $transaction: async (callback) => callback(prisma),
+    $queryRaw: async () => [],
+    activityLog: { create: async () => ({}) },
     visit: {
-      findUniqueOrThrow: async () => ({ status: "IN_PROGRESS", requests: [], medicines: [], vaccinations: [], referrals: [], followUps: [] }),
+      update: async () => ({}),
+      findUniqueOrThrow: async () => ({
+        status: "IN_PROGRESS",
+        requests: [],
+        medicines: [],
+        vaccinations: [],
+        referrals: [],
+        followUps: [],
+      }),
       findUnique: async () => ({
         id: "visit-a",
         patientId: "patient-a",
@@ -471,6 +600,7 @@ async function surveyActionChecks() {
         existing = {
           id: "survey-a",
           ...(existing ? { ...existing, ...update } : create),
+          updatedAt: new Date(),
         };
         return existing;
       },
@@ -531,6 +661,11 @@ async function surveyActionChecks() {
   assert.equal(existing.customerType, "Employee");
   assert.equal(existing.agencyName, "DOH");
   assert.equal(existing.respondentAge, 35);
+  const savedVersion = existing.updatedAt.toISOString();
+  const savedWrites = writes;
+  assert.ok((await submit({ surveyVersion: "2020-01-01T00:00:00.000Z" })).includes("error="));
+  assert.equal(writes, savedWrites, "A stale survey must not overwrite corrected answers");
+  assert.equal(await submit({ surveyVersion: savedVersion }), "/patients/patient-a");
   assert.equal(
     await submit({ customerType: "Dependent" }),
     "/patients/patient-a",
@@ -672,9 +807,17 @@ async function interactionChecks(browser, css, reportData) {
       const React=require('react');const {createRoot}=require('react-dom/client');
       const {ReportTable}=require(${JSON.stringify(path.join(workspace, "src/components/reports/report-table.tsx"))});
       const {ReportExport}=require(${JSON.stringify(path.join(workspace, "src/components/reports/report-export.tsx"))});
+      const {AccomplishmentFilters}=require(${JSON.stringify(path.join(workspace, "src/components/reports/accomplishment-filters.tsx"))});
+      const {ReportViewRetention}=require(${JSON.stringify(path.join(workspace, "src/components/reports/report-view-retention.tsx"))});
       const section=${JSON.stringify(fixture)};window.print=()=>{window.printedTitle=document.title};
-      createRoot(document.getElementById('root')).render(React.createElement('div',{className:'monthly-report-screen mx-auto min-w-0 max-w-5xl p-4 pb-28'},React.createElement(ReportExport,{title:'Monthly test',month:'October 2026',sections:[section],filename:'monthly-test-2026-10'}),React.createElement(ReportTable,{section})));
+      const retaining=location.hostname==='clinic.test';const returnTo=location.pathname+location.search;const storageKey='retention-fixture:'+returnTo;
+      if(retaining)section.rows[24].details=[{label:'N/A',value:'1 response',respondents:[{label:'Respondent 25',value:'PN25',href:'/patients/p24?visitId=v24'}]}];
+      createRoot(document.getElementById('root')).render(React.createElement('div',{className:'monthly-report-screen mx-auto min-w-0 max-w-5xl p-4 pb-28'},retaining?React.createElement(ReportViewRetention,{storageKey}):null,React.createElement(AccomplishmentFilters,{period:'monthly',date:'2026-10-08',month:'2026-10',year:'2026',thresholds:{systolic:140,diastolic:90,rbs:200}}),React.createElement(ReportExport,{title:'Monthly test',month:'October 2026',sections:[section],filename:'monthly-test-2026-10'}),React.createElement(ReportTable,{section,retentionKey:retaining?storageKey+':many':undefined,returnTo:retaining?returnTo:undefined})));
     `,
+    );
+    fs.writeFileSync(
+      path.join(tempRoot, "survey-action.js"),
+      "exports.correctSurveyAnswerAction=async()=>({ok:true});",
     );
     await new Promise((resolve, reject) => {
       const compiler = webpack.webpack({
@@ -685,6 +828,10 @@ async function interactionChecks(browser, css, reportData) {
         resolve: {
           modules: [path.join(workspace, "node_modules")],
           alias: {
+            "@/app/actions/survey-corrections$": path.join(
+              tempRoot,
+              "survey-action.js",
+            ),
             "@": path.join(workspace, "src"),
             "next/link$": path.join(tempRoot, "link.js"),
           },
@@ -714,6 +861,35 @@ async function interactionChecks(browser, css, reportData) {
         `<!doctype html><html><head><title>Original report title</title><style>${css}</style></head><body><div id="root"></div></body></html>`,
       );
       await page.addScriptTag({ path: path.join(tempRoot, "bundle.js") });
+      await page
+        .getByRole("combobox", { name: "Period", exact: true })
+        .waitFor();
+      for (const period of [
+        "daily",
+        "weekly",
+        "yearly",
+        "all-time",
+        "monthly",
+      ]) {
+        await page
+          .getByRole("combobox", { name: "Period", exact: true })
+          .selectOption(period);
+        const values = await page
+          .locator('form[action="/reports/monthly"]')
+          .evaluate((form) => Object.fromEntries(new FormData(form)));
+        assert.equal(values.period, period);
+        assert.equal(values.systolic, "140");
+        if (period === "daily" || period === "weekly")
+          assert.equal(values.date, "2026-10-08");
+        if (period === "yearly") assert.equal(values.year, "2026");
+        if (period === "monthly") assert.equal(values.month, "2026-10");
+        if (period === "all-time") assert.equal(values.date, undefined);
+        assert.ok(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        );
+      }
       await page.getByLabel("Search Patient detail test").waitFor();
       assert.equal(
         await page.getByRole("button", { name: /^Patient 25/ }).count(),
@@ -790,6 +966,103 @@ async function interactionChecks(browser, css, reportData) {
         ),
       );
     }
+    const bundle = fs.readFileSync(path.join(tempRoot, "bundle.js"), "utf8");
+    await page.route("http://clinic.test/**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/bundle.js")
+        return route.fulfill({
+          contentType: "application/javascript",
+          body: bundle,
+        });
+      if (url.pathname.startsWith("/patients/"))
+        return route.fulfill({
+          contentType: "text/html",
+          body: `<a href="${url.searchParams.get("returnTo") || "/patients"}">Back to report</a>`,
+        });
+      return route.fulfill({
+        contentType: "text/html",
+        body: `<!doctype html><html><head><style>${css}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>`,
+      });
+    });
+    for (const width of [375, 1280]) {
+      await page.setViewportSize({ width, height: 850 });
+      const reportUrl = `http://clinic.test/reports/monthly?period=weekly&date=2026-10-08&tab=accomplishment&systolic=150&test=${width}`;
+      await page.goto(reportUrl);
+      await page.getByRole("button", { name: /Show more/ }).click();
+      await page.getByLabel("Search Patient detail test").fill("Patient");
+      // Changing search resets pagination, then expanding it must also survive navigation.
+      await page.getByRole("button", { name: /Show more/ }).click();
+      await page.getByRole("button", { name: /^Patient 25/ }).click();
+      await page.getByRole("dialog").locator("summary").click();
+      await page
+        .getByRole("link", { name: "Respondent 25", exact: true })
+        .click();
+      await page.waitForURL("**/patients/p24?**");
+      assert.equal(
+        new URL(page.url()).searchParams.get("returnTo"),
+        new URL(reportUrl).pathname + new URL(reportUrl).search,
+      );
+      await page.goBack();
+      await page.getByRole("dialog").waitFor();
+      assert.equal(
+        await page.getByLabel("Search Patient detail test").inputValue(),
+        "Patient",
+      );
+      assert.equal(
+        await page.getByRole("button", { name: /^Patient 25/ }).count(),
+        1,
+      );
+      assert.equal(
+        await page.getByRole("dialog").locator("details").getAttribute("open"),
+        "",
+      );
+      await page
+        .getByRole("link", { name: "Respondent 25", exact: true })
+        .click();
+      await page
+        .getByRole("link", { name: "Back to report", exact: true })
+        .click();
+      await page.getByRole("dialog").waitFor();
+      assert.equal(page.url(), reportUrl);
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog").waitFor({ state: "detached" });
+      const scrollY = await page.evaluate(() => {
+        window.scrollTo(0, 450);
+        return window.scrollY;
+      });
+      await page.waitForFunction(
+        (key) => Number(sessionStorage.getItem(key)) > 0,
+        `retention-fixture:${new URL(reportUrl).pathname + new URL(reportUrl).search}:scroll`,
+      );
+      await page.goto("http://clinic.test/patients/p0");
+      await page.goBack();
+      await page.waitForFunction(
+        (expected) => Math.abs(window.scrollY - expected) < 3,
+        scrollY,
+      );
+      assert.equal(
+        await page.getByLabel("Search Patient detail test").inputValue(),
+        "Patient",
+      );
+      await page.goto(reportUrl.replace("period=weekly", "period=daily"));
+      await page.getByLabel("Search Patient detail test").waitFor();
+      assert.equal(
+        await page.getByLabel("Search Patient detail test").inputValue(),
+        "",
+      );
+      assert.equal(
+        await page.getByRole("button", { name: /^Patient 25/ }).count(),
+        0,
+      );
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    }
+    console.log(
+      "PASS: browser Back and in-app report return retain search, Show more, selected row, expanded answers, URL filters, and scroll; separate report periods start with independent state.",
+    );
     assert.deepEqual(errors, []);
     await page.close();
     console.log(

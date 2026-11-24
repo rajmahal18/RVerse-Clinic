@@ -1,7 +1,7 @@
 "use client";
 
 import { SlidersHorizontal } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useFeedbackRouter as useRouter } from "@/components/navigation/use-feedback-router";
 
 export function InventoryControls({
   search,

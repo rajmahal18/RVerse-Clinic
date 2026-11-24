@@ -1,6 +1,8 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import { useRouter } from "next/navigation";
+
+import { useFeedbackRouter as useRouter } from "@/components/navigation/use-feedback-router";
 import { Filter } from "lucide-react";
 
 type ActivityLogFiltersProps = {
@@ -37,6 +39,7 @@ export function ActivityLogFilters({
 
   return (
     <form className="grid w-full grid-cols-1 gap-2 rounded-2xl border bg-white p-2 sm:w-auto sm:grid-cols-[2.5rem_9.5rem_8rem_9.5rem_9.5rem_auto] sm:items-end">
+      <FormFeedback />
       <div className="hidden h-10 w-10 items-center justify-center rounded-xl border bg-white text-slate-500 sm:flex" aria-label="Filters">
         <Filter className="h-4 w-4" />
       </div>

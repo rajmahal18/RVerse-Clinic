@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
   const draft = await prisma.formDraft.findUnique({
     where: { userId_visitId_key: { userId: user.id, visitId, key } },
   });
-  const values = (draft?.values ?? {}) as Record<string, string[]>;
+  const savedValues = (draft?.values ?? {}) as Record<string, string[]>;
+  const survey = key === "survey" ? await prisma.clientSatisfactionSurvey.findUnique({ where: { visitId }, select: { updatedAt: true } }) : null;
+  const surveyVersion = survey?.updatedAt.toISOString() ?? "";
+  const outdatedSurvey = key === "survey" && (
+    savedValues.surveyVersion ? savedValues.surveyVersion[0] !== surveyVersion : Boolean(survey && draft && draft.updatedAt < survey.updatedAt)
+  );
+  const values = outdatedSurvey ? {} : savedValues;
   const removedRequestTypes = key === "visit"
     ? (await prisma.visitRequest.findMany({ where: { visitId, deletedAt: { not: null } }, select: { type: true } })).map(request => request.type)
     : [];
@@ -56,6 +62,7 @@ export async function GET(request: NextRequest) {
       userId: user.id,
       updatedAt: draft?.updatedAt.toISOString() ?? null,
       visitUpdatedAt: visit.updatedAt.toISOString(),
+      surveyUpdatedAt: surveyVersion || null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

@@ -10,11 +10,13 @@ export function ServiceRequestedFields({
   defaultValues = [],
   defaultReferralReason = "",
   lockExisting = false,
+  cancelledValues = [],
 }: {
   options: RequestOption[];
   defaultValues?: string[];
   defaultReferralReason?: string;
   lockExisting?: boolean;
+  cancelledValues?: string[];
 }) {
   const ref = useRef<HTMLFieldSetElement>(null);
   const [selected, setSelected] = useState(defaultValues);
@@ -22,7 +24,12 @@ export function ServiceRequestedFields({
     const form = ref.current?.closest("form");
     const restore = (event: Event) => {
       const values = (event as CustomEvent<Record<string, string[]>>).detail;
-      if (values.requestTypes) setSelected(lockExisting ? [...new Set([...defaultValues, ...values.requestTypes])] : values.requestTypes);
+      if (values.requestTypes)
+        setSelected(
+          lockExisting
+            ? [...new Set([...defaultValues, ...values.requestTypes])]
+            : values.requestTypes,
+        );
     };
     form?.addEventListener("restore-draft", restore);
     return () => form?.removeEventListener("restore-draft", restore);
@@ -33,6 +40,9 @@ export function ServiceRequestedFields({
         Service Requested
       </legend>
       <div className="grid gap-2 sm:grid-cols-2">
+        {cancelledValues.map((value) => (
+          <input key={value} type="hidden" name="requestTypes" value={value} />
+        ))}
         {options.map((option) => (
           <label
             key={option.value}
@@ -43,10 +53,17 @@ export function ServiceRequestedFields({
               name="requestTypes"
               value={option.value}
               checked={selected.includes(option.value)}
-              aria-disabled={lockExisting && defaultValues.includes(option.value)}
-              onClick={event => { if (lockExisting && defaultValues.includes(option.value)) event.preventDefault(); }}
+              disabled={cancelledValues.includes(option.value)}
+              aria-disabled={
+                lockExisting && defaultValues.includes(option.value)
+              }
+              onClick={(event) => {
+                if (lockExisting && defaultValues.includes(option.value))
+                  event.preventDefault();
+              }}
               onChange={(e) => {
-                if (lockExisting && defaultValues.includes(option.value)) return;
+                if (lockExisting && defaultValues.includes(option.value))
+                  return;
                 setSelected((current) =>
                   e.target.checked
                     ? [...current, option.value]
@@ -55,11 +72,24 @@ export function ServiceRequestedFields({
               }}
               className="h-5 w-5 shrink-0 rounded border-slate-300 accent-primary"
             />
-            <span>{option.label}</span>
+            <span
+              className={
+                cancelledValues.includes(option.value)
+                  ? "text-slate-400"
+                  : undefined
+              }
+            >
+              {option.label}
+              {cancelledValues.includes(option.value) ? " (cancelled)" : ""}
+            </span>
           </label>
         ))}
       </div>
-      {lockExisting && defaultValues.length > 0 && <p className="text-xs text-slate-500">Admin can remove recorded services through Admin Record Management.</p>}
+      {lockExisting && defaultValues.length > 0 && (
+        <p className="text-xs text-slate-500">
+          Admin can remove recorded services through Admin Record Management.
+        </p>
+      )}
       {selected.includes("REFERRAL") && (
         <label className="grid min-w-0 gap-1 text-sm font-semibold">
           Reason for Referral

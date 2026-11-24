@@ -1,3 +1,5 @@
+
+import { FormFeedback } from "@/components/ui/form-feedback";
 import { MaintenanceField, VaccineHistoryFields } from "./medical-history-fields";
 import type { VaccineHistoryEntry } from "@/lib/patient-medical-info";
 import { PatientGender } from "@prisma/client";
@@ -60,6 +62,7 @@ export function PatientForm({
 }) {
   return (
     <form action={action} className="grid gap-4 rounded-2xl border bg-white p-4 shadow-soft md:grid-cols-2 md:p-5">
+      <FormFeedback />
       <CsrfField />
       {values?.patientId ? (
         <input type="hidden" name="patientId" value={values.patientId} />

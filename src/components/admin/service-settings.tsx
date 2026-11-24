@@ -1,3 +1,5 @@
+
+import { FormFeedback } from "@/components/ui/form-feedback";
 import { RequestType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requestTypeLabels } from "@/lib/clinic-services";
@@ -36,6 +38,7 @@ export async function ServiceSettings({ clinicId }: { clinicId: string }) {
                 action={setClinicServiceAction}
                 className="mt-3 flex flex-wrap gap-2"
               >
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="type" value={type} />
                 <input type="hidden" name="isActive" value={String(!active)} />

@@ -1,15 +1,42 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
 import { ChevronRight, Search, X } from "lucide-react";
 import type { ReportRow, ReportSection } from "@/lib/monthly-reports";
+import { SurveyAnswerCorrection } from "@/components/reports/survey-answer-correction";
+import { useReportTableState } from "@/components/reports/use-report-table-state";
+import { reportPatientHref } from "@/lib/report-navigation";
 
-export function ReportTable({ section }: { section: ReportSection }) {
-  const [search, setSearch] = useState("");
-  const [limit, setLimit] = useState(20);
-  const [selected, setSelected] = useState<ReportRow | null>(null);
+export function ReportTable({
+  section,
+  canCorrectSurvey = false,
+  retentionKey,
+  returnTo,
+}: {
+  section: ReportSection;
+  canCorrectSurvey?: boolean;
+  retentionKey?: string;
+  returnTo?: string;
+}) {
+  const [view, updateView, persistView] = useReportTableState(retentionKey);
+  const { search, limit } = view;
+  const selected =
+    section.rows.find((row) => row.id === view.selectedId) ?? null;
+  const detailRef = useRef<HTMLDivElement>(null);
+  const restoredDetail = useRef<string | null>(null);
+  const setSelected = useCallback(
+    (row: ReportRow | null) => {
+      updateView({
+        selectedId: row?.id ?? null,
+        expanded: [],
+        detailScroll: 0,
+      });
+    },
+    [updateView],
+  );
+  const [notice, setNotice] = useState("");
   const rows = section.rows.filter((row) =>
     row.cells.some((cell) =>
       String(cell).toLowerCase().includes(search.toLowerCase()),
@@ -26,15 +53,22 @@ export function ReportTable({ section }: { section: ReportSection }) {
     };
     document.addEventListener("keydown", close);
     const frame = requestAnimationFrame(() =>
-      document.getElementById(`close-${section.id}`)?.focus(),
+      document
+        .getElementById(`close-${section.id}`)
+        ?.focus({ preventScroll: true }),
     );
     return () => {
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", close);
       cancelAnimationFrame(frame);
-      focused?.focus();
+      focused?.focus({ preventScroll: true });
     };
-  }, [selected, section.id]);
+  }, [selected, section.id, setSelected]);
+  useEffect(() => {
+    if (selected && detailRef.current && restoredDetail.current !== selected.id)
+      detailRef.current.scrollTop = view.detailScroll;
+    restoredDetail.current = selected?.id ?? null;
+  }, [selected, view.detailScroll]);
   const modal = selected ? (
     <div
       className="no-print fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-3"
@@ -48,10 +82,14 @@ export function ReportTable({ section }: { section: ReportSection }) {
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key !== "Tab") return;
-          const elements =
-            event.currentTarget.querySelectorAll<HTMLElement>("button,a[href]");
-          const first = elements[0];
-          const last = elements[elements.length - 1];
+          const elements = event.currentTarget.querySelectorAll<HTMLElement>(
+            "button:not([disabled]),a[href],summary,select,textarea",
+          );
+          const visibleElements = [...elements].filter(
+            (element) => element.getClientRects().length > 0,
+          );
+          const first = visibleElements[0];
+          const last = visibleElements[visibleElements.length - 1];
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
             last?.focus();
@@ -83,30 +121,104 @@ export function ReportTable({ section }: { section: ReportSection }) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="min-h-0 overflow-y-auto px-4 pb-12 pt-2">
+        <div
+          ref={detailRef}
+          onScroll={(event) =>
+            persistView({ detailScroll: event.currentTarget.scrollTop })
+          }
+          className="min-h-0 overflow-y-auto px-4 pb-12 pt-2"
+        >
           {selected.details?.length ? (
-            selected.details.map((detail, index) => (
-              <div
-                key={index}
-                className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1 border-b border-slate-100 py-3 text-sm"
-              >
-                {detail.href ? (
-                  <Link
-                    href={detail.href}
-                    className="min-w-0 flex-1 break-words font-semibold text-primary hover:underline"
-                  >
-                    {detail.label}
-                  </Link>
-                ) : (
-                  <span className="min-w-0 flex-1 break-words text-slate-700">
-                    {detail.label}
+            selected.details.map((detail, index) =>
+              detail.respondents ? (
+                <details
+                  key={index}
+                  open={view.expanded.includes(detail.label)}
+                  onToggle={(event) => {
+                    const open = event.currentTarget.open;
+                    if (open === view.expanded.includes(detail.label)) return;
+                    updateView({
+                      expanded: open
+                        ? [...view.expanded, detail.label]
+                        : view.expanded.filter(
+                            (label) => label !== detail.label,
+                          ),
+                    });
+                  }}
+                  className="group min-w-0 border-b border-slate-100 text-sm"
+                >
+                  <summary className="flex min-w-0 cursor-pointer list-none items-start gap-2 py-3 [&::-webkit-details-marker]:hidden">
+                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 group-open:rotate-90" />
+                    <span className="min-w-0 flex-1 break-words font-semibold text-slate-700">
+                      {detail.label}
+                    </span>
+                    <span className="shrink-0 text-slate-500">
+                      {detail.value}
+                    </span>
+                  </summary>
+                  {detail.respondents.length ? (
+                    <ul className="min-w-0 divide-y divide-slate-100 pb-2 pl-6">
+                      {detail.respondents.map((respondent, respondentIndex) => (
+                        <li
+                          key={respondentIndex}
+                          className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2"
+                        >
+                          <Link
+                            href={reportPatientHref(respondent.href!, returnTo)}
+                            className="min-w-0 flex-1 break-words font-semibold text-primary hover:underline"
+                          >
+                            {respondent.label}
+                          </Link>
+                          <span className="max-w-full break-words text-slate-500">
+                            {respondent.value}
+                          </span>
+                          {canCorrectSurvey &&
+                          respondent.surveyId &&
+                          respondent.answer ? (
+                            <SurveyAnswerCorrection
+                              surveyId={respondent.surveyId}
+                              question={selected.id}
+                              answer={respondent.answer}
+                              onSaved={() => {
+                                setSelected(null);
+                                setNotice(
+                                  "Answer corrected. The change was recorded in Activity Logs.",
+                                );
+                              }}
+                            />
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="pb-3 pl-6 text-slate-500">
+                      No respondents for this answer.
+                    </p>
+                  )}
+                </details>
+              ) : (
+                <div
+                  key={index}
+                  className="flex min-w-0 flex-wrap items-start justify-between gap-x-3 gap-y-1 border-b border-slate-100 py-3 text-sm"
+                >
+                  {detail.href ? (
+                    <Link
+                      href={reportPatientHref(detail.href, returnTo)}
+                      className="min-w-0 flex-1 break-words font-semibold text-primary hover:underline"
+                    >
+                      {detail.label}
+                    </Link>
+                  ) : (
+                    <span className="min-w-0 flex-1 break-words text-slate-700">
+                      {detail.label}
+                    </span>
+                  )}
+                  <span className="max-w-full break-words text-slate-500">
+                    {detail.value}
                   </span>
-                )}
-                <span className="max-w-full break-words text-slate-500">
-                  {detail.value}
-                </span>
-              </div>
-            ))
+                </div>
+              ),
+            )
           ) : (
             <p className="py-4 text-sm text-slate-500">
               No matching records for this row.
@@ -137,8 +249,7 @@ export function ReportTable({ section }: { section: ReportSection }) {
               type="search"
               value={search}
               onChange={(event) => {
-                setSearch(event.target.value);
-                setLimit(20);
+                updateView({ search: event.target.value, limit: 20 });
               }}
               aria-label={`Search ${section.title}`}
               placeholder="Search this section"
@@ -147,6 +258,11 @@ export function ReportTable({ section }: { section: ReportSection }) {
           </label>
         ) : null}
       </div>
+      {notice ? (
+        <p role="status" className="no-print text-sm text-emerald-700">
+          {notice}
+        </p>
+      ) : null}
       <div className="hidden sm:block">
         <table className="w-full table-fixed text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
@@ -242,7 +358,7 @@ export function ReportTable({ section }: { section: ReportSection }) {
       {rows.length > limit ? (
         <button
           type="button"
-          onClick={() => setLimit((value) => value + 20)}
+          onClick={() => updateView({ limit: limit + 20 })}
           className="no-print rounded-lg border px-4 py-2 text-sm font-semibold text-primary"
         >
           Show more ({Math.min(limit, rows.length)} of {rows.length})

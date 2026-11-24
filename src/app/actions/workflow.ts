@@ -1,5 +1,7 @@
 "use server";
+import { closedWithoutService, closedWithoutServiceLabel } from "@/lib/service-state";
 import { manageRecordAction } from "@/app/actions/record-management";
+import { cancelVisitService, requireActiveMedicineVisit, requireActiveServiceVisit, getLockedMedicineRequest } from "@/lib/visit-cancellation";
 import { requireAvailableServices, requireServiceForVisit } from "@/lib/service-settings";
 import { getAvailedServiceLabels } from "@/lib/clinic-services";
 import { parseVaccineHistory } from "@/lib/patient-medical-info";
@@ -398,7 +400,7 @@ export async function submitDailySummaryAction(formData: FormData) {
     if (date > formatDateKey(new Date())) throw new Error("Cannot submit a future daily summary.");
     const summary = await buildDailySummary(user.clinicId, date);
     if (!summary.rows.length) throw new Error("There are no patient visits for this date.");
-    if (summary.rows.some(row => row.status !== "completed")) throw new Error("Complete all patient visits for this date before submitting the summary.");
+    if (summary.rows.some(row => row.status !== "completed" && row.status !== closedWithoutServiceLabel)) throw new Error("Complete all patient visits for this date before submitting the summary.");
     const submission = await prisma.activityLog.create({ data: { clinicId: user.clinicId, userId: user.id, module: "Daily Summary", action: "Submit daily summary", entityType: "DailySummary", entityId: date, description: `${date}: ${summary.rows.length} patient visits submitted by ${user.name}.`, metadata: summary } });
     submissionId = submission.id;
   });
@@ -805,6 +807,7 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
       const status = isVisitStatus(statusValue)
         ? statusValue
         : VisitStatus.QUEUED;
+      if (status === VisitStatus.CANCELLED) throw new Error("Use Cancel visit with a reason, or cancel the individual service.");
       const nurseOnDuty =
         user.role === UserRole.DOCTOR || user.role === UserRole.ADMIN
           ? before.nurseOnDuty
@@ -823,6 +826,7 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
           { allowQueued: true },
         );
         const previousServices = await tx.visitRequest.findMany({ where: { visitId }, select: { type: true } });
+        if (status === VisitStatus.COMPLETED) await requireVisitReadyForCompletion(tx, visitId);
         if (formData.has("visitVersion") && requiredString(formData, "visitVersion") !== current.updatedAt.toISOString()) {
           throw new Error("This visit changed while you were editing. Refresh and review the latest record before saving.");
         }
@@ -836,8 +840,7 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
         }
         if (
           current.status === VisitStatus.QUEUED &&
-          status !== VisitStatus.QUEUED &&
-          status !== VisitStatus.CANCELLED
+          status !== VisitStatus.QUEUED
         ) {
           requireVital({ ...current, ...fields });
           if (
@@ -907,8 +910,7 @@ export async function updateVisitAction(formData: FormData): Promise<void> {
             nurseOnDuty,
             status,
             timeOut:
-              status === VisitStatus.COMPLETED ||
-              status === VisitStatus.CANCELLED
+              status === VisitStatus.COMPLETED
                 ? new Date()
                 : null,
           },
@@ -1228,18 +1230,20 @@ export async function updateVisitStatusAction(formData: FormData) {
       const status = isVisitStatus(statusValue)
         ? statusValue
         : VisitStatus.QUEUED;
-      const currentVisit = await getVisitForPatient(prisma, patientId, visitId);
+      await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
+      const currentVisit = await getVisitForPatient(tx, patientId, visitId);
+      if (status === VisitStatus.CANCELLED) throw new Error("Use Cancel visit with a reason, or cancel the individual service.");
       if (isClosedVisitStatus(currentVisit.status)) {
         throw new Error("This visit is already closed.");
       }
       if (status === VisitStatus.FOR_FOLLOW_UP)
-        await requireNoPendingMedicineDecision(prisma, visitId);
+        await requireNoPendingMedicineDecision(tx, visitId);
       if (status === VisitStatus.COMPLETED)
-        await requireVisitReadyForCompletion(prisma, visitId);
+        await requireVisitReadyForCompletion(tx, visitId);
       if (
         currentVisit.status === VisitStatus.QUEUED &&
-        status !== VisitStatus.QUEUED &&
-        status !== VisitStatus.CANCELLED
+        status !== VisitStatus.QUEUED
       ) {
         requireVital(currentVisit);
         if (!currentVisit.chiefComplaint?.trim())
@@ -1254,13 +1258,13 @@ export async function updateVisitStatusAction(formData: FormData) {
           ? user.name
           : currentVisit.nurseOnDuty;
 
-      const visit = await prisma.visit.update({
+      const visit = await tx.visit.update({
         where: { id: visitId },
         data: {
           status,
           nurseOnDuty,
           timeOut:
-            status === VisitStatus.COMPLETED || status === VisitStatus.CANCELLED
+            status === VisitStatus.COMPLETED
               ? new Date()
               : null,
         },
@@ -1269,8 +1273,9 @@ export async function updateVisitStatusAction(formData: FormData) {
         },
       });
 
-      await writeActivityLog({
+      await tx.activityLog.create({ data: {
         clinicId: visit.patient.clinicId,
+        userId: user.id,
         module: "Patient Records",
         action: "Update visit status",
         entityType: "Visit",
@@ -1284,6 +1289,7 @@ export async function updateVisitStatusAction(formData: FormData) {
             },
           },
         },
+      } });
       });
     },
     { type: "Visit", id: visitId },
@@ -1299,60 +1305,13 @@ export async function updateVisitStatusAction(formData: FormData) {
 export async function cancelQueuedVisitAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
-  const redirectToValue = String(formData.get("redirectTo") ?? "/todays-patients");
-  const redirectTo = redirectToValue.startsWith("/") ? redirectToValue : "/todays-patients";
-
-  await runAction(formData, redirectTo, "Patient Records", "Cancel queued visit", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
-    const currentVisit = await prisma.visit.findUnique({
-      where: { id: visitId },
-      include: {
-        patient: true,
-      },
-    });
-
-    if (!currentVisit || currentVisit.patientId !== patientId) {
-      throw new Error("The selected visit was not found.");
-    }
-
-    if (currentVisit.status === VisitStatus.COMPLETED || currentVisit.status === VisitStatus.CANCELLED) {
-      throw new Error("This visit is already closed.");
-    }
-
-    const visit = await prisma.visit.update({
-      where: { id: visitId },
-      data: {
-        status: VisitStatus.CANCELLED,
-        timeOut: new Date(),
-      },
-      include: {
-        patient: true,
-      },
-    });
-
-    await writeActivityLog({
-      clinicId: visit.patient.clinicId,
-      module: "Patient Records",
-      action: "Cancel queued visit",
-      entityType: "Visit",
-      entityId: visit.id,
-      description: `Cancelled queued visit for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
-      metadata: {
-        changes: {
-          status: {
-            before: currentVisit.status,
-            after: VisitStatus.CANCELLED,
-          },
-        },
-      },
-    });
+  const redirectTo = "/todays-patients";
+  await runAction(formData, redirectTo, "Patient Records", "Cancel entire visit", async () => {
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR]);
+    await cancelVisitService(user, { patientId, visitId, reason: requiredString(formData, "reason"), entireVisit: true });
   }, { type: "Visit", id: visitId });
-
-  revalidatePath("/todays-patients");
-  revalidatePath("/follow-ups");
-  revalidatePath("/vaccination");
-  revalidatePath(`/patients/${patientId}`);
-  redirect(appendActionFeedback(redirectTo, "message", "Queued visit cancelled."));
+  revalidatePath("/todays-patients"); revalidatePath("/patients"); revalidatePath("/item-requests"); revalidatePath("/reports", "layout");
+  redirect(appendActionFeedback(redirectTo, "message", "Visit cancellation recorded."));
 }
 
 export async function createInventoryItemAction(formData: FormData) {
@@ -1501,8 +1460,9 @@ export async function requestMedicineAction(formData: FormData) {
           })
         : [formData];
       await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
-        await ensureOpenVisitForPatient(tx, patientId, visitId);
+        const lockedVisit = await requireActiveMedicineVisit(tx, visitId, user.clinicId);
+        if (!lockedVisit || lockedVisit.patientId !== patientId) throw new Error("The selected visit was not found for this patient.");
+        if (lockedVisit.status === VisitStatus.QUEUED) throw new Error("Start the visit before adding this record.");
         for (const line of lines) {
           const inventoryItemId = requiredString(line, "inventoryItemId");
           const item = await tx.inventoryItem.findUnique({
@@ -1642,7 +1602,8 @@ export async function dispenseMedicineAction(formData: FormData) {
     const releasedBy = optionalString(formData, "releasedBy") ?? "Clinic staff";
 
     const medicineRequest = await prisma.$transaction(async (tx) => {
-      const request = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
+      const initialRequest = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
+      const request = await getLockedMedicineRequest(tx, initialRequest, user.clinicId);
       if (request.status !== "APPROVED") {
         throw new Error("Approve this medicine request before release.");
       }
@@ -1785,7 +1746,8 @@ export async function receiveMedicineAction(formData: FormData) {
     const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
     const receivedBy = optionalString(formData, "receivedBy") ?? "Patient";
     const medicineRequest = await prisma.$transaction(async (tx) => {
-      const request = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
+      const initialRequest = await getMedicineRequestForPatient(tx, patientId, medicineRequestId);
+      const request = await getLockedMedicineRequest(tx, initialRequest, user.clinicId);
       if (request.status === "RECEIVED") return request;
       if (request.status !== "RELEASED") {
         throw new Error("Medicine must be released before it can be received.");
@@ -1838,6 +1800,7 @@ export async function saveLabResultAction(formData: FormData) {
       .filter((value) => allowedKeys.has(value.fieldKey));
 
     const labResult = await prisma.$transaction(async (tx) => {
+      await requireActiveServiceVisit(tx, visitId, user.clinicId, RequestType.CONSULTATION);
       const result = labResultId
         ? await tx.labResult.update({
             where: { id: labResultId },
@@ -1894,6 +1857,7 @@ export async function scheduleReferralAction(formData: FormData) {
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
 
     const referral = await prisma.$transaction(async (tx) => {
+      await requireActiveServiceVisit(tx, visitId, serviceUser!.clinicId, RequestType.REFERRAL);
       const createdReferral = await tx.referral.create({
         data: {
           visitId,
@@ -1952,10 +1916,13 @@ export async function requestVaccineAction(formData: FormData) {
     await requireServiceForVisit(serviceUser!.clinicId, visitId, RequestType.VACCINATION);
     const vaccine = requiredString(formData, "vaccine");
     const remarks = optionalString(formData, "remarks");
-    await prisma.visitRequest.upsert({
+    await prisma.$transaction(async (tx) => {
+    await requireActiveServiceVisit(tx, visitId, serviceUser!.clinicId, RequestType.VACCINATION);
+    await tx.visitRequest.upsert({
       where: { visitId_type: { visitId, type: RequestType.VACCINATION } },
       update: { requestedItem: vaccine, remarks, deletedAt: null },
       create: { visitId, type: RequestType.VACCINATION, requestedItem: vaccine, remarks },
+    });
     });
   }, { type: "Visit", id: visitId });
 
@@ -1978,6 +1945,7 @@ export async function addVaccinationRecordAction(formData: FormData) {
     const nextDoseValue = optionalString(formData, "nextDose");
 
     const record = await prisma.$transaction(async (tx) => {
+      await requireActiveServiceVisit(tx, visitId, serviceUser!.clinicId, RequestType.VACCINATION);
       const vaccinationRecord = await tx.vaccinationRecord.create({
         data: {
           visitId,
@@ -2141,22 +2109,25 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
     "Client Satisfaction",
     "Submit satisfaction survey",
     async () => {
-      await requireRole([
+      const user = await requireRole([
         UserRole.ADMIN,
         UserRole.DOCTOR,
         UserRole.NURSE,
         UserRole.DOCTOR_NURSE,
         UserRole.RECORDS,
       ]);
-      const visit = await getVisitForPatient(prisma, patientId, visitId);
+      await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
+      const visit = await getVisitForPatient(tx, patientId, visitId);
       if (isClosedVisitStatus(visit.status))
         throw new Error("This visit is already closed.");
-      await requireNoPendingMedicineDecision(prisma, visitId);
-      const serviceVisit = await prisma.visit.findUniqueOrThrow({ where: { id: visitId }, include: { requests: true, medicines: true, vaccinations: true, referrals: true, followUps: true } });
+      await requireNoPendingMedicineDecision(tx, visitId);
+      const serviceVisit = await tx.visit.findUniqueOrThrow({ where: { id: visitId }, include: { requests: true, medicines: true, vaccinations: true, referrals: true, followUps: true } });
       const automaticServices = getAvailedServiceLabels({ ...serviceVisit, status: VisitStatus.COMPLETED }).join(", ");
-      const existingSurvey = await prisma.clientSatisfactionSurvey.findUnique({
+      const existingSurvey = await tx.clientSatisfactionSurvey.findUnique({
         where: { visitId },
       });
+      if (formData.has("surveyVersion") && String(formData.get("surveyVersion") ?? "") !== (existingSurvey?.updatedAt?.toISOString() ?? "")) throw new Error("This survey changed while you were editing. Refresh and review the latest answers before saving.");
       const merged = (
         key:
           | "clientType"
@@ -2216,7 +2187,7 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
       if (agencyName && agencyName.length > 180) throw new Error("Agency name must be 180 characters or fewer.");
       if (age !== null && (!Number.isInteger(age) || age < 0 || age > 130))
         throw new Error("Respondent age must be a valid whole number.");
-      const survey = await prisma.clientSatisfactionSurvey.upsert({
+      const survey = await tx.clientSatisfactionSurvey.upsert({
         where: { visitId },
         update: {
           clientType: merged("clientType"),
@@ -2270,13 +2241,16 @@ export async function submitSatisfactionSurveyAction(formData: FormData) {
           email: merged("email"),
         },
       });
-      await writeActivityLog({
+      await tx.activityLog.create({ data: {
         clinicId: visit.patient.clinicId,
         module: "Client Satisfaction",
+        userId: user.id,
         action: "Submit satisfaction survey",
         entityType: "ClientSatisfactionSurvey",
         entityId: survey.id,
         description: `Saved client satisfaction survey for ${visit.patient.lastName}, ${visit.patient.firstName}.`,
+      } });
+      await tx.visit.update({ where: { id: visitId }, data: { updatedAt: new Date() } });
       });
     },
     { type: "Visit", id: visitId },
@@ -2299,8 +2273,10 @@ export async function resolveItemRequestAction(formData: FormData) {
     if (decision !== "REJECT" && decision !== "APPROVE") throw new Error("Invalid request decision.");
     if (rejectionReason && rejectionReason.length > 500) throw new Error("Rejection reason must be 500 characters or fewer.");
     const result = await prisma.$transaction(async (tx) => {
-      const request = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
-      if (!request || request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
+      const initialRequest = await tx.medicineRequest.findUnique({ where: { id: requestId }, include: { inventoryItem: true, visit: { include: { patient: true } } } });
+      if (!initialRequest) throw new Error("This request is no longer pending.");
+      const request = await getLockedMedicineRequest(tx, initialRequest, user.clinicId);
+      if (request.status !== "REQUESTED") throw new Error("This request is no longer pending.");
       const requestClinicId = request.inventoryItem?.clinicId ?? request.visit?.patient.clinicId;
       if (requestClinicId !== user.clinicId) {
         throw new Error("This request is no longer pending.");
@@ -2327,11 +2303,13 @@ export async function releaseItemRequestAction(formData: FormData) {
     const user = await requireRole([UserRole.ADMIN, UserRole.PHARMACIST, UserRole.SUPPLY_OFFICER]);
     const releasedBy = optionalString(formData, "releasedBy") ?? user.name;
     const result = await prisma.$transaction(async (tx) => {
-      const request = await tx.medicineRequest.findUnique({
+      const initialRequest = await tx.medicineRequest.findUnique({
         where: { id: requestId },
         include: { inventoryItem: true, visit: { include: { patient: true } } },
       });
-      if (!request || request.status !== "APPROVED") throw new Error("This request is not approved for release.");
+      if (!initialRequest) throw new Error("This request is not approved for release.");
+      const request = await getLockedMedicineRequest(tx, initialRequest, user.clinicId);
+      if (request.status !== "APPROVED") throw new Error("This request is not approved for release.");
       const requestClinicId = request.inventoryItem?.clinicId ?? request.visit?.patient.clinicId;
       if (requestClinicId !== user.clinicId) throw new Error("This request is not approved for release.");
       const item = request.inventoryItem;
@@ -2724,6 +2702,8 @@ export async function correctCompletedVisitAction(formData: FormData) {
         async (tx) => {
           await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
           const before = await getVisitForPatient(tx, patientId, visitId);
+          const serviceRows = await tx.visitRequest.findMany({ where: { visitId } });
+          if (closedWithoutService({ status: before.status, requests: serviceRows })) throw new Error("This visit was closed with no service provided. Review it through Admin Record Management.");
           if (before.status !== VisitStatus.COMPLETED)
             throw new Error("Only completed visits can be corrected here.");
           if (

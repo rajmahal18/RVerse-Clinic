@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ export function PatientQrLabel({ patientId, patientCode, baseUrl }: {
       <div className="no-print mx-auto mb-6 w-full max-w-lg">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold text-slate-900">Patient QR Label</h1>
-          <Button asChild variant="outline"><Link href={`/patients/${patientId}`}><ArrowLeft className="h-4 w-4" /> Patient Profile</Link></Button>
+          <Button asChild variant="outline"><RetainedBackLink href={`/patients/${patientId}`}><ArrowLeft className="h-4 w-4" /> Patient Profile</RetainedBackLink></Button>
         </div>
         <p className="text-sm text-slate-600">30 × 34 mm. Print at 100% / actual size and turn off browser headers and footers.</p>
         {label && <p className="mt-2 break-all text-xs text-slate-500">Patient link: {label.profileUrl}</p>}

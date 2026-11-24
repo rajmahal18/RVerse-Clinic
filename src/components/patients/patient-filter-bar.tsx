@@ -1,6 +1,8 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import Link from "next/link";
+
+import Link from "@/components/navigation/app-link";
 import { ArrowUpDown, RotateCcw } from "lucide-react";
 import { PatientGender, RequestType, VisitStatus } from "@prisma/client";
 import type { PatientFilterOptions, PatientTableFilters } from "@/lib/patient-view";
@@ -20,6 +22,7 @@ const statusOptions = [
   { value: VisitStatus.IN_PROGRESS, label: "In progress" },
   { value: VisitStatus.FOR_FOLLOW_UP, label: "For follow up" },
   { value: VisitStatus.COMPLETED, label: "Completed" },
+  { value: "CLOSED_NO_SERVICE", label: "Closed — no service provided" },
   { value: VisitStatus.CANCELLED, label: "Cancelled" },
 ];
 
@@ -96,6 +99,7 @@ function SelectField({
 export function PatientFilterBar({ filters, options, searchQuery }: PatientFilterBarProps) {
   return (
     <form action="/patients" onChange={(event) => event.currentTarget.requestSubmit()} className="mb-4 rounded-xl border bg-white px-3 py-3 shadow-sm">
+      <FormFeedback />
       {searchQuery ? <input type="hidden" name="q" value={searchQuery} /> : null}
       <div className="grid grid-cols-2 items-end gap-x-2 gap-y-2 sm:flex sm:flex-wrap">
         <SelectField label="Status" name="status" value={filters.status} className="col-start-1">

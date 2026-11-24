@@ -1,4 +1,5 @@
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { ClinicFormTemplate } from "@/components/clinic-forms/form-templates";
@@ -44,9 +45,9 @@ export default async function ClinicFormPreviewPage({
             <h1 className="text-xl font-black text-slate-950">{formConfig?.title}</h1>
           </div>
           <Button asChild variant="outline">
-            <Link href={`/patients/${id}/forms${data.selectedVisit ? `?visitId=${encodeURIComponent(data.selectedVisit.id)}` : ""}`}>
+            <RetainedBackLink href={`/patients/${id}/forms${data.selectedVisit ? `?visitId=${encodeURIComponent(data.selectedVisit.id)}` : ""}`}>
               <ArrowLeft className="h-4 w-4" /> Forms
-            </Link>
+            </RetainedBackLink>
           </Button>
         </div>
         {formConfig?.scope === "visit" ? (

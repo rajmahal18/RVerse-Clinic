@@ -4,6 +4,7 @@ import { AppShellClient } from "@/components/layout/app-shell-client";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getMedicineExpirySummary } from "@/lib/patient-view";
+import { ViewRetentionProvider } from "@/components/navigation/view-retention";
 
 function getInitials(name?: string | null) {
   const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
@@ -32,8 +33,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppShellClient role={role} userInitials={getInitials(user.name)} medicineExpiry={medicineExpiry}>
-      {children}
-    </AppShellClient>
+    <ViewRetentionProvider scope={`${user.clinicId}:${user.id}`}>
+      <AppShellClient role={role} userInitials={getInitials(user.name)} medicineExpiry={medicineExpiry}>
+        {children}
+      </AppShellClient>
+    </ViewRetentionProvider>
   );
 }

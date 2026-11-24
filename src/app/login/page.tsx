@@ -1,6 +1,8 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import Link from "next/link";
+
+import Link from "@/components/navigation/app-link";
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
@@ -78,6 +80,7 @@ export default function LoginPage() {
               </div>
 
               <form action={loginAction} className="space-y-4">
+      <FormFeedback />
                 <CsrfField />
                 <Suspense fallback={null}><LoginDestination /></Suspense>
 

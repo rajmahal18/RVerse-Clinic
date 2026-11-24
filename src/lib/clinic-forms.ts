@@ -8,6 +8,7 @@ import {
   APP_TIME_ZONE,
 } from "@/lib/date-time";
 import { prisma } from "@/lib/prisma";
+import { closedWithoutService, closedWithoutServiceLabel } from "@/lib/service-state";
 import { getAvailedServiceLabels } from "@/lib/patient-view";
 import { getPatientFormCode } from "@/lib/patient-form-number";
 import { getCurrentUser } from "@/lib/auth";
@@ -172,7 +173,7 @@ export async function getClinicFormData(
   const latestVisit = patient.visits[0] ?? null;
   const selectedVisit = visitId !== undefined ? patient.visits.find((visit) => visit.id === visitId) : latestVisit;
   if (visitId !== undefined && !selectedVisit) return null;
-  const completedOrLatestVisit = patient.visits.find((visit) => visit.status === "COMPLETED") ?? latestVisit;
+  const completedOrLatestVisit = patient.visits.find((visit) => visit.status === "COMPLETED" && !closedWithoutService(visit)) ?? latestVisit;
   const issueDate = new Date();
   const selectedDate = selectedVisit?.timeIn ?? issueDate;
   const clinicAddress = clean(patient.clinic.address) || clinicFormDefaults.officeAddress;
@@ -261,11 +262,11 @@ export async function getClinicFormData(
           diagnosisNotes: clean(selectedVisit.diagnosisNotes),
           referralReason: clean(selectedVisit.referralReason),
           allergy: clean(patient.allergy),
-          satisfactionSurvey: selectedVisit.satisfactionSurvey,
+          satisfactionSurvey: selectedVisit.satisfactionSurvey ? { ...selectedVisit.satisfactionSurvey, serviceAvailed: visitServices(selectedVisit) } : null,
           nurseOnDuty: formatStaffName(selectedVisit.nurseOnDuty),
           services: visitServices(selectedVisit),
           medicineLog: selectedVisit.medicines
-            .filter((medicine) => medicine.status !== "REJECTED")
+            .filter((medicine) => !["REJECTED", "CANCELLED"].includes(medicine.status))
             .map((medicine) => ({
               date: formatShortDate(medicine.createdAt),
               timeRequested: formatTime(medicine.createdAt),
@@ -292,7 +293,7 @@ export async function getClinicFormData(
       .map((visit) => ({
         id: visit.id,
         date: formatShortDate(visit.timeIn),
-        status: visit.status.replaceAll("_", " ").toLowerCase(),
+        status: closedWithoutService(visit) ? closedWithoutServiceLabel : visit.status.replaceAll("_", " ").toLowerCase(),
         timeIn: formatTime(visit.timeIn),
         chiefComplaint: printChiefComplaint(visit.chiefComplaint),
         bloodPressure: clean(visit.bloodPressure),

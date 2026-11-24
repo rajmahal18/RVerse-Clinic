@@ -1,4 +1,5 @@
 import { RequestType, VisitStatus } from "@prisma/client";
+import { activeServices, serviceCancellation, type ServiceStateSource } from "@/lib/service-state";
 
 export const requestTypeLabels: Record<RequestType, string> = {
   BP_CHECKING: "BP Checking",
@@ -16,7 +17,7 @@ export const requestTypeLabels: Record<RequestType, string> = {
 
 type AvailedVisitSource = {
   status: VisitStatus;
-  requests: { type: RequestType }[];
+  requests: ({ type: RequestType } & ServiceStateSource)[];
   medicines: { status: string }[];
   vaccinations: unknown[];
   followUps: { status: string }[];
@@ -24,7 +25,8 @@ type AvailedVisitSource = {
 };
 
 export function getAvailedServiceLabels(visit: AvailedVisitSource) {
-  const requested = new Set(visit.requests.map((request) => request.type));
+  const requested = new Set(activeServices(visit.requests).map((request) => request.type));
+  const cancelled = new Set(visit.requests.filter((request) => serviceCancellation(request)).map((request) => request.type));
   const labels: string[] = [];
 
   if (
@@ -55,5 +57,5 @@ export function getAvailedServiceLabels(visit: AvailedVisitSource) {
       labels.push(requestTypeLabels[type]);
   }
 
-  return labels;
+  return labels.filter((label) => ![...cancelled].some((type) => requestTypeLabels[type] === label));
 }

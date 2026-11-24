@@ -1,6 +1,7 @@
 import { RequestType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requestTypeLabels } from "@/lib/clinic-services";
+import { serviceCancellation } from "@/lib/service-state";
 
 export async function clinicServiceOptions(
   clinicId: string,
@@ -48,8 +49,9 @@ export async function requireServiceForVisit(
 ) {
   const existing = await prisma.visitRequest.findMany({
     where: { visitId },
-    select: { type: true },
+    select: { type: true, remarks: true },
   });
+  if (existing.some((request) => request.type === type && serviceCancellation(request))) throw new Error("This service was cancelled. It cannot receive new records or requests.");
   await requireAvailableServices(
     clinicId,
     [type],

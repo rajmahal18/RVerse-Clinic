@@ -1,7 +1,7 @@
 "use client";
 
 import type { InventoryLedgerData } from "@/lib/patient-view";
-import { useState } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { AlertTriangle, Boxes, PackageCheck } from "lucide-react";
 import { MonthSelectForm } from "@/components/search/month-select-form";
 import { InventoryControls } from "@/components/inventory/inventory-controls";
@@ -42,7 +42,7 @@ export function InventoryTable({
   canManageAvailability?: boolean;
   canDelete?: boolean;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useRetainedViewState<string | null>("inventory-selection", null);
   const selectedItem = ledger.rows.find((item) => item.id === selectedId);
   const medicineLike =
     ledger.category === "MEDICINE" || ledger.category === "VACCINE";

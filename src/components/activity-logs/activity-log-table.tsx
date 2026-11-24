@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { Activity, Eye, X } from "lucide-react";
 import type { ActivityLogGroup, ActivityLogRow } from "@/lib/activity-log-view";
 import { Badge } from "@/components/ui/badge";
@@ -102,7 +103,7 @@ function MetadataDetails({ metadata }: { metadata: unknown }) {
 }
 
 export function ActivityLogTable({ groups, totalCount }: { groups: ActivityLogGroup[]; totalCount: number }) {
-  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+  const [selectedLogId, setSelectedLogId] = useRetainedViewState<string | null>("activity-log-selection", null);
   const logs = useMemo(() => groups.flatMap((group) => group.logs), [groups]);
   const selectedLog = useMemo(
     () => logs.find((log) => log.id === selectedLogId) ?? null,

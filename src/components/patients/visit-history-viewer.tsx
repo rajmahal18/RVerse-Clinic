@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
+import { VisitServices } from "@/components/patients/service-cancellation";
+import Link from "@/components/navigation/app-link";
 import { Activity, CalendarClock, CheckCircle2, ClipboardList, FlaskConical, Pill, Stethoscope, Syringe, type LucideIcon } from "lucide-react";
 import { labForms } from "@/lib/lab-results";
 import type { PatientVisitWorkflow } from "@/lib/patient-view";
@@ -51,11 +52,10 @@ export function VisitHistoryViewer({
   patientId: string;
   canDeleteAppointments?: boolean;
 }) {
-  const [selectedVisitId, setSelectedVisitId] = useState(visits[0]?.id ?? "");
-  useEffect(() => {
+  const [selectedVisitId, setSelectedVisitId] = useRetainedViewState("history-visit", visits[0]?.id ?? "", () => {
     const id = new URLSearchParams(window.location.search).get("visitId");
-    if (id && visits.some((visit) => visit.id === id)) setSelectedVisitId(id);
-  }, [visits]);
+    return id && visits.some((visit) => visit.id === id) ? id : visits[0]?.id ?? "";
+  });
   const selectedVisit =
     visits.find((visit) => visit.id === selectedVisitId) ?? visits[0];
 
@@ -103,8 +103,8 @@ export function VisitHistoryViewer({
                   <Badge
                     className={
                       selected
-                        ? "shrink-0 bg-primary text-white"
-                        : "shrink-0 bg-slate-100 text-slate-700"
+                        ? "max-w-[55%] whitespace-normal break-words bg-primary text-white"
+                        : "max-w-[55%] whitespace-normal break-words bg-slate-100 text-slate-700"
                     }
                   >
                     {visit.status}
@@ -133,6 +133,7 @@ export function VisitHistoryViewer({
           </Link>
         </div>
         <div className="overflow-hidden rounded-xl border bg-white">
+          <VisitServices patientId={patientId} visitId={selectedVisit.id} services={selectedVisit.requests} />
           <SectionHeader icon={ClipboardList} title="Visit Summary" />
           {canDeleteAppointments && selectedVisit.statusCode === "CANCELLED" ? (
             <div className="p-3">

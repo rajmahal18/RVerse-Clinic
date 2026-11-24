@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useState } from "react";
 import type { PatientVisitWorkflow } from "@/lib/patient-view";
@@ -163,6 +165,7 @@ export function CompletedVisitEditor({
               action={correctCompletedVisitAction}
               className="grid min-h-0 min-w-0 gap-5 overflow-y-auto p-4"
             >
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="patientId" value={patientId} />
               <input type="hidden" name="visitId" value={visit.id} />
@@ -180,7 +183,7 @@ export function CompletedVisitEditor({
                 label="Assigned nurse / staff"
                 value={visit.nurseOnDuty ?? ""}
               />
-              <ServiceRequestedFields lockExisting defaultReferralReason={visit.referralReason}
+              <ServiceRequestedFields lockExisting defaultReferralReason={visit.referralReason} cancelledValues={visit.requests.filter((request) => request.cancellation).map((request) => request.type)}
                 options={Object.values(RequestType).map((value) => ({
                   value,
                   label: requestTypeLabels[value],

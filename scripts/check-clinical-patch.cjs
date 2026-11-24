@@ -13,6 +13,7 @@ function load(filename, mocks = {}) {
   new Function("require", "module", "exports", code)(
     (name) => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
+      if (["@/lib/service-state", "@/lib/clinic-services", "@/lib/visit-cancellation"].includes(name)) return load("src/" + name.slice(2) + ".ts", mocks);
       if (name.startsWith("@/") || name.startsWith("next/")) return {};
       return require(name);
     },
@@ -70,6 +71,7 @@ async function main() {
   const logs = [];
   const prisma = {
     visit: {
+      findFirst: async ({ where }) => where.id === visit.id && where.patient.clinicId === visit.patient.clinicId ? { ...visit, requests } : null,
       findUnique: async ({ where }) =>
         where.id === visit.id ? { ...visit } : null,
       update: async ({ data }) => {

@@ -1,3 +1,5 @@
+
+import { FormFeedback } from "@/components/ui/form-feedback";
 import type { PatientVisitWorkflow } from "@/lib/patient-view";
 import { receiveMedicineAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
@@ -28,7 +30,7 @@ export function PatientMedicineHistory({
                     {medicine.itemName}
                   </h4>
                   <span
-                    className={`rounded px-2 py-1 text-xs font-bold ${medicine.status === "RECEIVED" ? "bg-emerald-50 text-emerald-700" : medicine.status === "REJECTED" ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}
+                    className={`rounded px-2 py-1 text-xs font-bold ${medicine.status === "RECEIVED" ? "bg-emerald-50 text-emerald-700" : ["REJECTED", "CANCELLED"].includes(medicine.status) ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}
                   >
                     {medicine.status === "REQUESTED"
                       ? "Awaiting approval"
@@ -71,6 +73,8 @@ export function PatientMedicineHistory({
             </p>
           )}
           {canReceive &&
+            !["CANCELLED", "COMPLETED"].includes(visit.statusCode) &&
+            !visit.requests.some((request) => request.type === "MEDICINES" && request.cancellation) &&
             visit.medicines.some((m) => m.status === "RELEASED") && (
               <div className="mt-3 border-t-2 border-blue-300 bg-blue-50 p-3">
                 <h4 className="mb-3 font-bold text-blue-900">
@@ -84,6 +88,7 @@ export function PatientMedicineHistory({
                       action={receiveMedicineAction}
                       className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-center"
                     >
+      <FormFeedback />
                       <CsrfField />
                       <input type="hidden" name="patientId" value={patientId} />
                       <input

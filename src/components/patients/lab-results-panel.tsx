@@ -1,7 +1,8 @@
 "use client";
 import { AutosaveForm } from "@/components/patients/autosave-form";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { CalendarDays, FlaskConical, Hospital, Plus, Printer } from "lucide-react";
 import { LabResultType } from "@prisma/client";
 import { saveLabResultAction } from "@/app/actions/workflow";
@@ -222,8 +223,9 @@ function LabForm({
 }
 
 export function LabResultsPanel({ patientId, visit }: { patientId: string; visit: PatientVisitWorkflow }) {
-  const [type, setType] = useState<LabResultType>(LabResultType.CLINICAL_CHEMISTRY);
-  const [recordId, setRecordId] = useState<string>("new");
+  const [savedType, setType] = useRetainedViewState<LabResultType>(`lab-type:${visit.id}`, LabResultType.CLINICAL_CHEMISTRY);
+  const type = labTypes.includes(savedType) ? savedType : LabResultType.CLINICAL_CHEMISTRY;
+  const [recordId, setRecordId] = useRetainedViewState<string>(`lab-record:${visit.id}`, "new");
   const recordsForType = useMemo(() => visit.labResults.filter((record) => record.type === type), [visit.labResults, type]);
   const selectedRecord =
     recordId === "new"

@@ -1,6 +1,8 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import { useRouter } from "next/navigation";
+
+import { useFeedbackRouter as useRouter } from "@/components/navigation/use-feedback-router";
 import type { InventoryMonthOption } from "@/lib/patient-view";
 
 type MonthSelectFormProps = {
@@ -32,6 +34,7 @@ export function MonthSelectForm({ action, selectedMonth, options, searchQuery = 
 
   return (
     <form className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <FormFeedback />
       <select
         name="month"
         value={selectedMonth}

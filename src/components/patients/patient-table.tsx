@@ -1,10 +1,11 @@
-import Link from "next/link";
+import { CancellationButton } from "@/components/patients/service-cancellation";
+
+import Link from "@/components/navigation/app-link";
 import { ArrowRight, BriefcaseBusiness, CalendarClock, MapPin, Phone, Stethoscope, Syringe, UserRound, XCircle, type LucideIcon } from "lucide-react";
 import { VisitStatus } from "@prisma/client";
 import type { PatientTableRow } from "@/lib/patient-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CsrfField } from "@/components/security/csrf-field";
 import { cn } from "@/lib/utils";
 
 type ServerFormAction = (formData: FormData) => void | Promise<void>;
@@ -222,28 +223,7 @@ export function PatientTable({
                   </Link>
                 </Button>
                 {canCancelVisit(patient) && (
-                  <form action={cancelVisitAction}>
-                    <CsrfField />
-                    <input type="hidden" name="patientId" value={patient.id} />
-                    <input
-                      type="hidden"
-                      name="visitId"
-                      value={patient.latestVisitId}
-                    />
-                    <input
-                      type="hidden"
-                      name="redirectTo"
-                      value={cancelRedirectTo}
-                    />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Cancel appointment for ${formatPatientName(patient)}`}
-                    >
-                      <XCircle className="h-4 w-4 text-rose-600" />
-                    </Button>
-                  </form>
+                  <CancellationButton patientId={patient.id} visitId={patient.latestVisitId} entireVisit />
                 )}
               </div>
             </div>
@@ -344,31 +324,7 @@ export function PatientTable({
               </div>
             </Link>
             {canCancelVisit(patient) ? (
-              <form
-                action={cancelVisitAction}
-                className="mt-3 border-t border-slate-100 pt-3"
-              >
-                <CsrfField />
-                <input type="hidden" name="patientId" value={patient.id} />
-                <input
-                  type="hidden"
-                  name="visitId"
-                  value={patient.latestVisitId}
-                />
-                <input
-                  type="hidden"
-                  name="redirectTo"
-                  value={cancelRedirectTo}
-                />
-                <Button
-                  type="submit"
-                  variant="outline"
-                  size="sm"
-                  className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
-                >
-                  <XCircle className="h-4 w-4" /> Cancel Appointment
-                </Button>
-              </form>
+              <CancellationButton patientId={patient.id} visitId={patient.latestVisitId} entireVisit />
             ) : null}
           </div>
         ))}
@@ -545,33 +501,7 @@ export function PatientTable({
                 <td className="w-12 align-top">
                   <div className="flex items-start justify-end gap-2 px-4 py-4">
                     {canCancelVisit(patient) ? (
-                      <form action={cancelVisitAction}>
-                        <CsrfField />
-                        <input
-                          type="hidden"
-                          name="patientId"
-                          value={patient.id}
-                        />
-                        <input
-                          type="hidden"
-                          name="visitId"
-                          value={patient.latestVisitId}
-                        />
-                        <input
-                          type="hidden"
-                          name="redirectTo"
-                          value={cancelRedirectTo}
-                        />
-                        <Button
-                          type="submit"
-                          variant="outline"
-                          size="icon"
-                          aria-label={`Cancel appointment for ${patient.lastName}, ${patient.firstName}`}
-                          className="h-9 w-9 border-rose-200 text-rose-700 hover:bg-rose-50"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </form>
+                      <CancellationButton patientId={patient.id} visitId={patient.latestVisitId} entireVisit />
                     ) : null}
                     <Link
                       href={`/patients/${patient.id}`}

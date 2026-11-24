@@ -5,6 +5,7 @@ import {
 } from "@/lib/clinic-services";
 import { formatDateTime, getMonthRange } from "@/lib/date-time";
 import { ccQuestions, sqdQuestions, scale } from "@/lib/survey-questions";
+import { closedWithoutService } from "@/lib/service-state";
 
 export type ReportSurvey = {
   id: string;
@@ -44,14 +45,25 @@ export type ReportVisit = {
     gender: string;
     agency: string | null;
   };
-  requests: { type: RequestType }[];
+  requests: { type: RequestType; remarks?: string | null }[];
   medicines: { status: string }[];
   vaccinations: unknown[];
   referrals: unknown[];
   followUps: { status: string }[];
   satisfactionSurvey: ReportSurvey | null;
 };
-export type ReportDetail = { label: string; value: string; href?: string };
+export type ReportDetail = {
+  label: string;
+  value: string;
+  href?: string;
+  respondents?: {
+    label: string;
+    value: string;
+    href?: string;
+    surveyId?: string;
+    answer?: string;
+  }[];
+};
 export type ReportRow = {
   id: string;
   cells: (string | number)[];
@@ -263,13 +275,14 @@ export function buildMonthlyReports(
   surveyVisits: ReportVisit[],
   month: string,
   thresholds = defaultThresholds,
+  range?: { start: Date; end: Date; label: string },
 ) {
-  const { start, end, label } = reportMonth(month);
+  const { start, end, label } = range ?? reportMonth(month);
   const monthVisits = visits.filter(
     (v) => eligible(v) && inRange(v.timeIn, start, end),
   );
   const started = monthVisits.filter((v) => v.status !== "QUEUED");
-  const completed = started.filter((v) => v.status === "COMPLETED");
+  const completed = started.filter((v) => v.status === "COMPLETED" && !closedWithoutService(v));
   const surveys = surveyVisits.filter(
     (v) =>
       eligible(v) && v.satisfactionSurvey && inRange(surveyDate(v), start, end),
@@ -358,7 +371,9 @@ export function buildMonthlyReports(
     {
       id: "both",
       cells: [
-        "Patients flagged for both during the month",
+        range
+          ? "Patients flagged for both during the selected period"
+          : "Patients flagged for both during the month",
         distinct(both).length,
         "—",
         "—",
@@ -400,19 +415,19 @@ export function buildMonthlyReports(
     "sqd8",
   ] as const;
   const questionRows = questions.map((question) => {
-    const answers = new Map<string, { label: string; count: number }>();
+    const answers = new Map<string, { label: string; visits: ReportVisit[] }>();
     const cc = ccQuestions.find(([key]) => key === question);
     const sqd = sqdQuestions.find(([key]) => key === question);
     for (const option of cc?.[2] ?? scale)
-      answers.set(keyOf(option), { label: option, count: 0 });
+      answers.set(keyOf(option), { label: option, visits: [] });
     let answered = 0;
     for (const visit of surveys) {
       const answer = tidy(visit.satisfactionSurvey![question]);
       if (!answer) continue;
       answered++;
       const key = keyOf(answer);
-      const item = answers.get(key) ?? { label: answer, count: 0 };
-      item.count++;
+      const item = answers.get(key) ?? { label: answer, visits: [] };
+      item.visits.push(visit);
       answers.set(key, item);
     }
     return {
@@ -424,7 +439,12 @@ export function buildMonthlyReports(
       ],
       details: [...answers.values()].map((item) => ({
         label: item.label,
-        value: `${item.count} response${item.count === 1 ? "" : "s"}`,
+        value: `${item.visits.length} response${item.visits.length === 1 ? "" : "s"}`,
+        respondents: item.visits.map((visit) => ({
+          ...patientDetail(visit),
+          surveyId: visit.satisfactionSurvey!.id,
+          answer: visit.satisfactionSurvey![question]!,
+        })),
       })),
     };
   });
@@ -529,7 +549,7 @@ export function buildMonthlyReports(
       id: "responses",
       title: "Responses per question",
       description:
-        "Survey answers for the month. Select a question to view the response breakdown.",
+        "Survey answers for the month. Select a question, then an answer to view respondent names.",
       columns: ["Question", "Answered", "Unanswered"],
       rows: questionRows,
     },
@@ -578,6 +598,13 @@ export function buildMonthlyReports(
       rows: agencyRows,
     },
   ];
+  if (range) {
+    for (const section of accomplishment)
+      section.description = section.description.replaceAll(
+        "for the month",
+        "for the selected period",
+      );
+  }
   return {
     month,
     label,

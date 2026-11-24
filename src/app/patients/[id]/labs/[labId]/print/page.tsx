@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RetainedBackLink } from "@/components/navigation/retained-back-link";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { PrintActions } from "@/components/clinic-forms/print-actions";
@@ -23,7 +23,7 @@ export default async function LabResultPrintPage({ params }: { params: Promise<{
     <main className="clinic-print-screen">
       <div className="no-print mx-auto mb-4 flex w-[min(100%,210mm)] flex-col gap-3">
         <Button asChild variant="outline" className="w-fit">
-          <Link href={`/patients/${id}`}><ArrowLeft className="h-4 w-4" /> Back to patient</Link>
+          <RetainedBackLink href={`/patients/${id}`}><ArrowLeft className="h-4 w-4" /> Back to patient</RetainedBackLink>
         </Button>
         <PrintActions filename={filename} />
       </div>

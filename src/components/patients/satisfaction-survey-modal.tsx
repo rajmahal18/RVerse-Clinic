@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 
 type SurveyValues = {
   id: string;
+  updatedAt?: string;
   clientType: string;
   customerType?: string;
   agencyName?: string;
@@ -100,6 +101,7 @@ export function SatisfactionSurveyModal({
           <CsrfField />
           <input type="hidden" name="patientId" value={patientId} />
           <input type="hidden" name="visitId" value={visitId} />
+          <input type="hidden" name="surveyVersion" value={survey?.updatedAt ?? ""} />
           <section className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm font-semibold">
               Customer type

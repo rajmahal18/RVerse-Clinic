@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useState } from "react";
 import { CalendarPlus, X } from "lucide-react";
@@ -56,6 +58,7 @@ export function NewVisitModal({
             </div>
 
             <form action={action} className="grid min-h-0 gap-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="patientId" value={patientId} />
               <ServiceRequestedFields options={requestOptions} defaultValues={defaultRequestTypes} />

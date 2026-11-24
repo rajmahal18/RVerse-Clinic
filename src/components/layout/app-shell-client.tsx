@@ -1,6 +1,8 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import Link from "next/link";
+
+import Link from "@/components/navigation/app-link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AlertTriangle, LogOut, Menu, X } from "lucide-react";
@@ -58,6 +60,7 @@ export function AppShellClient({
           <Link
             key={item.href}
             href={item.href}
+            data-retain-navigation
             className={cn(
               "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 md:px-4 md:py-3",
               active && "bg-primary text-white shadow-soft hover:bg-primary hover:text-white"
@@ -137,6 +140,7 @@ export function AppShellClient({
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 xl:inline-flex">Online</span>
             <Notifications hasExpiry={hasMedicineExpiryAlert} onExpiry={() => setExpiryModalOpen(true)} />
             <form action={logoutAction}>
+      <FormFeedback />
               <CsrfField />
               <Button type="submit" variant="ghost" size="icon" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" aria-label="Sign out">
                 <LogOut className="h-5 w-5" />

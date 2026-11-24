@@ -47,8 +47,6 @@ export default async function TodaysPatientsPage({
     [
       UserRole.ADMIN,
       UserRole.DOCTOR,
-      UserRole.NURSE,
-      UserRole.DOCTOR_NURSE,
     ] as UserRole[]
   ).includes(currentUser?.role as UserRole);
   const previousPage = Number(resolvedSearchParams?.prevPage ?? "1");

@@ -1,5 +1,7 @@
 "use client";
-import { useState } from "react";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
+import { useRetainedViewState } from "@/components/navigation/view-retention";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { addDiseaseAction, deleteDiseaseAction } from "@/app/actions/workflow";
 import { CsrfField } from "@/components/security/csrf-field";
@@ -9,7 +11,7 @@ export function DiseaseMasterList({
 }: {
   diseases: { id: string; name: string; isActive: boolean }[];
 }) {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useRetainedViewState("disease-search", "");
   return (
     <section className="min-w-0 bg-white px-4 py-4">
       <div className="mb-4">
@@ -23,6 +25,7 @@ export function DiseaseMasterList({
         action={addDiseaseAction}
         className="flex flex-col gap-2 border-b pb-4 sm:flex-row"
       >
+      <FormFeedback />
         <CsrfField />
         <label className="grid min-w-0 flex-1 gap-1 text-sm font-semibold">
           Disease name
@@ -72,6 +75,7 @@ export function DiseaseMasterList({
                     e.preventDefault();
                 }}
               >
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="diseaseId" value={d.id} />
                 <Button

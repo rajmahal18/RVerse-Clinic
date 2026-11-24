@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 
 import { useState } from "react";
 import { ChevronDown, X } from "lucide-react";
@@ -86,6 +88,7 @@ export function VisitStatusModal({
             </div>
 
             <form action={action} className="grid gap-4 p-4">
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="patientId" value={patientId} />
               <input type="hidden" name="visitId" value={visitId} />

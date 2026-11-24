@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import Link from "next/link";
+import Link from "@/components/navigation/app-link";
 import { InventoryCategory } from "@prisma/client";
 import { AppShell } from "@/components/layout/app-shell";
 import { createInventoryItemAction } from "@/app/actions/workflow";

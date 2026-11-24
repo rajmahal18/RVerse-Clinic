@@ -1,4 +1,6 @@
 "use client";
+import { FormFeedback } from "@/components/ui/form-feedback";
+
 import { RecordAction } from "@/components/admin/record-action";
 import { setMedicineVisibilityAction } from "@/app/actions/workflow";
 
@@ -191,6 +193,7 @@ export function InventoryItemModal({
                 requests and history are retained.
               </p>
               <form action={setMedicineVisibilityAction}>
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="itemId" value={item.id} />
                 <input
@@ -220,6 +223,7 @@ export function InventoryItemModal({
               action={addInventoryQuantityAction}
               className="grid gap-3 p-3 sm:grid-cols-2 sm:items-end"
             >
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="itemId" value={item.id} />
               <label className="grid gap-1 text-sm font-semibold text-slate-700">
@@ -274,6 +278,7 @@ export function InventoryItemModal({
                 action={deductInventoryQuantityAction}
                 className="mt-3 grid gap-3 sm:grid-cols-2"
               >
+      <FormFeedback />
                 <CsrfField />
                 <input type="hidden" name="itemId" value={item.id} />
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">
@@ -334,6 +339,7 @@ export function InventoryItemModal({
               action={updateInventoryItemAction}
               className="grid gap-3 p-3 sm:grid-cols-2"
             >
+      <FormFeedback />
               <CsrfField />
               <input type="hidden" name="itemId" value={item.id} />
               {editableFields.map(([name, label, value]) => (
