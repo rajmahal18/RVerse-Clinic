@@ -24,6 +24,7 @@ import {
   requestMedicineAction,
   requestVaccineAction,
   scheduleReferralAction,
+  scheduleFollowUpAction,
   startVisitAction,
   updateVisitAction,
   updateVisitStatusAction,
@@ -40,6 +41,7 @@ import { AutosaveForm } from "@/components/patients/autosave-form";
 import {
   MedicineRequestModal,
   ReferralScheduleModal,
+  FollowUpScheduleModal,
   VaccineRequestModal,
   VaccinationRecordModal,
 } from "@/components/patients/clinical-action-modals";
@@ -853,11 +855,17 @@ export async function PatientProfile({
                                 Treatment Actions
                               </h3>
                               <p className="text-sm text-slate-500">
-                                Create medicine, referral, or vaccine requests
-                                for this appointment.
+                                Create requests or schedule a follow-up for this appointment.
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
+                              <FollowUpScheduleModal
+                                action={scheduleFollowUpAction}
+                                patientId={patient.id}
+                                visitId={activeVisit.id}
+                                disabled={medicineDecisionPending}
+                                disabledReason={medicineDecisionPendingMessage}
+                              />
                               {!serviceCancelled("MEDICINES") ? <MedicineRequestModal
                                 action={requestMedicineAction}
                                 patientId={patient.id}

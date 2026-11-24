@@ -1202,9 +1202,12 @@ export async function getFollowUpPatientTableRows(
   pageSize = 25,
   search?: string,
 ): Promise<PatientListResult> {
+  const user = await getCurrentUser();
+  if (!user) return paginateRows([], page, pageSize);
   const searchWhere = getPatientSearchWhere(search);
   const followUpVisitWhere = {
     deletedAt: null,
+    status: { not: VisitStatus.CANCELLED },
     followUps: {
       some: {
         status: "SCHEDULED",
@@ -1214,6 +1217,7 @@ export async function getFollowUpPatientTableRows(
   } satisfies Prisma.VisitWhereInput;
   const where = {
     ...(searchWhere ?? {}),
+    clinicId: user.clinicId,
     visits: {
       some: followUpVisitWhere,
     },

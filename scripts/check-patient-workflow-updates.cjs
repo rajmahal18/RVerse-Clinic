@@ -65,6 +65,7 @@ function reset() {
     ],
     logs: [],
     movements: [],
+    followUps: [],
   };
 }
 const prisma = {
@@ -123,6 +124,7 @@ const prisma = {
     },
   },
   medicineRequest: {
+    count: async () => state.medicines.filter(m => m.status === "REQUESTED").length,
     findMany: async () => structuredClone(state.medicines),
     create: async ({ data }) => {
       const m = { id: `request-${state.medicines.length}`, ...data };
@@ -144,6 +146,11 @@ const prisma = {
       return data;
     },
   },
+  followUp: { create: async ({ data }) => {
+    const row = { id: `follow-${state.followUps.length}`, ...data, visit: structuredClone(state.visit) };
+    state.followUps.push(row);
+    return row;
+  } },
   inventoryMovement: { create: async ({ data }) => state.movements.push(data) },
   formDraft: { updateMany: async () => ({ count: 0 }) },
   labResult: { findMany: async () => [] },
@@ -159,6 +166,7 @@ const actions = load("src/app/actions/workflow.ts", {
   "@/lib/csrf": { assertValidCsrfToken: async () => {} },
   "@/lib/visit-fields": fields,
   "@/lib/date-time": {
+    parseAppDateInput: value => new Date(value.length === 16 ? value + ":00+08:00" : value),
     formatDateKey: (date) => new Date(date).toISOString().slice(0, 10),
   },
   "@/lib/activity-log": { writeActivityLog: async () => {} },
@@ -240,6 +248,53 @@ async function checkExistingDatabaseMigration() {
 
 async function main() {
   await checkExistingDatabaseMigration();
+  let followUpQuery;
+  let listUser = { clinicId: "clinic-a" };
+  const followUpList = load("src/lib/patient-view.ts", {
+    "@/lib/auth": { getCurrentUser: async () => listUser },
+    "@/lib/prisma": { prisma: { patient: { findMany: async args => { followUpQuery = args; return []; } } } },
+  });
+  await followUpList.getFollowUpPatientTableRows(1, 25, "Sample");
+  assert.equal(followUpQuery.where.clinicId, "clinic-a");
+  assert.equal(followUpQuery.where.visits.some.status.not, "CANCELLED");
+  assert.equal(followUpQuery.include.visits.where.status.not, "CANCELLED");
+  assert.equal(followUpQuery.where.visits.some.followUps.some.status, "SCHEDULED");
+  listUser = { clinicId: "clinic-b" };
+  await followUpList.getFollowUpPatientTableRows();
+  assert.equal(followUpQuery.where.clinicId, "clinic-b");
+  listUser = null; followUpQuery = null;
+  assert.equal((await followUpList.getFollowUpPatientTableRows()).totalCount, 0);
+  assert.equal(followUpQuery, null, "Unauthenticated list must not query patient records");
+  console.log("PASS: Follow-ups list scopes every query to the signed-in clinic, excludes cancelled visits, and does not query records without a session.");
+  for (const role of ["ADMIN", "DOCTOR", "NURSE", "DOCTOR_NURSE"]) {
+    reset(); user.role = role; state.visit.status = "IN_PROGRESS";
+    await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30", remarks: "Review blood pressure" });
+    assert.equal(state.visit.status, "FOR_FOLLOW_UP");
+    assert.equal(state.followUps[0].scheduledFor.toISOString(), "2026-12-01T01:30:00.000Z");
+    assert.equal(state.followUps[0].remarks, "Review blood pressure");
+    assert.equal(state.logs[0].userId, user.id);
+  }
+  for (const status of ["QUEUED", "COMPLETED", "CANCELLED"]) {
+    reset(); state.visit.status = status;
+    await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30" }, status === "QUEUED" ? "Start the visit" : "already closed");
+    assert.equal(state.followUps.length, 0);
+  }
+  reset(); state.visit.status = "IN_PROGRESS"; state.visit.patient.clinicId = "other-clinic";
+  await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30" }, "not found");
+  assert.equal(state.followUps.length, 0);
+  reset(); state.visit.status = "IN_PROGRESS"; state.medicines.push({ status: "REQUESTED" });
+  await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30" }, "awaiting pharmacist");
+  assert.equal(state.followUps.length, 0);
+  reset(); state.visit.status = "IN_PROGRESS"; failAudit = true;
+  await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30" }, "Audit unavailable");
+  assert.equal(state.followUps.length, 0); assert.equal(state.visit.status, "IN_PROGRESS");
+  reset(); state.visit.status = "IN_PROGRESS"; user.role = "RECORDS";
+  await run(actions.scheduleFollowUpAction, { scheduledFor: "2026-12-01T09:30" }, "permission");
+  assert.equal(state.followUps.length, 0);
+  reset(); state.visit.status = "IN_PROGRESS";
+  await run(actions.scheduleFollowUpAction, { scheduledFor: "bad-date" }, "Invalid date");
+  assert.equal(state.followUps.length, 0);
+  console.log("PASS: follow-up scheduling, Manila date/time, clinical role permissions, closed/queued/pending-medicine/tenant guards, and atomic audit rollback.");
   reset();
   await run(actions.correctCompletedVisitAction, { chiefComplaint: "Cough" });
   assert.equal(state.visit.chiefComplaint, "Cough");

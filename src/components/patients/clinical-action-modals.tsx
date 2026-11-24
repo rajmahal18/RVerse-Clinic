@@ -1,7 +1,8 @@
 "use client";
 import { AutosaveForm } from "@/components/patients/autosave-form";
+import { FormFeedback } from "@/components/ui/form-feedback";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarPlus, ClipboardPlus, Syringe, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CsrfField } from "@/components/security/csrf-field";
@@ -21,6 +22,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div
         role="dialog"
         aria-modal="true"
+        aria-label={title}
         className="max-h-[92dvh] w-full max-w-xl overflow-hidden rounded-2xl border bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
@@ -143,6 +145,70 @@ export function ReferralScheduleModal({ action, patientId, visitId, referralReas
               <CalendarPlus className="h-4 w-4" /> Save Schedule
             </Button>
           </AutosaveForm>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+export function FollowUpScheduleModal({ action, patientId, visitId, disabled = false, disabledReason }: {
+  action: Action;
+  patientId: string;
+  visitId: string;
+  disabled?: boolean;
+  disabledReason?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const saving = useRef(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const close = () => { if (!saving.current) setOpen(false); };
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    const button = trigger.current;
+    document.body.style.overflow = "hidden";
+    form.current?.querySelector<HTMLInputElement>('input[type="datetime-local"]')?.focus();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving.current) setOpen(false);
+    };
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", escape);
+      button?.focus({ preventScroll: true });
+    };
+  }, [open]);
+  return (
+    <>
+      <Button ref={trigger} type="button" variant="outline" disabled={disabled} title={disabled ? disabledReason : undefined} onClick={() => setOpen(true)}>
+        <CalendarPlus className="h-4 w-4" /> Schedule Follow-up
+      </Button>
+      {open ? (
+        <Modal title="Schedule Follow-up" onClose={close}>
+          <form ref={form} onSubmit={() => { saving.current = true; setPending(true); }} action={async (data) => {
+            try { await action(data); }
+            finally { saving.current = false; setPending(false); }
+          }} className="grid min-w-0 gap-4">
+            <FormFeedback />
+            <CsrfField />
+            <input type="hidden" name="patientId" value={patientId} />
+            <input type="hidden" name="visitId" value={visitId} />
+            <p className="text-sm text-slate-500">Set the return schedule and mark this visit as for follow up.</p>
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">
+              Follow-up date and time
+              <input name="scheduledFor" type="datetime-local" required className="h-10 w-full min-w-0 max-w-full rounded-lg border px-3 font-normal" />
+            </label>
+            <label className="grid min-w-0 gap-1 text-sm font-semibold">
+              Remarks (optional)
+              <textarea name="remarks" maxLength={1000} rows={3} className="w-full min-w-0 rounded-lg border px-3 py-2 font-normal" />
+            </label>
+            <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
+              <Button type="button" variant="outline" disabled={pending} onClick={close}>Cancel</Button>
+              <Button type="submit"><CalendarPlus className="h-4 w-4" /> Save Follow-up</Button>
+            </div>
+          </form>
         </Modal>
       ) : null}
     </>

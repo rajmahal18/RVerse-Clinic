@@ -1712,30 +1712,36 @@ export async function scheduleFollowUpAction(formData: FormData) {
   const patientId = requiredString(formData, "patientId");
   const visitId = requiredString(formData, "visitId");
   await runAction(formData, `/patients/${patientId}`, "Follow-ups", "Schedule follow-up", async () => {
-    await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
-    await ensureOpenVisitForPatient(prisma, patientId, visitId, { allowQueued: false });
-    await requireNoPendingMedicineDecision(prisma, visitId);
+    const user = await requireRole([UserRole.ADMIN, UserRole.DOCTOR, UserRole.NURSE, UserRole.DOCTOR_NURSE]);
     const scheduledFor = parseDate(requiredString(formData, "scheduledFor"));
-    const followUp = await prisma.$transaction(async (tx) => {
+    const remarks = optionalString(formData, "remarks");
+    if (remarks && remarks.length > 1000) throw new Error("Follow-up remarks must be 1,000 characters or fewer.");
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Visit" WHERE id = ${visitId} FOR UPDATE`;
+      await ensureOpenVisitForPatient(tx, patientId, visitId, { allowQueued: false });
+      await requireNoPendingMedicineDecision(tx, visitId);
       const createdFollowUp = await tx.followUp.create({
-        data: { visitId, scheduledFor, remarks: optionalString(formData, "remarks") },
+        data: { visitId, scheduledFor, remarks },
         include: { visit: { include: { patient: true } } },
       });
       await tx.visit.update({ where: { id: visitId }, data: { status: VisitStatus.FOR_FOLLOW_UP } });
-      return createdFollowUp;
-    });
-    await writeActivityLog({
-      clinicId: followUp.visit.patient.clinicId,
-      module: "Follow-ups",
-      action: "Schedule follow-up",
-      entityType: "FollowUp",
-      entityId: followUp.id,
-      description: `Scheduled follow-up for ${followUp.visit.patient.lastName}, ${followUp.visit.patient.firstName}.`,
-      metadata: { scheduledFor: scheduledFor.toISOString() },
+      await tx.activityLog.create({ data: {
+        clinicId: createdFollowUp.visit.patient.clinicId,
+        userId: user.id,
+        module: "Follow-ups",
+        action: "Schedule follow-up",
+        entityType: "FollowUp",
+        entityId: createdFollowUp.id,
+        description: `Scheduled follow-up for ${createdFollowUp.visit.patient.lastName}, ${createdFollowUp.visit.patient.firstName}.`,
+        metadata: { scheduledFor: scheduledFor.toISOString(), remarks: remarks ?? null },
+      } });
     });
   }, { type: "Visit", id: visitId });
   revalidatePath("/follow-ups");
   revalidatePath(`/patients/${patientId}`);
+  revalidatePath("/patients");
+  revalidatePath("/todays-patients");
+  revalidatePath("/activity-logs");
   redirect(`/patients/${patientId}`);
 }
 
